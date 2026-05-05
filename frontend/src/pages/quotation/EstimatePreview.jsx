@@ -48,24 +48,33 @@ const PRINT_STYLE = `
     print-color-adjust: exact !important;
   }
   @page {
-    margin: 10mm;
-    size: A4;
+    margin: 0 !important;
+    size: auto; /* Allow browser to determine size but hide margins */
   }
-  /* Hide non-print elements */
-  .no-print, nav, footer, header, button, .sticky { display: none !important; }
   
+  .no-print, nav, footer, header, button, .sticky { display: none !important; }
 
+  .print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
 
   #print-area {
     display: block !important;
     position: relative !important;
-    width: 100% !important;
+    width: 210mm !important; 
+    height: 297mm !important; 
     max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    margin: 0 auto !important;
+    padding: 10mm !important; 
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+    overflow: hidden !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
   .item-card {
@@ -97,20 +106,20 @@ function PrintDocument({ q }) {
   return (
     <div id="print-area" className="print-area bg-white text-gray-900 rounded-2xl shadow-2xl border border-slate-300 overflow-hidden mx-auto" style={{ maxWidth: 820, fontFamily: "'Inter', sans-serif" }}>
       {/* ── HEADER ── */}
-      <div style={{ background: "#5A374F", color: "white", padding: "12px 30px" }}>
+      <div style={{ background: "#5A374F", color: "white", padding: "8px 25px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
 
           <div>
-            <img src={logoLight} alt="Nazara Diamonds" style={{ height: 80, objectFit: "contain" }} />
+            <img src={logoLight} alt="Nazara Diamonds" style={{ height: 60, objectFit: "contain" }} />
           </div>
           <div style={{ textAlign: "right" }}>
-            <h1 style={{ fontSize: 14, fontWeight: 900, letterSpacing: "2px", margin: "0 0 4px", color: "white", opacity: 0.8 }}>ESTIMATE</h1>
-            <p style={{ fontSize: 24, fontWeight: 900, fontFamily: "monospace", margin: "0 0 12px", color: "#f5f0f5ff" }}>{q.quotationNo}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, margin: 0, color: "white" }}>
+            <h1 style={{ fontSize: 13, fontWeight: 900, letterSpacing: "2px", margin: "0 0 2px", color: "white", opacity: 0.8 }}>ESTIMATE</h1>
+            <p style={{ fontSize: 20, fontWeight: 900, fontFamily: "monospace", margin: "0 0 8px", color: "#f5f0f5ff" }}>{q.quotationNo}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: "white" }}>
                 <span style={{ opacity: 0.6 }}>Issued Date:</span> {issueDate}
               </p>
-              <p style={{ fontSize: 11, fontWeight: 600, margin: 0, color: "white" }}>
+              <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: "white" }}>
                 <span style={{ opacity: 0.6 }}>Valid Until:</span> {validUntil}
               </p>
             </div>
@@ -122,12 +131,12 @@ function PrintDocument({ q }) {
 
 
       {/* ── CUSTOMER TABLE ── */}
-      <div style={{ padding: "12px 15px 0" }}>
+      <div style={{ padding: "10px 15px 0" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", border: "2px solid #5A374F", borderRadius: 8, overflow: "hidden" }}>
 
           <thead>
             <tr style={{ background: "#5A374F", color: "white" }}>
-              <th colSpan={2} style={{ padding: "10px 15px", textAlign: "left", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "2px", color: "white" }}>
+              <th colSpan={2} style={{ padding: "8px 15px", textAlign: "left", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "2px", color: "white" }}>
                 Client Information
               </th>
             </tr>
@@ -163,11 +172,11 @@ function PrintDocument({ q }) {
 
 
       {/* ── ITEMS ── */}
-      <div style={{ padding: "10px 15px" }}>
+      <div style={{ padding: "8px 15px" }}>
         {(q.items || []).map((item, idx) => {
           const b = item.breakup || {};
           return (
-            <div key={idx} className="item-card" style={{ marginBottom: 15, border: "1px solid #94a3b8", borderRadius: 12, overflow: "hidden" }}>
+            <div key={idx} className="item-card" style={{ marginBottom: 10, border: "1px solid #94a3b8", borderRadius: 12, overflow: "hidden" }}>
               {/* Item title */}
 
               <div style={{ background: "#5A374F", color: "white", padding: "6px 15px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -265,7 +274,7 @@ function PrintDocument({ q }) {
         })}
 
         {/* ── FINAL SUMMARY ── */}
-        <div style={{ marginTop: 12, borderTop: "2px solid #94a3b8", paddingTop: 10 }}>
+        <div style={{ marginTop: 8, borderTop: "2px solid #94a3b8", paddingTop: 8 }}>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
             <div style={{ width: 220 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
@@ -289,14 +298,14 @@ function PrintDocument({ q }) {
 
       {/* ── NOTES ── */}
       {q.notes && (
-        <div style={{ padding: "0 30px 8px" }}>
+        <div style={{ padding: "0 30px 4px" }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Notes</p>
           <p style={{ fontSize: 12, color: "#374151", background: "#f9fafb", borderRadius: 6, padding: "8px 12px", border: "1px solid #94a3b8" }}>{q.notes}</p>
         </div>
       )}
 
       {/* ── IMPORTANT NOTES ── */}
-      <div style={{ padding: "0 30px 15px" }}>
+      <div style={{ padding: "0 30px 10px" }}>
         <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Important Notes</p>
         <ol style={{ fontSize: 10, color: "#6b7280", lineHeight: 1.4, paddingLeft: 15, margin: 0 }}>
           <li>Gold / metal rates are subject to market fluctuation and may change without notice.</li>
