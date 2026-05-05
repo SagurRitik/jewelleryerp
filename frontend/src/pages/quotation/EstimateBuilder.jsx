@@ -14,6 +14,8 @@ import { getImageUrl } from "../../utils/getImageUrl";
 
 /* ──────────────────── CONSTANTS ──────────────────── */
 import { DIAMOND_COLORS as COLORS, DIAMOND_CLARITIES as CLARITIES, DIAMOND_SHAPES as SHAPES } from "../../utils/diamondConstants";
+import { PURITY_FACTORS } from "../../../../backend/utils/purityFactors.js";
+
 
 const PURITY_OPTIONS = {
   Gold: ["24KT", "22KT", "18KT", "14KT", "10KT", "9KT"],
@@ -194,12 +196,7 @@ export default function EstimateBuilder() {
           const nw = Number(field === "netWeight" ? value : it.netWeight) || 0;
           const purity = field === "metalPurity" ? value : it.metalPurity;
 
-          const PURITY_MAP = {
-            "24KT": 1, "22KT": 0.916, "18KT": 0.75, "14KT": 0.585, "10KT": 0.417, "9KT": 0.375,
-            "999": 1, "925": 0.925, "835": 0.835, "800": 0.8, "950": 0.95
-          };
-
-          const factor = PURITY_MAP[purity] || 1;
+          const factor = PURITY_FACTORS[purity] || 1;
           updated.fineGold = (nw * factor).toFixed(3);
         }
 
@@ -920,7 +917,7 @@ export default function EstimateBuilder() {
                         />
                       </div>
                       <div>
-                        <label className={labelClass}>Fine Gold (g)</label>
+                        <label className={labelClass}>Fine Metal (g)</label>
                         <input
                           type="number"
                           value={item.fineGold}
