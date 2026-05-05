@@ -1,0 +1,619 @@
+/* ================================================================
+   AdjustmentWizard.css  —  Advanced Return & Exchange Wizard
+   Design: Dark-rose ERP palette  (#5E2743, #F4EBEF, white cards)
+   ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ── Root Variables ─────────────────────────────────────────── */
+:root {
+  --rose:       #5E2743;
+  --rose-light: #F4EBEF;
+  --rose-mid:   #EBD5DF;
+  --rose-dark:  #3d1a2b;
+  --green:      #2A4531;
+  --green-light:#E6F4EA;
+  --red:        #c0392b;
+  --red-light:  #fdecea;
+  --text-dark:  #1A1A1A;
+  --text-mid:   #4a4a4a;
+  --text-muted: #8B8286;
+  --border:     #ede6ea;
+  --bg:         #FDF9FA;
+  --card:       #ffffff;
+  --shadow:     0 2px 16px rgba(94,39,67,0.07);
+  --shadow-lg:  0 8px 32px rgba(94,39,67,0.12);
+  --radius:     16px;
+  --radius-sm:  10px;
+}
+
+/* ── Page Wrapper ───────────────────────────────────────────── */
+.aw-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 32px 16px 80px;
+  font-family: 'Inter', sans-serif;
+}
+
+.aw-inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── Page Header ────────────────────────────────────────────── */
+.aw-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.aw-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--rose-light);
+  color: var(--rose);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+.aw-back-btn:hover { background: var(--rose-mid); }
+
+.aw-header-text h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin: 0 0 4px;
+}
+.aw-header-text p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ── Step Indicator ─────────────────────────────────────────── */
+.aw-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 36px;
+}
+
+.aw-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.aw-step-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  border: 2px solid var(--border);
+  background: white;
+  color: var(--text-muted);
+  transition: all 0.25s;
+}
+.aw-step.active  .aw-step-dot { background: var(--rose); border-color: var(--rose); color: white; }
+.aw-step.done    .aw-step-dot { background: var(--green); border-color: var(--green); color: white; }
+
+.aw-step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color 0.25s;
+}
+.aw-step.active .aw-step-label { color: var(--rose); }
+.aw-step.done   .aw-step-label { color: var(--green); }
+
+.aw-step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  margin: 0 8px;
+  border-radius: 2px;
+}
+.aw-step-line.done { background: var(--green); }
+
+/* ── Card ───────────────────────────────────────────────────── */
+.aw-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.aw-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aw-card-title svg { color: var(--rose); }
+
+/* ── Item Selection Cards (Step 1) ──────────────────────────── */
+.aw-item-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aw-item-card {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.aw-item-card:hover   { border-color: var(--rose); background: var(--rose-light); }
+.aw-item-card.selected { border-color: var(--rose); background: var(--rose-light); }
+
+.aw-item-card-left h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 4px;
+}
+.aw-item-card-left p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.aw-item-card-left p span {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+.aw-item-card-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+.aw-item-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--rose);
+}
+.aw-item-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ── Return Type Cards (Step 2) ─────────────────────────────── */
+.aw-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.aw-type-card {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.aw-type-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.aw-type-card.refund::before   { background: linear-gradient(135deg,#FDE8EF,#fff); }
+.aw-type-card.exchange::before { background: linear-gradient(135deg,#E6F4EA,#fff); }
+
+.aw-type-card:hover         { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.aw-type-card.selected.refund   { border-color: var(--rose);  background: var(--rose-light); }
+.aw-type-card.selected.exchange { border-color: var(--green); background: var(--green-light); }
+
+.aw-type-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.aw-type-card.refund   .aw-type-icon { background: var(--rose-light);  color: var(--rose); }
+.aw-type-card.exchange .aw-type-icon { background: var(--green-light); color: var(--green); }
+.aw-type-card.selected .aw-type-icon { opacity: 1; }
+
+.aw-type-card h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 8px;
+}
+.aw-type-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.6;
+}
+.aw-type-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-top: 12px;
+}
+.aw-type-card.refund   .aw-type-badge { background: var(--rose);  color: white; }
+.aw-type-card.exchange .aw-type-badge { background: var(--green); color: white; }
+
+/* ── Adjustment Engine (Step 3) ─────────────────────────────── */
+
+/* Preset Buttons */
+.aw-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.aw-preset-btn {
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.aw-preset-btn:hover,
+.aw-preset-btn.active { border-color: var(--rose); background: var(--rose-light); color: var(--rose); }
+
+/* Controls Grid */
+.aw-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.aw-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.aw-control-group.full { grid-column: 1 / -1; }
+
+.aw-control-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aw-control-label svg { color: var(--rose); }
+
+/* Radio / Toggle Pills */
+.aw-pill-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.aw-pill {
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  background: white;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.aw-pill:hover   { border-color: var(--rose); color: var(--rose); }
+.aw-pill.active  { border-color: var(--rose); background: var(--rose); color: white; }
+
+/* Percent Slider */
+.aw-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.aw-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--rose-mid);
+  outline: none;
+}
+.aw-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rose);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(94,39,67,0.3);
+}
+.aw-slider-value {
+  width: 52px;
+  text-align: center;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rose);
+  background: white;
+}
+.aw-slider-value:focus { outline: none; border-color: var(--rose); }
+
+/* Custom input */
+.aw-input {
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+.aw-input:focus { border-color: var(--rose); }
+
+/* Toggle Switch */
+.aw-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #faf8f9;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.aw-toggle-row span { font-size: 13px; font-weight: 600; color: var(--text-mid); }
+.aw-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.aw-toggle input { opacity: 0; width: 0; height: 0; }
+.aw-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.aw-toggle input:checked + .aw-toggle-track { background: var(--rose); }
+.aw-toggle-track::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+}
+.aw-toggle input:checked + .aw-toggle-track::before { transform: translateX(18px); }
+
+/* ── Adjustment Table ────────────────────────────────────────── */
+.aw-table-wrap {
+  background: linear-gradient(135deg, #1a0e14, #2d1520);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.aw-table-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aw-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.aw-table th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  padding: 0 0 10px;
+  text-align: left;
+}
+.aw-table th:not(:first-child) { text-align: right; }
+
+.aw-table td {
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.aw-table td:not(:first-child) { text-align: right; }
+
+.aw-table td:first-child {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.55);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aw-table td:first-child svg { opacity: 0.6; }
+
+.aw-table tr.total-row td {
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 14px;
+  color: white;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.aw-diff {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.aw-diff.positive { background: rgba(42,69,49,0.4); color: #6fcf97; }
+.aw-diff.negative { background: rgba(192,57,43,0.3); color: #eb5757; }
+.aw-diff.zero     { color: rgba(255,255,255,0.35); font-size: 12px; }
+
+/* Final Amount Banner */
+.aw-final-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--rose);
+  border-radius: var(--radius-sm);
+  padding: 16px 22px;
+  margin-top: 16px;
+}
+.aw-final-banner-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.aw-final-banner-amount {
+  font-size: 26px;
+  font-weight: 800;
+  color: white;
+}
+
+/* ── Reason Textarea ────────────────────────────────────────── */
+.aw-textarea {
+  width: 100%;
+  min-height: 80px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-dark);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.aw-textarea:focus { border-color: var(--rose); }
+
+/* ── Navigation Buttons ─────────────────────────────────────── */
+.aw-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.aw-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+.aw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.aw-btn.primary {
+  background: var(--rose);
+  color: white;
+}
+.aw-btn.primary:hover:not(:disabled) { background: var(--rose-dark); transform: translateY(-1px); }
+
+.aw-btn.secondary {
+  background: var(--rose-light);
+  color: var(--rose);
+}
+.aw-btn.secondary:hover:not(:disabled) { background: var(--rose-mid); }
+
+.aw-btn.success {
+  background: var(--green);
+  color: white;
+}
+.aw-btn.success:hover:not(:disabled) { background: #1e3324; transform: translateY(-1px); }
+
+/* ── Metal Rate Info Bar ────────────────────────────────────── */
+.aw-rate-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--rose-light);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 4px;
+}
+.aw-rate-chip {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rose);
+}
+.aw-rate-chip span { color: var(--text-muted); font-weight: 500; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .aw-card { padding: 20px 16px; }
+  .aw-type-grid { grid-template-columns: 1fr; }
+  .aw-controls { grid-template-columns: 1fr; }
+  .aw-control-group.full { grid-column: 1; }
+  .aw-header { flex-direction: column; gap: 10px; }
+  .aw-final-banner { flex-direction: column; gap: 4px; text-align: center; }
+}

@@ -1,0 +1,53 @@
+name: Deploy JewelryERP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 122.176.216.225
+          username: root
+          port: 22
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+
+            echo "Go to project directory"
+            cd /var/www/jewelleryerp
+
+            echo "Reset old code"
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Pull latest code"
+            git pull origin main
+
+            echo "Backend setup"
+            cd backend
+            npm install
+
+            echo "Frontend setup"
+            cd ../frontend
+            npm install
+
+            echo "Build frontend"
+            npm run build
+
+            echo "Restart backend"
+            cd ../backend
+
+            pm2 delete jewellery-api || true
+            pm2 start server.js --name jewellery-api --update-env
+
+            echo "Save PM2"
+            pm2 save
+
+            echo "PM2 Status"
+            pm2 list
