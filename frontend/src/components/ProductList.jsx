@@ -608,6 +608,7 @@ export default function ProductList() {
                   <option value="Bangle">Bangles</option>
                   <option value="Bracelet">Bracelets</option>
                   <option value="Earring">Earrings</option>
+                  <option value="Pendant">Pendants</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
