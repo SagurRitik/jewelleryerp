@@ -42,7 +42,6 @@ const PRINT_STYLE = `
 @media print {
   body { 
     background: white !important; 
-    color: #000 !important; 
     margin: 0 !important; 
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important; 
