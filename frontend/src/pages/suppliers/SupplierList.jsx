@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Search, Plus, Edit, Eye, Power, PowerOff, Filter, DollarSign, FileText, X, Trash2 } from "lucide-react";
+import { Search, Plus, Edit, Power, PowerOff, DollarSign, FileText, X, Trash2 } from "lucide-react";
 
 export default function SupplierList() {
   const [suppliers, setSuppliers] = useState([]);
@@ -17,7 +17,11 @@ export default function SupplierList() {
     amount: "",
     paymentMode: "BANK",
     reference: "",
-    note: ""
+    note: "",
+    metalType: "Gold",
+    weight: "",
+    rate: "",
+    purity: ""
   });
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
@@ -74,6 +78,14 @@ export default function SupplierList() {
     }
   };
 
+  // Auto-calculate amount if GOLD is selected and weight/rate change
+  useEffect(() => {
+    if (paymentData.paymentMode === "GOLD" && paymentData.weight && paymentData.rate) {
+      const calculatedAmount = Number(paymentData.weight) * Number(paymentData.rate);
+      setPaymentData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
+    }
+  }, [paymentData.weight, paymentData.rate, paymentData.paymentMode]);
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     if (!paymentData.amount || Number(paymentData.amount) <= 0) {
@@ -87,7 +99,11 @@ export default function SupplierList() {
         amount: Number(paymentData.amount),
         paymentMode: paymentData.paymentMode,
         reference: paymentData.reference,
-        note: paymentData.note
+        note: paymentData.note,
+        metalType: paymentData.metalType,
+        weight: paymentData.weight,
+        rate: paymentData.rate,
+        purity: paymentData.purity
       });
       toast.success("Payment recorded successfully");
       setIsPaymentModalOpen(false);
@@ -227,7 +243,16 @@ export default function SupplierList() {
                           <button 
                             onClick={() => {
                               setSelectedSupplier(s);
-                              setPaymentData({ amount: "", paymentMode: "BANK", reference: "", note: "" });
+                              setPaymentData({ 
+                                amount: "", 
+                                paymentMode: "BANK", 
+                                reference: "", 
+                                note: "",
+                                metalType: "Gold",
+                                weight: "",
+                                rate: "",
+                                purity: ""
+                              });
                               setIsPaymentModalOpen(true);
                             }}
                             className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
@@ -296,91 +321,166 @@ export default function SupplierList() {
 
       {/* PAYMENT MODAL */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[24px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-white">
+            <div className="p-6 pb-2 flex justify-between items-start">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Record Payment</h2>
-                <p className="text-xs text-gray-500 mt-1">Paying to: <span className="font-bold text-indigo-600">{selectedSupplier?.name}</span></p>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-wider mb-1">
+                   <DollarSign size={8} /> Settlement
+                </div>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Record Payment</h2>
+                <p className="text-xs text-gray-500 mt-0.5 font-medium">Paying: <span className="text-gray-800 font-bold">{selectedSupplier?.name}</span></p>
               </div>
               <button 
                 onClick={() => setIsPaymentModalOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 rounded-xl transition-all text-gray-400 hover:text-gray-900"
               >
-                <X size={20} className="text-gray-400" />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+            <form onSubmit={handlePaymentSubmit} className="p-6 pt-2 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Amount (₹)</label>
-                <input 
-                  type="number" 
-                  autoFocus
-                  required
-                  placeholder="0.00"
-                  value={paymentData.amount}
-                  onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Payment Mode</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["CASH", "BANK", "UPI"].map(mode => (
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Payment Mode</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { id: "CASH", label: "Cash", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>, color: "indigo" },
+                    { id: "BANK", label: "Bank", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11"/></svg>, color: "indigo" },
+                    { id: "UPI", label: "UPI", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>, color: "indigo" },
+                    { id: "GOLD", label: "Gold", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 3h12l4 6-10 12L2 9Z"/><path d="M2 9h20"/></svg>, color: "amber" }
+                  ].map(mode => (
                     <button
-                      key={mode}
+                      key={mode.id}
                       type="button"
-                      onClick={() => setPaymentData({...paymentData, paymentMode: mode})}
-                      className={`py-2 rounded-lg text-xs font-bold transition-all border ${
-                        paymentData.paymentMode === mode 
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20' 
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-200'
+                      onClick={() => setPaymentData({...paymentData, paymentMode: mode.id})}
+                      className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl text-[9px] font-black uppercase tracking-tight transition-all border ${
+                        paymentData.paymentMode === mode.id 
+                          ? mode.color === 'amber'
+                            ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-600/20'
+                            : 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
                       }`}
                     >
-                      {mode}
+                      {mode.icon}
+                      {mode.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reference / TXN ID</label>
-                <input 
-                  type="text" 
-                  placeholder="Optional reference"
-                  value={paymentData.reference}
-                  onChange={(e) => setPaymentData({...paymentData, reference: e.target.value})}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-indigo-500"
-                />
-              </div>
+              {paymentData.paymentMode === "GOLD" && (
+                <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 space-y-3 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-700/50 uppercase tracking-widest mb-1 ml-1">Metal</label>
+                      <select 
+                        value={paymentData.metalType}
+                        onChange={(e) => setPaymentData({...paymentData, metalType: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-900 outline-none"
+                      >
+                        <option value="Gold">Gold</option>
+                        <option value="Silver">Silver</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-700/50 uppercase tracking-widest mb-1 ml-1">Purity</label>
+                      <input 
+                        type="text" 
+                        placeholder="22K"
+                        value={paymentData.purity}
+                        onChange={(e) => setPaymentData({...paymentData, purity: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-700/50 uppercase tracking-widest mb-1 ml-1">Weight (g)</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={paymentData.weight}
+                        onChange={(e) => setPaymentData({...paymentData, weight: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-700/50 uppercase tracking-widest mb-1 ml-1">Rate</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={paymentData.rate}
+                        onChange={(e) => setPaymentData({...paymentData, rate: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Note</label>
-                <textarea 
-                  placeholder="Optional internal note"
-                  rows={2}
-                  value={paymentData.note}
-                  onChange={(e) => setPaymentData({...paymentData, note: e.target.value})}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-indigo-500 resize-none"
-                />
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-1">Amount (₹)</label>
+                <div className="relative">
+                  <div className={`absolute left-3 top-1/2 -translate-y-1/2 font-black text-sm ${paymentData.paymentMode === "GOLD" ? 'text-amber-600' : 'text-indigo-600'}`}>₹</div>
+                  <input 
+                    type="number" 
+                    required
+                    placeholder="0.00"
+                    value={paymentData.amount}
+                    readOnly={paymentData.paymentMode === "GOLD"}
+                    onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                    className={`w-full border rounded-xl pl-7 pr-3 py-2.5 text-lg font-black outline-none transition-all ${
+                      paymentData.paymentMode === "GOLD" 
+                        ? 'bg-amber-50/30 border-amber-100 text-amber-900' 
+                        : 'bg-gray-50 border-gray-100 text-gray-800 focus:border-indigo-500 focus:bg-white'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">Ref ID</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ref"
+                    value={paymentData.reference}
+                    onChange={(e) => setPaymentData({...paymentData, reference: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">Memo</label>
+                  <input 
+                    type="text" 
+                    placeholder="Note"
+                    value={paymentData.note}
+                    onChange={(e) => setPaymentData({...paymentData, note: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               <div className="pt-2 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setIsPaymentModalOpen(false)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-200 transition-colors"
+                  className="flex-1 py-2.5 bg-gray-50 text-gray-400 font-bold text-xs rounded-xl hover:bg-gray-100 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingPayment}
-                  className="flex-2 py-3 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98] disabled:opacity-50"
+                  className={`flex-[1.5] py-2.5 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                    paymentData.paymentMode === "GOLD" 
+                      ? 'bg-amber-600 hover:bg-amber-700' 
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
                 >
-                  {submittingPayment ? "Recording..." : "Confirm Payment"}
+                  {submittingPayment ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    "Confirm Payment"
+                  )}
                 </button>
               </div>
             </form>

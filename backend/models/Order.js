@@ -20,6 +20,7 @@ const orderComponentSchema = new mongoose.Schema(
     color: String,
     clarity: String,
     cut: String,
+    description: { type: String, default: "" },
     certificateNo: String,
 
     count: { type: Number, default: 0 },

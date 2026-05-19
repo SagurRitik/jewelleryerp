@@ -6,6 +6,34 @@ import calculateItem from "../../utils/calculateItem.js";
 import Product from "../../models/Product.js";
 import MetalLedger from "../../models/MetalLedger.js";
 import { normalizeImage } from "../../utils/normalizeImage.js";
+import { PURITY_FACTORS } from "../../utils/purityFactors.js";
+import sharp from "sharp";
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+
+/* ================= HELPERS ================= */
+const saveUploadedFile = async (file) => {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+
+  const uniqueSuffix = crypto.randomBytes(4).toString("hex");
+  const filename = `order-${Date.now()}-${uniqueSuffix}.webp`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  await sharp(file.buffer)
+    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+    .toFormat("webp")
+    .toFile(filePath);
+
+  return `/uploads/${filename}`;
+};
 
 /* ================= HELPERS ================= */
 const normalizeString = (v) => {
@@ -13,22 +41,6 @@ const normalizeString = (v) => {
   return v.trim().charAt(0).toUpperCase() + v.trim().slice(1);
 };
 
-/* ================= PURITY FACTORS ================= */
-const PURITY_MAP = {
-
-  "24KT": 1,
-  "22KT": 0.916,
-  "18KT": 0.76,
-  "14KT": 0.60,
-  "10KT": 0.43,
-  "9KT": 0.39,
-  "999": 1,
-  "925": 1,
-  "835": 0.835,
-  "800": 0.8,
-  "950": 1,
-  "900": 0.947,
-};
 
 /* ================= SANITIZER ================= */
 const sanitizeOrderData = (data) => {
@@ -40,7 +52,7 @@ const sanitizeOrderData = (data) => {
     if (key.includes("[") && key.includes("]")) {
       const parts = key.split(/[\[\]]+/).filter(Boolean);
       const isArrayPush = key.endsWith("[]");
-      
+
       let current = d;
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
@@ -50,7 +62,7 @@ const sanitizeOrderData = (data) => {
           // If it's an array push (like productImages[])
           if (isArrayPush) {
             if (!Array.isArray(current[part])) current[part] = [];
-            
+
             // Handle if value is already an array (some middlewares do this)
             if (Array.isArray(d[key])) {
               current[part] = [...current[part], ...d[key]];
@@ -201,7 +213,10 @@ export const createOrder = async (req, res) => {
 
     /* 1️⃣ Uploaded images (highest priority) */
     if (req.files?.length) {
-      productImages = req.files.map(file => `/uploads/${file.filename}`);
+      // Use helper to save memory files to disk
+      productImages = await Promise.all(
+        req.files.map((file) => saveUploadedFile(file))
+      );
     }
 
     /* 2️⃣ Images sent from frontend snapshot */
@@ -265,7 +280,7 @@ export const createOrder = async (req, res) => {
             ? rate.silver999
             : rate.platinum950;
 
-      const purityFactor = PURITY_MAP[metalPayment.purity] || 1;
+      const purityFactor = PURITY_FACTORS[metalPayment.purity] || 1;
       const ratePerGram = Number((baseRate * purityFactor).toFixed(2));
 
       metalPayment = {
@@ -286,7 +301,7 @@ export const createOrder = async (req, res) => {
           ? rate.silver999
           : rate.platinum950;
 
-    const purityFactor = PURITY_MAP[ps.metalPurity] || 1;
+    const purityFactor = PURITY_FACTORS[ps.metalPurity] || 1;
     const ratePerGram = Number((baseRate * purityFactor).toFixed(2));
 
     const metalSnapshot = {
@@ -381,10 +396,12 @@ export const updateOrderById = async (req, res) => {
     const updateOps = { $set: {} };
 
 
-    let productImages;
+    let productImages = [];
 
     if (req.files?.length) {
-      productImages = req.files.map((file) => `/uploads/${file.filename}`);
+      productImages = await Promise.all(
+        req.files.map((file) => saveUploadedFile(file))
+      );
     }
 
     /* ================= CUSTOMER ================= */
@@ -416,15 +433,24 @@ export const updateOrderById = async (req, res) => {
     }
 
     /* ================= PRODUCT IMAGES ================= */
-    // Combine existing images (from cleanData) and new uploads
-    let finalImages = cleanData.productSnapshot?.productImages || order.productSnapshot?.productImages || [];
+    // If productSnapshot was sent, we take its productImages (default to empty if missing)
+    // If productSnapshot was NOT sent, we keep the old images.
+    let finalImages;
+    if (cleanData.productSnapshot) {
+      finalImages = cleanData.productSnapshot.productImages || [];
+    } else {
+      finalImages = order.productSnapshot?.productImages || [];
+    }
+
+    // Filter out legacy "undefined" paths
+    finalImages = finalImages.filter(img => typeof img === 'string' && !img.includes('undefined'));
 
     if (productImages && productImages.length > 0) {
       finalImages = [...finalImages, ...productImages];
     }
 
     updateOps.$set["productSnapshot.productImages"] = finalImages;
-    
+
     // Remove it from nested loop to avoid double setting if it was in cleanData
     if (cleanData.productSnapshot) {
       delete cleanData.productSnapshot.productImages;
@@ -457,7 +483,7 @@ export const updateOrderById = async (req, res) => {
               ? rate.silver999
               : rate.platinum950;
 
-        const purityFactor = PURITY_MAP[mp.purity] || 1;
+        const purityFactor = PURITY_FACTORS[mp.purity] || 1;
         const ratePerGram = Number((baseRate * purityFactor).toFixed(2));
 
         mp.baseRate = baseRate;

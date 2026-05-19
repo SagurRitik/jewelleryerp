@@ -14,6 +14,7 @@ const STONE_OPTIONS = [
   "ruby", "pearl", "red-coral", "emerald", "yellow-sapphire",
   "diamond", "blue-sapphire", "hessonite", "cats-eye", "gemstone"
 ];
+const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 
 import { DIAMOND_COLORS as COLORS_DIAMOND, DIAMOND_CLARITIES as CLARITIES, DIAMOND_SHAPES as SHAPES } from "../utils/diamondConstants";
 
@@ -32,11 +33,11 @@ const CLARITY_GROUPS = {
   "SI-I": ["SI1", "SI2", "I1", "I2"],
 };
 
-const SelectWithGroups = ({ list, groups, value, onChange }) => (
+const SelectWithGroups = ({ list, groups, value, onChange, className }) => (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    className={selectClass}
+    className={className}
   >
     <option value="">Select</option>
 
@@ -104,6 +105,7 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
     targetAudience: "UNISEX",
     diamonds: [],
     gemstones: [],
+    belts: [],
   });
 
   const addCertificate = () => {
@@ -182,22 +184,29 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
       const diamonds = [];
       const gemstones = [];
 
+      const belts = [];
+
       existingComponents.forEach(component => {
         if (component.type === "Diamond" || component.type === "Polki" || component.type === "Moissanite") {
           diamonds.push({
             shape: component.shape || "",
-            // weight: component.weight || "",
-
             color: component.color || "D",
             clarity: component.clarity || "VS2",
-            // grossWeight: component.grossWeight || "",
-            // size: component.size || "",
             count: component.count || 1,
             weight: component.weight ?? "",
-            // grossWeight: component.grossWeight ?? "",
             grossWeight: component.grossWeight ?? "",
             fineGold: existingProduct.fineGold ?? "",
             size: component.size ?? "",
+            rateOverride: component.rateOverride || null,
+            rateLocked: true
+          });
+        } else if (component.type === "Accessory" || component.type === "Belt") {
+          belts.push({
+            category: component.category || "Belt",
+            material: component.description || "",
+            color: component.shape || "",
+            size: component.size || "",
+            count: component.count || 1,
             rateOverride: component.rateOverride || null,
             rateLocked: true
           });
@@ -223,7 +232,6 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
         stock: existingProduct.stock ?? 0,
         hsnCode: existingProduct.hsnCode || "",
         huid: existingProduct.huid || "",
-        // certificateNo: existingProduct.certificateNo || "",
         certificates: existingProduct.certificates?.length
           ? existingProduct.certificates
           : [{ certificateNo: "", lab: "" }],
@@ -236,6 +244,7 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
         targetAudience: existingProduct.targetAudience || "UNISEX",
         diamonds: diamonds,
         gemstones: gemstones,
+        belts: belts,
       });
 
 
@@ -361,11 +370,11 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
 
 
       if (field === "grossWeight" || field === "count") {
-  const grossWeight = Number(updated[index].grossWeight) || 0;
-  const count = Number(updated[index].count) || 0;
+        const grossWeight = Number(updated[index].grossWeight) || 0;
+        const count = Number(updated[index].count) || 0;
 
-  updated[index].weight = count > 0 ? grossWeight / count : 0;
-}
+        updated[index].weight = count > 0 ? grossWeight / count : 0;
+      }
 
       return { ...p, diamonds: updated };
     });
@@ -374,7 +383,7 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
   const addGemstone = () => {
     setForm(p => ({
       ...p,
-      gemstones: [...p.gemstones, { name: "Ruby", shape: "", weight: "",grossWeight: "", count: 1, rateOverride: null, rateLocked: true }]
+      gemstones: [...p.gemstones, { name: "Ruby", shape: "", weight: "", grossWeight: "", count: 1, rateOverride: null, rateLocked: true }]
     }));
     setActiveGemstoneIndex(form.gemstones.length);
   };
@@ -393,44 +402,68 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
   //   });
   // };
 
- const updateGemstone = (index, field, value) => {
-  setForm(p => {
-    const updated = [...p.gemstones];
+  const updateGemstone = (index, field, value) => {
+    setForm(p => {
+      const updated = [...p.gemstones];
 
-    updated[index] = {
-      ...updated[index],
-      [field]:
-        field === "grossWeight" || field === "count"
-          ? (value === "" ? "" : Number(value))
+      updated[index] = {
+        ...updated[index],
+        [field]:
+          field === "grossWeight" || field === "count"
+            ? (value === "" ? "" : Number(value))
+            : value
+      };
+
+      // const total = Number(updated[index].grossWeight) || 0;
+      // const count = Number(updated[index].count) || 0;
+
+      // if (count > 0) {
+      //   updated[index].weight = Number((total / count));
+      // } else {
+      //   updated[index].weight = 0;
+      // }
+
+      //     if (field === "grossWeight" || field === "count") {
+      //   const total = Number(updated[index].grossWeight) || 0;
+      //   const count = Number(updated[index].count) || 0;
+
+      //   updated[index].weight = count > 0 ? total / count : 0;
+      // }
+
+      if (field === "grossWeight" || field === "count") {
+        const grossWeight = Number(updated[index].grossWeight) || 0;
+        const count = Number(updated[index].count) || 0;
+
+        updated[index].weight = count > 0 ? grossWeight / count : 0;
+      }
+
+      return { ...p, gemstones: updated };
+    });
+  };
+
+  const addBelt = () => {
+    setForm(p => ({
+      ...p,
+      belts: [...p.belts, { category: "Belt", material: "", color: "", size: "", count: 1, rateOverride: null, rateLocked: false }]
+    }));
+  };
+
+  const removeBelt = (index) => {
+    setForm(p => ({ ...p, belts: p.belts.filter((_, i) => i !== index) }));
+  };
+
+  const updateBelt = (index, field, value) => {
+    setForm(p => {
+      const updated = [...p.belts];
+      updated[index] = {
+        ...updated[index],
+        [field]: field === "count" || field === "rateOverride"
+          ? (value === "" ? null : Number(value))
           : value
-    };
-
-    // const total = Number(updated[index].grossWeight) || 0;
-    // const count = Number(updated[index].count) || 0;
-
-    // if (count > 0) {
-    //   updated[index].weight = Number((total / count));
-    // } else {
-    //   updated[index].weight = 0;
-    // }
-
-//     if (field === "grossWeight" || field === "count") {
-//   const total = Number(updated[index].grossWeight) || 0;
-//   const count = Number(updated[index].count) || 0;
-
-//   updated[index].weight = count > 0 ? total / count : 0;
-// }
-
-if (field === "grossWeight" || field === "count") {
-  const grossWeight = Number(updated[index].grossWeight) || 0;
-  const count = Number(updated[index].count) || 0;
-
-  updated[index].weight = count > 0 ? grossWeight / count : 0;
-}
-
-    return { ...p, gemstones: updated };
-  });
-};
+      };
+      return { ...p, belts: updated };
+    });
+  };
 
   /* ======================================================
      SUBMIT
@@ -496,14 +529,29 @@ if (field === "grossWeight" || field === "count") {
           color: "",
           clarity: "",
           cut: "",
-          // certificateNo: "",
-          //  certificates: form.certificates,
           count: gemstone.count,
           weight: gemstone.weight,
           grossWeight: Number(gemstone.grossWeight || 0),
           size: "",
           pricingRef: "STONE",
           rateOverride: gemstone.rateOverride,
+          settingApplicable: false,
+          settingRuleRef: "",
+        });
+      });
+
+      form.belts.forEach((belt) => {
+        components.push({
+          type: "Accessory",
+          componentRole: "BELT",
+          category: belt.category || "Belt",
+          shape: belt.color || "",
+          description: belt.material || "",
+          count: belt.count || 0,
+          size: belt.size || "",
+          pricingRef: "BELT",
+          rateOverride: belt.rateOverride,
+          rateType: "PER_PCS",
           settingApplicable: false,
           settingRuleRef: "",
         });
@@ -548,14 +596,14 @@ if (field === "grossWeight" || field === "count") {
       // }
 
       if (existingProduct) {
- // await API.patch(`/product/${existingProduct._id}`, formData);
+        // await API.patch(`/product/${existingProduct._id}`, formData);
 
- await API.patch(`/${existingProduct._id}`, formData);
+        await API.patch(`/${existingProduct._id}`, formData);
 
- 
-} else {
-  await API.post("/", formData);
-}
+
+      } else {
+        await API.post("/", formData);
+      }
 
       onSuccess();
 
@@ -588,29 +636,6 @@ if (field === "grossWeight" || field === "count") {
 
   const addButtonClass = "bg-[#632947] text-white text-[11px] px-3 py-1 rounded flex items-center gap-1 hover:bg-[#4a1e35] transition-colors ";
 
-  const SelectWithGroups = ({ list, groups, value, onChange, className }) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={className} // ✅ FIXED
-    >
-      <option value="">Select</option>
-
-      {Object.keys(groups).map((g) => (
-        <option key={g} value={g}>
-          {g}
-        </option>
-      ))}
-
-      <optgroup label="Individual">
-        {list.map((v) => (
-          <option key={v} value={v}>
-            {v}
-          </option>
-        ))}
-      </optgroup>
-    </select>
-  );
 
   return (
     <div className="min-h-screen bg-[#F5F3F0]">
@@ -1133,7 +1158,7 @@ active:scale-90"
 
 
                   <div>
-                    <label className={labelClass}>Fine Gold (g)</label>
+                    <label className={labelClass}>Fine Metal (g)</label>
                     <input
                       type="number"
                       min="0"
@@ -1381,53 +1406,53 @@ active:scale-90"
 
 
                         {/* TOTAL WEIGHT */}
-<div className="flex flex-col">
-  <label className="text-xs text-gray-500 mb-1">Total (ct)</label>
-  <input
-    type="number"
-    step="0.01"
-    min="0"
-    onFocus={disableScrollOnFocus}
-    value={gemstone.grossWeight ?? ""}
-    onChange={(e) =>
-      updateGemstone(index, "grossWeight", e.target.value)
-    }
-    className={inputClass}
-  />
-</div>
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Total (ct)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            onFocus={disableScrollOnFocus}
+                            value={gemstone.grossWeight ?? ""}
+                            onChange={(e) =>
+                              updateGemstone(index, "grossWeight", e.target.value)
+                            }
+                            className={inputClass}
+                          />
+                        </div>
 
-{/* QTY */}
-<div className="flex flex-col">
-  <label className="text-xs text-gray-500 mb-1">Qty</label>
-  <input
-    type="number"
-    min="1"
-    onFocus={disableScrollOnFocus}
-    value={gemstone.count ?? ""}
-    onChange={(e) => {
-      const val = e.target.value;
-      updateGemstone(
-        index,
-        "count",
-        val === "" ? "" : Math.max(1, parseInt(val))
-      );
-    }}
-    className={inputClass}
-  />
-</div>
+                        {/* QTY */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Qty</label>
+                          <input
+                            type="number"
+                            min="1"
+                            onFocus={disableScrollOnFocus}
+                            value={gemstone.count ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateGemstone(
+                                index,
+                                "count",
+                                val === "" ? "" : Math.max(1, parseInt(val))
+                              );
+                            }}
+                            className={inputClass}
+                          />
+                        </div>
 
-{/* WEIGHT PER PCS */}
-<div className="flex flex-col">
-  <label className="text-xs text-gray-500 mb-1">Weight (ct)</label>
-  <input
-    type="number"
-    value={gemstone.weight ?? ""}
-    readOnly
-    className={`${inputClass} bg-gray-100`}
-  />
-</div>
+                        {/* WEIGHT PER PCS */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Weight (ct)</label>
+                          <input
+                            type="number"
+                            value={gemstone.weight ?? ""}
+                            readOnly
+                            className={`${inputClass} bg-gray-100`}
+                          />
+                        </div>
 
-                       
+
                         {/* <div className="flex flex-col">
                           <label className="text-xs text-gray-500 mb-1">Weight (ct)</label>
                           <input
@@ -1502,6 +1527,103 @@ active:scale-90"
                     </div>
                   ))}
                   <button type="button" onClick={addGemstone} className={addButtonClass}>+ Add</button>
+                </div>
+              </div>
+
+              {/* Accessories Card */}
+              <div className={cardClass}>
+                <div className="flex justify-between items-center mb-4">
+                  <div className={`${sectionTitleClass} mb-0`}><span className={lineMarkerClass}></span>Accessories</div>
+                </div>
+
+                <div className="space-y-3">
+                  {form.belts.map((belt, index) => (
+                    <div key={index} className="border border-slate-200 rounded p-3">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-semibold text-slate-700">Accessory {index + 1}</span>
+                        <button type="button" onClick={() => removeBelt(index)} className="text-red-500 text-xs hover:underline">Remove</button>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {/* CATEGORY */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Category</label>
+                          <select
+                            value={belt.category || "Belt"}
+                            onChange={(e) => updateBelt(index, "category", e.target.value)}
+                            className={selectClass}
+                          >
+                            {ACCESSORY_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* MATERIAL */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Material</label>
+                          <input
+                            type="text"
+                            value={belt.material}
+                            onChange={(e) => updateBelt(index, "material", e.target.value)}
+                            placeholder="e.g. Leather"
+                            className={inputClass}
+                          />
+                        </div>
+
+                        {/* COLOR */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Color</label>
+                          <input
+                            type="text"
+                            value={belt.color}
+                            onChange={(e) => updateBelt(index, "color", e.target.value)}
+                            placeholder="e.g. Brown"
+                            className={inputClass}
+                          />
+                        </div>
+
+                        {/* SIZE */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Size</label>
+                          <input
+                            type="text"
+                            value={belt.size}
+                            onChange={(e) => updateBelt(index, "size", e.target.value)}
+                            placeholder="e.g. 42mm"
+                            className={inputClass}
+                          />
+                        </div>
+
+                        {/* QTY */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Qty</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={belt.count ?? ""}
+                            onFocus={disableScrollOnFocus}
+                            onChange={(e) => updateBelt(index, "count", e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+
+                        {/* RATE */}
+                        <div className="flex flex-col">
+                          <label className="text-xs text-gray-500 mb-1">Rate (₹)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={belt.rateOverride || ""}
+                            onFocus={disableScrollOnFocus}
+                            onChange={(e) => updateBelt(index, "rateOverride", e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addBelt} className={addButtonClass}>+ Add Accessory</button>
                 </div>
               </div>
 
@@ -1596,6 +1718,10 @@ active:scale-90"
                   <div className="flex justify-between">
                     <span className="text-slate-200">Gemstones:</span>
                     <span className="font-medium text-white">{form.gemstones.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-200">Belts:</span>
+                    <span className="font-medium text-white">{form.belts.length}</span>
                   </div>
                 </div>
 

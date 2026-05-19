@@ -15,6 +15,9 @@ export const createRateConfig = async (req, res) => {
 
       /* ===== MAKING ===== */
       makingCharge = 0,
+      goldMakingCharge = 0,
+      silverMakingCharge = 0,
+      platinumMakingCharge = 0,
       minMakingWeight = 0,
       minMakingFlatFee = 0,
 
@@ -77,6 +80,9 @@ export const createRateConfig = async (req, res) => {
       stoneRate,
 
       makingCharge,
+      goldMakingCharge,
+      silverMakingCharge,
+      platinumMakingCharge,
       minMakingWeight,
       minMakingFlatFee,
 

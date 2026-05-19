@@ -156,6 +156,7 @@
 
 import SalesOrder from "../models/SalesOrder.js"
 import CreditNote from "../models/creditnotes.js"
+import DiamondStock from "../models/DiamondStock.js"
 import { generateInvoiceNo } from "../utils/generateInvoiceNo.js"
 
 export const createManualInvoice = async (req, res) => {
@@ -220,6 +221,20 @@ export const createManualInvoice = async (req, res) => {
           credit.remainingAmount = 0;
         }
         await credit.save();
+      }
+    }
+
+    // 💎 Process Diamond Stock Updates
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        const breakup = item.breakup;
+        if (breakup && breakup.componentBreakup && Array.isArray(breakup.componentBreakup)) {
+          for (const comp of breakup.componentBreakup) {
+            if (comp.pricingRef === "DIAMOND" && comp.diamondId) {
+              await DiamondStock.findByIdAndUpdate(comp.diamondId, { status: "SOLD" });
+            }
+          }
+        }
       }
     }
 

@@ -793,6 +793,10 @@ export const invoiceTemplate = (invoice) => {
     return `Item ${index + 1}: ${metalType} ${purity}KT @ ₹${fmt(metalRate)}/g`;
   }).join("  |  ");
 
+  const hasAccessories = invoice.items.some(item =>
+    (item.breakup?.componentBreakup || []).some(cb => cb.pricingRef === "BELT")
+  );
+
   const hasAdjustment =
     (invoice.totals.advancePayment || 0) > 0 ||
     (invoice.metalPayments || []).some(p => Number(p.totalValue || 0) > 0);
@@ -809,7 +813,7 @@ export const invoiceTemplate = (invoice) => {
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
     body {
       font-family: 'Helvetica', 'Arial', sans-serif;
-      font-size: 8px;
+      font-size: 9.5px;
       color: #333;
       margin: 0;
       padding: 0;
@@ -892,8 +896,8 @@ export const invoiceTemplate = (invoice) => {
       border-radius: 4px;
     }
     .info-item { text-align: center; }
-    .info-label { font-size: 7px; color: #666; margin-bottom: 2px; }
-    .info-value { font-size: 9px; font-weight: bold; color: #333; }
+    .info-label { font-size: 8px; color: #666; margin-bottom: 2px; }
+    .info-value { font-size: 10.5px; font-weight: bold; color: #333; }
 
     /* --- Details Box --- */
     .details-box { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -912,10 +916,10 @@ export const invoiceTemplate = (invoice) => {
       border-bottom: 1px solid #eee;
       padding-bottom: 4px;
       margin-bottom: 6px;
-      font-size: 9px;
+      font-size: 10.5px;
     }
     .box-content {
-      font-size: 8px;
+      font-size: 9.5px;
       line-height: 1.4;
       word-wrap: break-word;
     }
@@ -928,7 +932,7 @@ export const invoiceTemplate = (invoice) => {
       border: 1px solid #dcb5d6;
       border-radius: 4px 4px 0 0;
       padding: 5px 10px;
-      font-size: 8.5px;
+      font-size: 10.5px;
       margin-bottom: 0;
       border-bottom: none;
     }
@@ -957,7 +961,7 @@ export const invoiceTemplate = (invoice) => {
       font-weight: bold;
       text-align: center;
       vertical-align: middle;
-      font-size: 8px;
+      font-size: 9.5px;
       white-space: pre-wrap;
       overflow: hidden;
     }
@@ -967,7 +971,7 @@ export const invoiceTemplate = (invoice) => {
       text-align: center;
       color: #1d1c1c;
       vertical-align: middle;
-      font-size: 8.5px;
+      font-size: 10.5px;
       word-wrap: break-word;
     }
     .td-left { text-align: left; padding-left: 4px; }
@@ -989,7 +993,7 @@ export const invoiceTemplate = (invoice) => {
       border: 1px solid #531b4e;
       border-radius: 4px;
       overflow: hidden;
-      font-size: 8px;
+      font-size: 9.5px;
     }
     .ts-row {
       display: flex;
@@ -1024,7 +1028,7 @@ export const invoiceTemplate = (invoice) => {
       border: 1px solid #531b4e;
       border-radius: 4px;
       overflow: hidden;
-      font-size: 8px;
+      font-size: 9.5px;
       margin-bottom: 10px;
     }
     .charges-half {
@@ -1059,7 +1063,7 @@ export const invoiceTemplate = (invoice) => {
 
     .amount-words-section {
       margin-bottom: 10px;
-      font-size: 9px;
+      font-size: 10px;
     }
 
     /* --- Footer Split --- */
@@ -1206,19 +1210,20 @@ export const invoiceTemplate = (invoice) => {
 
 <table>
   <colgroup>
-    <col style="width: 5%;">   <!-- S.No -->
+    <col style="width: 4%;">   <!-- S.No -->
     <col style="width: 10%;">   <!-- Product Title -->
     <col style="width: 4%;">   <!-- Qty -->
     <col style="width: 5%;">   <!-- HSN -->
-    <col style="width: 7%;">   <!-- Gross Wt -->
-    <col style="width: 7%;">   <!-- Net Wt -->
+    <col style="width: 6%;">   <!-- Gross Wt -->
+    <col style="width: 6%;">   <!-- Net Wt -->
     <col style="width: 7%;">   <!-- Cert No -->
-    <col style="width: 8%;">   <!-- Dia Size -->
-    <col style="width: 8%;">   <!-- Dia Rate -->
+    <col style="width: 7%;">   <!-- Dia wt -->
+    <col style="width: 7%;">   <!-- Dia Rate -->
+    ${hasAccessories ? `<col style="width: 10%;">` : ""} <!-- Accessories -->
     <col style="width: 8%;">   <!-- Stone Value -->
     <col style="width: 8%;">   <!-- Making -->
     <col style="width: 8%;">   <!-- Scheme Disc -->
-    <col style="width: 13%;">  <!-- Product Price -->
+    <col style="width: 10%;">  <!-- Product Price -->
   </colgroup>
 
 
@@ -1233,7 +1238,7 @@ export const invoiceTemplate = (invoice) => {
       <th>Cert\nNo.</th>
       <th>Dia wt\n (ct)</th>
       <th>Dia\nRate</th>
-      
+      ${hasAccessories ? `<th>Accessories</th>` : ""}
       <th>Stone\nValue</th>
       <th>Making\n(₹)</th>
       <th>Scheme\nDisc</th>
@@ -1283,6 +1288,17 @@ ${invoice.items.map((item, index) => {
       .map(c => fmt(c.value))
       .join("<br>");
 
+    const accessoryLines = breakup
+      .filter(c => c.pricingRef === "BELT")
+      .map(c => {
+        const parts = [c.type || "Belt"];
+        if (c.category) parts.push(`(${c.category})`);
+        if (c.count > 0) parts.push(`(${c.count} pcs)`);
+        parts.push(` ₹${fmt(c.value)}`);
+        return parts.join(" ");
+      })
+      .join("<br>");
+
     const making = Number(pricing.makingCharge || 0);
     const productPrice = Number(pricing.subtotal || 0);
     const schemeDisc = Number(pricing.discount || 0);
@@ -1306,7 +1322,7 @@ ${invoice.items.map((item, index) => {
       </td>
       <td>${diamondWt || "-"}</td>
       <td>${diamondRate || "-"}</td>
-     
+      ${hasAccessories ? `<td>${accessoryLines || "-"}</td>` : ""}
       <td>${stoneValueLines || "-"}</td>
       <td>${fmt(making)}</td>
       <td>${fmt(schemeDisc)}</td>
@@ -1317,7 +1333,7 @@ ${invoice.items.map((item, index) => {
   </tbody>
   <tfoot>
     <tr style="background-color:#f9f3f9; font-weight:bold;">
-      <td colspan="11" class="td-right">Totals</td>
+      <td colspan="${hasAccessories ? 12 : 11}" class="td-right">Totals</td>
       <td>${fmt(invoice.totals.discount || 0)}</td>
       <td>${fmt(invoice.totals.subtotal)}</td>
     </tr>

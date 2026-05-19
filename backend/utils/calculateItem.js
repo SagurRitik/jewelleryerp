@@ -65,22 +65,22 @@ export default async function calculateItem(
   /* ================= COMPONENTS ================= */
   let diamondValue = 0;
   let stoneValue = 0;
+  let accessoryValue = 0;
   const componentBreakup = [];
 
   for (const comp of p.components || []) {
     const weight = Number(comp.weight || 0);
     const count = Number(comp.count || 0);
     const grossWeight = Number(comp.grossWeight || 0);
+    const totalWeight = grossWeight > 0 ? grossWeight : weight * count;
 
-    if ((weight <= 0 && grossWeight <= 0) || count <= 0) continue;
+    if (comp.pricingRef !== "BELT" && totalWeight <= 0 && count <= 0) continue;
 
     const rateRes = await lookupComponentRate(comp);
     if (!rateRes?.rate) continue;
 
     const { rate, rateType } = rateRes;
     let value = 0;
-
-    const totalWeight = grossWeight > 0 ? grossWeight : weight * count;
 
     if (rateType === "PER_CT") {
       value = totalWeight * rate;
@@ -96,6 +96,8 @@ export default async function calculateItem(
 
     if (comp.pricingRef === "DIAMOND") {
       diamondValue += value;
+    } else if (comp.pricingRef === "BELT") {
+      accessoryValue += value;
     } else {
       stoneValue += value;
     }
@@ -109,19 +111,34 @@ export default async function calculateItem(
       count,
       value,
       grossWeight,
-      clarity: comp.clarity || "",
       color: comp.color || "",
+      clarity: comp.clarity || "",
+      shape: comp.shape || "",
       size: comp.size || "",
+      category: comp.category || "",   // material for belt
     });
   }
 
   diamondValue = round2(diamondValue);
   stoneValue = round2(stoneValue);
+  accessoryValue = round2(accessoryValue);
 
   /* ================= MAKING ================= */
-  const makingPerGram = Number(rateConfig.makingCharge || 0);
+  let makingPerGram = Number(rateConfig.makingCharge || 0);
+  const metalType = (p.metalType || "").toLowerCase();
+
+  if (metalType.includes("silver")) {
+    makingPerGram = Number(rateConfig.silverMakingCharge ?? rateConfig.makingCharge ?? 0);
+  } else if (metalType.includes("platinum")) {
+    makingPerGram = Number(rateConfig.platinumMakingCharge ?? rateConfig.makingCharge ?? 0);
+  } else {
+    // Default to gold if not specified or explicitly gold
+    makingPerGram = Number(rateConfig.goldMakingCharge ?? rateConfig.makingCharge ?? 0);
+  }
+
   const minWeight = Number(rateConfig.minMakingWeight || 0);
   const minFlat = Number(rateConfig.minMakingFlatFee || 0);
+
 
   let makingCharge = 0;
   if (netWeight > 0) {
@@ -156,9 +173,9 @@ export default async function calculateItem(
 
   // Per-item discount toggle (check either item.discountEnabled or item.customSnapshot.discountEnabled)
   // PLUS Global discount toggle from rateConfig
-  const isDiscountEnabled = 
-    rateConfig.discountEnabled !== false && 
-    item.discountEnabled !== false && 
+  const isDiscountEnabled =
+    rateConfig.discountEnabled !== false &&
+    item.discountEnabled !== false &&
     item.customSnapshot?.discountEnabled !== false;
 
   if (!isDiscountEnabled) {
@@ -169,6 +186,7 @@ export default async function calculateItem(
     metalValue +
     diamondValue +
     stoneValue +
+    accessoryValue +
     makingCharge
   );
 
@@ -194,6 +212,7 @@ export default async function calculateItem(
     componentBreakup,
     diamondValue,
     stoneValue,
+    accessoryValue,
     makingCharge,
 
     grossTotal,

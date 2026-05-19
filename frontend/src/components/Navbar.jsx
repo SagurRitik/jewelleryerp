@@ -2,11 +2,12 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Menu, User, ChevronDown, LogOut, Settings as SettingsIcon } from "lucide-react"; // ✅ Icons Import
+import { Menu, User, ChevronDown, LogOut, Settings as SettingsIcon, Sun, Moon } from "lucide-react"; // ✅ Icons Import
 import logoDark from "../assets/NazaraPurple.png";
 import logoLight from "../assets/NazaraWhite.png";
 import { useAuth } from "../context/AuthContext"; // ✅ Auth Context Import
 import { useProductList } from "../context/ProductListContext"; // ✅ Import ProductListContext
+import { useTheme } from "../context/ThemeContext"; // ✅ Import ThemeContext
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
@@ -16,6 +17,7 @@ export default function Navbar({ toggleSidebar, isOpen }) {
   const location = useLocation();
   const { user, logout } = useAuth(); // ✅ Get User Data
   const { clearFilters } = useProductList(); // ✅ Get clearFilters action
+  const { isDark, toggleTheme } = useTheme(); // ✅ Get Theme State
   const navigate = useNavigate();
 
   // ... (navigation array same as before)
@@ -71,7 +73,7 @@ export default function Navbar({ toggleSidebar, isOpen }) {
       className={`
         sticky top-0 z-50 transition-all duration-300 w-full
         ${scrolled
-          ? "bg-[#fdfbf7]/95 backdrop-blur-md border-b border-[#e7e2d8] shadow-sm"
+          ? "bg-[var(--navbar-scrolled)]/95 backdrop-blur-md border-b border-[var(--navbar-scrolled-border)] shadow-sm"
           : "bg-[#5A374F]"
         }
       `}
@@ -125,7 +127,6 @@ export default function Navbar({ toggleSidebar, isOpen }) {
 
             <Link
               to="/"
-              onClick={clearFilters}
               className="flex-shrink-0 flex items-center gap-2"
             >
               <img
@@ -140,20 +141,21 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             </Link>
           </div>
 
-          {/* ================= CENTER: DESKTOP MENU ================= */}
-          <div className={`hidden xl:flex items-center gap-1 px-2 py-1.5 rounded-full transition-all duration-300 ${scrolled ? "bg-white border border-gray-100 shadow-sm" : "bg-white/10 backdrop-blur-sm"}`}>
+          {/* Center: Desktop Menu */}
+          <div className={`hidden xl:flex items-center gap-1 px-2 py-1.5 rounded-full transition-all duration-300 ${
+            scrolled ? "bg-[var(--card-bg)] border border-[var(--card-border)] shadow-sm" : "bg-white/10 backdrop-blur-sm"
+          }`}>
             {/* ... (Existing Navigation Map Logic) ... */}
             {navigation.map((item) => (
               <div key={item.name} className="relative group">
                 {item.type === "link" ? (
                   <Link
                     to={item.path}
-                    onClick={item.path === "/" ? clearFilters : undefined}
                     className={`
                       px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap block
                       ${isActive(item)
-                        ? scrolled ? "bg-[#5A374F] text-white shadow-md" : "bg-white text-[#5A374F]"
-                        : scrolled ? "text-gray-600 hover:text-[#5A374F] hover:bg-gray-50" : "text-white/90 hover:bg-white/10"
+                        ? scrolled ? "bg-[var(--accent-primary)] text-white shadow-md" : "bg-white text-[#5A374F]"
+                        : scrolled ? "text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-primary)]" : "text-white/90 hover:bg-white/10"
                       }
                     `}
                   >
@@ -240,7 +242,7 @@ export default function Navbar({ toggleSidebar, isOpen }) {
 
           <div
             className={`xl:hidden border-t px-3 py-2 overflow-x-auto transition-all duration-300 ${scrolled
-              ? "bg-[#FCFAF7] border-[#e7e2d8]"
+              ? "bg-[var(--navbar-scrolled)] border-[var(--navbar-scrolled-border)]"
               : "bg-[#5A374F] border-white/10"
               }`}
           >
@@ -250,7 +252,6 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                   <Link
                     key={item.name}
                     to={item.path}
-                    onClick={item.path === "/" ? clearFilters : undefined}
                     className={`
             px-4 py-2 rounded-full text-xs whitespace-nowrap font-medium transition-all
             ${isActive(item)
@@ -270,8 +271,20 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             </div>
           </div>
 
-          {/* ================= RIGHT: PROFILE SECTION (NEW) ================= */}
-          <div className="flex items-center gap-4 relative">
+          {/* ================= RIGHT: PROFILE + THEME TOGGLE ================= */}
+          <div className="flex items-center gap-2 md:gap-4 relative">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className={`p-2.5 rounded-full transition-all duration-300 ${
+                scrolled
+                  ? "hover:bg-stone-100 text-stone-600"
+                  : "hover:bg-white/10 text-white/90"
+              }`}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             {user && (
               <div className="relative">
                 <button

@@ -13,8 +13,7 @@ export default function DailySalesClosing() {
 
   useEffect(() => {
   setLoading(true);
-- getDailySalesClosing({ date })
-+ getDailySalesClosing(date)
+    getDailySalesClosing(date)
     .then((res) => {
       setData(res.data.summary);
       setLoading(false);

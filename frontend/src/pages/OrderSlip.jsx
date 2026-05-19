@@ -55,16 +55,47 @@ export default function OrderSlip() {
 
   /* ================= SEPARATE COMPONENTS ================= */
   const diamonds = components.filter(
-    (c) => c.type?.toLowerCase() === "diamond"
+    (c) => c.pricingRef === "DIAMOND" || c.type?.toLowerCase() === "diamond"
+  );
+
+  const belts = components.filter(
+    (c) => c.pricingRef === "BELT"
   );
 
   const stones = components.filter(
-    (c) => c.type?.toLowerCase() !== "diamond"
+    (c) => c.pricingRef === "STONE" || (c.type?.toLowerCase() !== "diamond" && c.pricingRef !== "BELT")
   );
+
+  const totalDiamondWeight = diamonds.reduce((sum, c) => sum + (Number(c.grossWeight) || 0), 0).toFixed(3);
+  const totalDiamondCount = diamonds.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
+
+  const totalStoneWeight = stones.reduce((sum, c) => sum + (Number(c.grossWeight) || 0), 0).toFixed(3);
+  const totalStoneCount = stones.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
 
   return (
     <div className="min-h-screen bg-[#f4f1ee] py-10 flex justify-center print:bg-white print:py-0">
-      <div className="w-full max-w-4xl bg-white shadow-2xl print:shadow-none relative">
+      <style>
+        {`
+          @media print {
+            @page {
+              size: A4;
+              margin: 10mm;
+            }
+            body {
+              background: white !important;
+              -webkit-print-color-adjust: exact;
+            }
+            .print-no-break {
+              break-inside: avoid;
+            }
+            .print-single-page {
+              max-height: 100vh;
+              overflow: hidden;
+            }
+          }
+        `}
+      </style>
+      <div className="w-full max-w-4xl bg-white shadow-2xl print:shadow-none relative print:max-h-[285mm]">
 
         {/* ACTION BAR */}
         <div className="absolute top-6 right-8 flex gap-3 print:hidden">
@@ -82,27 +113,23 @@ export default function OrderSlip() {
           </button>
         </div>
 
-        <div className="p-12 print:p-10">
+        <div className="p-12 print:p-8">
 
           {/* ================= HEADER ================= */}
-          <div className="text-center border-b pb-8 mb-10">
+          <div className="text-center border-b pb-6 mb-8 print:pb-4 print:mb-6">
             <img
               src={logo}
               alt="Nazara Logo"
-              className="h-20 mb-2 mx-auto object-contain "
+              className="h-16 mb-2 mx-auto object-contain "
             />
 
             <h1 className="text-3xl tracking-[0.4em] font-serif text-[#562748]">
               ORDER SLIP
             </h1>
-
-            <p className="text-xs tracking-[0.3em] uppercase text-gray-400 mt-2">
-              Fine Jewellery Studio
-            </p>
           </div>
 
           {/* ================= CLIENT & ORDER META ================= */}
-          <div className="grid grid-cols-2 gap-12 mb-12">
+          <div className="grid grid-cols-2 gap-12 mb-8 print:mb-6">
 
             <div>
               <p className="text-xs tracking-widest uppercase text-gray-400 mb-2">
@@ -135,14 +162,14 @@ export default function OrderSlip() {
           </div>
 
           {/* ================= PRODUCT SECTION ================= */}
-          <div className="grid grid-cols-3 gap-10 mb-14">
+          <div className="grid grid-cols-3 gap-10 mb-10 print:mb-6">
 
             <div>
               {primaryImage ? (
                 <img
                   src={getImageUrl(primaryImage)}
                   alt="Product"
-                  className="border border-gray-200 p-2 bg-gray-50"
+                  className="border border-gray-200 p-2 bg-gray-50 w-full"
                 />
               ) : (
                 <div className="h-44 border border-gray-200 flex items-center justify-center text-gray-300 text-sm">
@@ -151,7 +178,7 @@ export default function OrderSlip() {
               )}
             </div>
 
-            <div className="col-span-2 space-y-6">
+            <div className="col-span-2 space-y-5">
 
               <div>
                 <p className="text-xs tracking-widest uppercase text-gray-400 mb-1">
@@ -171,7 +198,7 @@ export default function OrderSlip() {
                     {productSnapshot.metalPurity}{" "}
                     {productSnapshot.metalType}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 font-bold">
                     Est. Net Weight: {productSnapshot.netWeight || 0} g
                   </p>
                 </div>
@@ -186,32 +213,55 @@ export default function OrderSlip() {
                 </div>
               </div>
 
-              {/* DIAMONDS */}
+              {/* DIAMONDS - TOTALS DISPLAY */}
               {diamonds.length > 0 && (
                 <div>
-                  <p className="text-xs uppercase text-gray-400 mb-2">
+                  <p className="text-xs uppercase text-gray-400 mb-1">
                     Diamonds
                   </p>
-                  <ul className="text-sm text-gray-700 space-y-1">
+                  <p className="text-sm font-bold text-gray-900">
+                    Total Diamond Wt: {totalDiamondWeight} ct
+                  </p>
+                  <ul className="text-[11px] text-gray-600 mt-1 opacity-70">
                     {diamonds.map((c, i) => (
                       <li key={i}>
-                        • {c.shape || "Round"} — {c.weight || 0} ct ({c.count || 0} pcs)
+                        {c.shape || "Round"} — {c.weight.toFixed(3)} ct ({c.count} pcs)
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {/* STONES */}
+              {/* STONES - TOTALS DISPLAY */}
               {stones.length > 0 && (
                 <div>
-                  <p className="text-xs uppercase text-gray-400 mb-2 mt-4">
+                  <p className="text-xs uppercase text-gray-400 mb-1 mt-2">
                     Precious Stones
                   </p>
-                  <ul className="text-sm text-gray-700 space-y-1">
+                  <p className="text-sm font-bold text-gray-900">
+                    Total Stone Wt: {totalStoneWeight} ct
+                  </p>
+                  <ul className="text-[11px] text-gray-600 mt-1 opacity-70">
                     {stones.map((c, i) => (
                       <li key={i}>
-                        • {c.type} — {c.weight || 0} ct ({c.count || 0} pcs)
+                        {c.type} — {c.weight} ct ({c.count} pcs)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* BELTS - RATE OVERRIDE INCLUDED */}
+              {belts.length > 0 && (
+                <div>
+                  <p className="text-xs uppercase text-gray-400 mb-1 mt-2">
+                    Belts & Accessories
+                  </p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {belts.map((c, i) => (
+                      <li key={i} className="flex justify-between max-w-xs font-bold">
+                        <span>• {c.category || "Belt"} ({c.count} pcs)</span>
+                        <span>Rate: {money(c.rateOverride || c.price)}</span>
                       </li>
                     ))}
                   </ul>

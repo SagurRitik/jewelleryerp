@@ -1,76 +1,35 @@
-// import multer from "multer";
-
-// export const uploadExcelZip = multer({
-//   storage: multer.memoryStorage(),
-//   fileFilter: (req, file, cb) => {
-//     if (
-//       file.fieldname === "excel" &&
-//       file.mimetype ===
-//         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-//     ) {
-//       cb(null, true);
-//     } else if (
-//       file.fieldname === "images" &&
-//       file.mimetype === "application/zip"
-//     ) {
-//       cb(null, true);
-//     } else {
-//       cb(new Error("Invalid file type"), false);
-//     }
-//   }
-// });
-
-
-// import multer from "multer";
-
-// export const uploadExcelZip = multer({
-//   storage: multer.memoryStorage(),
-//   fileFilter: (req, file, cb) => {
-//     if (
-//       file.fieldname === "excel" &&
-//       file.mimetype ===
-//         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-//     ) {
-//       cb(null, true);
-//     } else if (
-//       file.fieldname === "images" &&
-//       file.mimetype === "application/zip"
-//     ) {
-//       cb(null, true);
-//     } else {
-//       cb(new Error("Invalid file type"), false);
-//     }
-//   },
-// });
-
-
 import multer from "multer";
-import path from "path";
 
+/**
+ * Accepts:
+ *   - excel  (required): .xlsx file
+ *   - images (optional): .zip file of product images
+ */
 export const uploadExcelZip = multer({
   storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
 
   fileFilter: (req, file, cb) => {
-    // ✅ EXCEL
+    // ✅ Excel field — must be .xlsx
     if (file.fieldname === "excel") {
       const isExcel =
         file.mimetype.includes("spreadsheet") ||
-        file.originalname.endsWith(".xlsx");
+        file.originalname.toLowerCase().endsWith(".xlsx");
 
       if (isExcel) return cb(null, true);
-      return cb(new Error("Invalid Excel file"), false);
+      return cb(new Error("Only .xlsx Excel files are allowed"), false);
     }
 
-    // ✅ ZIP (browser safe)
+    // ✅ Images field — must be .zip (OPTIONAL, skip if not provided)
     if (file.fieldname === "images") {
       const isZip =
         file.mimetype.includes("zip") ||
-        file.originalname.endsWith(".zip");
+        file.originalname.toLowerCase().endsWith(".zip");
 
       if (isZip) return cb(null, true);
-      return cb(new Error("Invalid ZIP file"), false);
+      return cb(new Error("Only .zip files are allowed for images"), false);
     }
 
-    cb(new Error("Invalid file field"), false);
+    cb(new Error(`Unexpected file field: ${file.fieldname}`), false);
   },
 });

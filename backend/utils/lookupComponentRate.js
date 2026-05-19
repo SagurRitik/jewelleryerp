@@ -20,6 +20,7 @@ const FALLBACK_RATES = {
   POLKI: 2000,
   RUBY: 2000,
   EMERALD: 2000,
+  BELT: 1000,
   DEFAULT: 2000,
 };
 
@@ -60,8 +61,9 @@ const parseRange = (value, rankList) => {
 export const lookupComponentRate = async (component) => {
   try {
     if (component.rateOverride > 0) {
+      const pricingRefUpper = (component.pricingRef || "").toUpperCase();
       return {
-        rateType: component.rateType || "PER_CT",
+        rateType: pricingRefUpper === "BELT" ? "PER_PCS" : (component.rateType || "PER_CT"),
         rate: Number(component.rateOverride),
         source: "OVERRIDE",
       };
@@ -87,8 +89,20 @@ if (pricingRef === "DIAMOND" || pricingRef === "POLKI") {
   weight = perPieceWeight; // ✅ CHANGE HERE
 }
 
-    if (!pricingRef || weight <= 0) {
+    if (!pricingRef) {
       return getFallbackRate(component);
+    }
+
+    if (pricingRef !== "BELT" && weight <= 0) {
+       return getFallbackRate(component);
+    }
+
+    if (pricingRef === "BELT") {
+      return {
+        rateType: "PER_PCS",
+        rate: FALLBACK_RATES.BELT,
+        source: "BELT_DEFAULT",
+      };
     }
 
     if (pricingRef === "DIAMOND" || pricingRef === "POLKI") {

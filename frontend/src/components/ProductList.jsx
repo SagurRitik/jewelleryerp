@@ -6,7 +6,8 @@ import { useCart } from "../context/CartContext";
 import { useProductList } from "../context/ProductListContext";
 import {
   Search, Moon, Sun, Check, ShoppingBag, PackageX,
-  Heart, BarChart2, Eye, SlidersHorizontal, Package
+  Heart, BarChart2, Eye, SlidersHorizontal, Package,
+  ChevronDown, ChevronUp, X
 } from "lucide-react";
 import MetalRateCards from "./MetalRateCards";
 import { getImageUrl } from "../utils/getImageUrl";
@@ -15,6 +16,7 @@ import { useRates } from "../context/RatesContext";
 import { updateRate } from "../api/ratesApi";
 import { toast } from "sonner";
 import { Percent, ToggleLeft, ToggleRight } from "lucide-react";
+import { useTheme } from "../context/ThemeContext";
 
 
 
@@ -191,18 +193,19 @@ export default function ProductList() {
     applyFilters,
     loadMore,
     setScrollPosition,
-    refresh,
     invalidateCache,
   } = useProductList();
+
+  const { isDark, toggleTheme } = useTheme();
 
   /* ================= LOCAL UI STATE ================= */
   const { addProduct, fetchCartSummary } = useCart();
   const { rawRates, refreshRates } = useRates();
   const [isUpdatingDiscount, setIsUpdatingDiscount] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [isDark, setIsDark] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanToast, setScanToast] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   /* Local filter inputs (controlled) */
   const [search, setSearch] = useState(filters.search || "");
@@ -210,6 +213,9 @@ export default function ProductList() {
   const [metalType, setMetalType] = useState(filters.metalType || "");
   const [targetAudience, setTargetAudience] = useState(filters.targetAudience || "");
   const [inStockOnly, setInStockOnly] = useState(filters.inStockOnly || false);
+  const [minPrice, setMinPrice] = useState(filters.minPrice || "");
+  const [maxPrice, setMaxPrice] = useState(filters.maxPrice || "");
+  const [pricePreset, setPricePreset] = useState("");
 
   const navigate = useNavigate();
   const searchRef = useRef(null);
@@ -239,6 +245,19 @@ export default function ProductList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  /* ================= DEBOUNCED PRICE → applyFilters ================= */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pricePreset === "custom") {
+        if (minPrice !== (filters.minPrice || "") || maxPrice !== (filters.maxPrice || "")) {
+          applyFilters({ ...filters, minPrice, maxPrice });
+        }
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPrice, maxPrice, pricePreset]);
+
   /* keep local inputs in sync when filters reset externally */
   useEffect(() => {
     setSearch(filters.search || "");
@@ -246,12 +265,52 @@ export default function ProductList() {
     setMetalType(filters.metalType || "");
     setTargetAudience(filters.targetAudience || "");
     setInStockOnly(filters.inStockOnly || false);
+    
+    const minP = filters.minPrice || "";
+    const maxP = filters.maxPrice || "";
+    setMinPrice(minP);
+    setMaxPrice(maxP);
+
+    // Sync pricePreset state based on min/max values
+    if (minP === "" && maxP === "") {
+      setPricePreset("");
+    } else if (minP === "" || minP === "0") {
+      if (maxP === "10000") setPricePreset("0-10000");
+      else if (maxP === "25000") setPricePreset("0-25000");
+      else setPricePreset("custom");
+    } else if (minP === "25000" && maxP === "50000") {
+      setPricePreset("25000-50000");
+    } else if (minP === "50000" && maxP === "100000") {
+      setPricePreset("50000-100000");
+    } else if (minP === "100000" && (maxP === "99999999" || maxP === "")) {
+      setPricePreset("100000-99999999");
+    } else {
+      setPricePreset("custom");
+    }
   }, [filters]);
 
   /* ================= FILTER CHANGES ================= */
   const handleCategoryChange = useCallback((val) => {
     setCategory(val);
     applyFilters({ ...filters, category: val });
+  }, [filters, applyFilters]);
+
+  const handlePricePresetChange = useCallback((val) => {
+    setPricePreset(val);
+    if (val === "") {
+      setMinPrice("");
+      setMaxPrice("");
+      applyFilters({ ...filters, minPrice: "", maxPrice: "" });
+    } else if (val === "custom") {
+      // Keep existing min/max inputs open, let them customize
+    } else {
+      const [min, max] = val.split("-");
+      const minVal = min === "0" ? "" : min;
+      const maxVal = max === "99999999" ? "" : max;
+      setMinPrice(minVal);
+      setMaxPrice(maxVal);
+      applyFilters({ ...filters, minPrice: minVal, maxPrice: maxVal });
+    }
   }, [filters, applyFilters]);
 
   const handleMetalTypeChange = useCallback((val) => {
@@ -279,9 +338,14 @@ export default function ProductList() {
       setIsUpdatingDiscount(true);
       const newValue = !rawRates.discountEnabled;
       await updateRate(rawRates._id, { discountEnabled: newValue });
+      
+      // Update global state
       await refreshRates();
+      
+      // Invalidate product cache and re-fetch products with new discount status
       invalidateCache();
-      refresh();
+      applyFilters({ ...filters }); // This is cleaner than refresh() as it resets everything correctly
+      
       await fetchCartSummary();
       toast.success(`Discounts ${newValue ? "Enabled" : "Disabled"} Successfully`);
     } catch (err) {
@@ -520,7 +584,7 @@ export default function ProductList() {
         {/* Live Rates Bar */}
         <div className="relative border-b border-white/10 overflow-hidden">
           <BackgroundSlider />
-          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-2 flex items-center">
+          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-1 flex items-center">
             <div className="flex items-center gap-2 mr-4 border-r pr-4 border-white/20 flex-shrink-0">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -528,160 +592,222 @@ export default function ProductList() {
               </span>
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Live Market</span>
             </div>
-            <div className="overflow-x-auto scrollbar-hide flex-1 py-2">
+            <div className="overflow-x-auto scrollbar-hide flex-1 py-1">
               <MetalRateCards />
             </div>
           </div>
         </div>
 
         {/* Search & Filters */}
-        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-4 bg-[#F5F5F5]">
-          <div className="flex items-center justify-between gap-4">
+        <div className={`max-w-[1920px] mx-auto px-4 sm:px-6 py-2 ${isDark ? "bg-[#0a0a0a]" : "bg-[#F5F5F5]"}`}>
 
-            <div className={`flex-1 flex flex-col md:flex-row items-stretch md:items-center rounded-xl md:rounded-full border shadow-sm overflow-hidden transition-all focus-within:ring-2 focus-within:ring-[#C19A2A]/30 focus-within:border-[#C19A2A] ${theme.inputBg} ${theme.border}`}>
+          {/* ─── TOP ROW: Search + Action Buttons ─── */}
+          <div className="flex items-center gap-2">
 
-              {/* Search input */}
-              <div className="flex items-center flex-1 px-4 py-3 md:py-2">
-                <Search size={16} className={`${theme.subText} mr-3`} />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  placeholder="Search SKU or Product Name..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const val = e.target.value.trim();
-                      setSearch(val);
-                      isSearchActiveRef.current = true; // ✅ Trigger auto-redirect for manual enter
-                      applyFilters({ ...filters, search: val });
-                    }
-                  }}
-                  className={`w-full bg-transparent border-none outline-none text-sm font-medium placeholder:font-normal ${theme.text}`}
-                />
-
-                {/* Scanner Button */}
-                <button
-                  onClick={() => setShowScanner(true)}
-                  title="Scan Barcode"
-                  className="group relative flex items-center justify-center w-10 h-10 md:w-auto md:px-4 md:py-2 bg-[#5A374F] text-white rounded-lg transition-all hover:bg-[#4a2d41] active:scale-95 overflow-hidden shadow-md"
-                >
-                  <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent opacity-0 group-hover:animate-scan group-hover:opacity-100" />
-                  <div className="relative z-10 flex items-center gap-2 h-full">
-                    <svg viewBox="0 0 24 24" className="w-5 h-9 fill-none stroke-current stroke-[2px]" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                      <path d="M8 8v8M12 8v8M16 8v8" className="opacity-60" />
-                    </svg>
-                  </div>
-                </button>
-              </div>
-
-              <div className={`hidden md:block w-px h-6 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-
-              {/* Metal type */}
-              <div className={`relative px-4 py-3 md:py-2 flex items-center border-t md:border-t-0 ${isDark ? "border-gray-800 bg-[#1f1f1f] hover:bg-[#262626]" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"} transition-colors cursor-pointer`}>
-                <SlidersHorizontal size={14} className={`${theme.subText} mr-2`} />
-                <select
-                  value={metalType}
-                  onChange={(e) => handleMetalTypeChange(e.target.value)}
-                  className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none pr-4 ${theme.text}`}
-                >
-                  <option value="">All Metals</option>
-                  <option value="Gold">Gold</option>
-                  <option value="Silver">Silver</option>
-                  <option value="Platinum">Platinum</option>
-                </select>
-              </div>
-
-              <div className={`hidden md:block w-px h-6 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-
-              {/* Category */}
-              <div className={`relative px-4 py-3 md:py-2 flex items-center border-t md:border-t-0 ${isDark ? "border-gray-800 bg-[#1f1f1f] hover:bg-[#262626]" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"} transition-colors cursor-pointer`}>
-                <select
-                  value={category}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                  className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none pr-4 ${theme.text}`}
-                >
-                  <option value="">All Categories</option>
-                  <option value="Ring">Rings</option>
-                  <option value="Necklace">Necklaces</option>
-                  <option value="Bangle">Bangles</option>
-                  <option value="Bracelet">Bracelets</option>
-                  <option value="Earring">Earrings</option>
-                  <option value="Pendant">Pendants</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div className={`hidden md:block w-px h-6 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-
-              {/* Target Audience */}
-              <div className={`relative px-4 py-3 md:py-2 flex items-center border-t md:border-t-0 ${isDark ? "border-gray-800 bg-[#1f1f1f] hover:bg-[#262626]" : "border-gray-100 bg-gray-50/50 hover:bg-gray-50"} transition-colors cursor-pointer`}>
-                <select
-                  value={targetAudience}
-                  onChange={(e) => handleTargetAudienceChange(e.target.value)}
-                  className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none pr-4 ${theme.text}`}
-                >
-                  <option value="">Audience</option>
-                  <option value="MEN">Men</option>
-                  <option value="WOMEN">Women</option>
-                  <option value="UNISEX">Unisex</option>
-                  <option value="KIDS">Kids</option>
-                </select>
-              </div>
-
-              <div className={`hidden md:block w-px h-6 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
-
-              {/* In-Stock toggle */}
+            {/* Search Bar */}
+            <div className={`flex-1 flex items-center rounded-full border shadow-sm px-4 py-1 transition-all focus-within:ring-2 focus-within:ring-[#C19A2A]/30 focus-within:border-[#C19A2A] ${theme.inputBg} ${theme.border}`}>
+              <Search size={16} className={`${theme.subText} mr-3 flex-shrink-0`} />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search SKU or Product Name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const val = e.target.value.trim();
+                    setSearch(val);
+                    isSearchActiveRef.current = true;
+                    applyFilters({ ...filters, search: val });
+                  }
+                }}
+                className={`w-full bg-transparent border-none outline-none text-sm font-medium placeholder:font-normal ${theme.text}`}
+              />
+              {/* Scanner Button */}
               <button
-                onClick={handleInStockToggle}
-                className={`flex items-center justify-center gap-2 px-6 py-3 md:py-2 text-sm font-semibold transition-all border-t md:border-t-0 ${inStockOnly
-                  ? "bg-[#5A374F] text-white hover:bg-[#6B3151]"
-                  : `${isDark ? "border-gray-800 hover:bg-[#262626]" : "border-gray-100 hover:bg-gray-50"} ${theme.subText}`
-                  }`}
+                onClick={() => setShowScanner(true)}
+                title="Scan Barcode"
+                className="group relative flex items-center justify-center w-9 h-9 bg-[#5A374F] text-white rounded-lg transition-all hover:bg-[#4a2d41] active:scale-95 overflow-hidden shadow-md ml-2 flex-shrink-0"
               >
-                {inStockOnly ? <Check size={16} /> : <Package size={16} />}
-                {inStockOnly ? "In Stock Only" : "All Inventory"}
+                <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent opacity-0 group-hover:animate-scan group-hover:opacity-100" />
+                <div className="relative z-10 flex items-center gap-2 h-full">
+                  <svg viewBox="0 0 24 24" className="w-5 h-9 fill-none stroke-current stroke-[2px]" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                    <path d="M8 8v8M12 8v8M16 8v8" className="opacity-60" />
+                  </svg>
+                </div>
               </button>
             </div>
 
-            {/* Global Discount Toggle */}
+            {/* Filter Toggle — visible on all screens */}
             <button
-              onClick={toggleGlobalDiscount}
-              disabled={isUpdatingDiscount}
-              className={`
-                flex items-center gap-2.5 px-4 h-11 rounded-full border shadow-sm transition-all overflow-hidden relative group
-                ${rawRates?.discountEnabled
-                  ? "bg-[#5A374F] text-white border-[#5A374F]"
-                  : `${isDark ? "bg-[#171717] border-gray-800" : "bg-white border-gray-200"} text-gray-500`
-                }
-                ${isUpdatingDiscount ? "opacity-50 cursor-wait" : "active:scale-95"}
-              `}
-              title={rawRates?.discountEnabled ? "Disable global discounts" : "Enable global discounts"}
+              onClick={() => setFiltersOpen(o => !o)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 h-10 rounded-full border shadow-sm text-xs font-bold uppercase tracking-wide transition-all ${filtersOpen
+                ? "bg-[#5A374F] text-white border-[#5A374F]"
+                : `${theme.inputBg} ${theme.border} ${theme.text}`
+                }`}
             >
-              <div className={`p-1 rounded-md ${rawRates?.discountEnabled ? "bg-white/20" : "bg-gray-100"}`}>
-                <Percent size={14} className={isUpdatingDiscount ? "animate-spin" : ""} />
-              </div>
+              <SlidersHorizontal size={14} />
+              <span>Filters</span>
+              {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
 
-              <div className="flex flex-col items-start leading-[1] text-left">
-                <span className="text-[9px] font-bold uppercase tracking-tighter opacity-70">Discounts</span>
-                <span className="text-[11px] font-bold">{rawRates?.discountEnabled ? "ACTIVE" : "OFF"}</span>
-              </div>
+          {/* ─── COLLAPSIBLE FILTERS: hidden by default on all screens ─── */}
+          <div className={`${filtersOpen ? "flex" : "hidden"
+            } flex-col lg:flex-row lg:items-center flex-wrap gap-2 mt-2 pt-2 border-t ${isDark ? "border-gray-800" : "border-gray-200"}`}>
 
-              {rawRates?.discountEnabled ? (
-                <ToggleRight size={20} className="text-white/90" />
+            {/* Metal */}
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
+              <SlidersHorizontal size={13} className={theme.subText} />
+              <select
+                value={metalType}
+                onChange={(e) => handleMetalTypeChange(e.target.value)}
+                className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none ${theme.text}`}
+              >
+                <option value="">All Metals</option>
+                <option value="Gold">Gold</option>
+                <option value="Silver">Silver</option>
+                <option value="Platinum">Platinum</option>
+              </select>
+            </div>
+
+            {/* Category */}
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
+              <select
+                value={category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none ${theme.text}`}
+              >
+                <option value="">All Categories</option>
+                <option value="Ring">Rings</option>
+                <option value="Necklace">Necklaces</option>
+                <option value="Bangle">Bangles</option>
+                <option value="Bracelet">Bracelets</option>
+                <option value="Earring">Earrings</option>
+                <option value="Pendant">Pendants</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            {/* Audience */}
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
+              <select
+                value={targetAudience}
+                onChange={(e) => handleTargetAudienceChange(e.target.value)}
+                className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none ${theme.text}`}
+              >
+                <option value="">All Audience</option>
+                <option value="MEN">Men</option>
+                <option value="WOMEN">Women</option>
+                <option value="UNISEX">Unisex</option>
+                <option value="KIDS">Kids</option>
+              </select>
+            </div>
+
+            {/* In-Stock toggle */}
+            <div
+              onClick={handleInStockToggle}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full border cursor-pointer transition-all ${theme.inputBg} ${theme.border}`}
+            >
+              <span className={`text-sm font-medium ${inStockOnly ? "text-emerald-500" : theme.subText}`}>
+                {inStockOnly ? "In Stock" : "All Stock"}
+              </span>
+              {inStockOnly ? (
+                <ToggleRight size={20} className="text-emerald-500" />
               ) : (
                 <ToggleLeft size={20} className="text-gray-400" />
               )}
-            </button>
+            </div>
 
-            {/* Dark mode toggle */}
-            <button
-              onClick={() => setIsDark(!isDark)}
-              className={`flex-shrink-0 w-11 h-11 rounded-full border shadow-sm flex items-center justify-center transition-all ${theme.inputBg} ${theme.border} hover:scale-105`}
-              title="Toggle Theme"
+            {/* Price Presets */}
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
+              <SlidersHorizontal size={13} className={theme.subText} />
+              <select
+                value={pricePreset}
+                onChange={(e) => handlePricePresetChange(e.target.value)}
+                className={`bg-transparent border-none outline-none text-sm font-medium cursor-pointer appearance-none ${theme.text}`}
+              >
+                <option value="">All Prices</option>
+                <option value="0-10000">Under ₹10,000</option>
+                <option value="0-25000">Under ₹25,000</option>
+                <option value="25000-50000">₹25,000 - ₹50,000</option>
+                <option value="50000-100000">₹50,000 - ₹1,00,000</option>
+                <option value="100000-99999999">Above ₹1,00,000</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+
+            {/* Custom Price Range Inputs (Only shown if 'custom' is selected) */}
+            {pricePreset === "custom" && (
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text} transition-all duration-300 ease-in-out`}>
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${theme.subText}`}>Range:</span>
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  className={`w-14 bg-transparent border-none outline-none text-xs font-semibold placeholder:font-normal placeholder:text-gray-400 focus:ring-0 ${theme.text}`}
+                />
+                <span className="text-gray-400 font-bold">-</span>
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  className={`w-18 bg-transparent border-none outline-none text-xs font-semibold placeholder:font-normal placeholder:text-gray-400 focus:ring-0 ${theme.text}`}
+                />
+              </div>
+            )}
+
+            {/* Sort */}
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
+              <SlidersHorizontal size={13} className={theme.subText} />
+              <select
+                value={filters.sort || "latest"}
+                onChange={(e) => applyFilters({ ...filters, sort: e.target.value })}
+                className={`bg-transparent border-none outline-none text-xs font-bold uppercase tracking-wider cursor-pointer appearance-none ${theme.text}`}
+              >
+                <option value="latest">Latest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="sku-asc">SKU (A-Z)</option>
+                <option value="sku-desc">SKU (Z-A)</option>
+                <option value="title-asc">Title (A-Z)</option>
+                <option value="title-desc">Title (Z-A)</option>
+              </select>
+            </div>
+
+            {/* Global Discount toggle (Switch Style) — Inside Filter Panel */}
+            <div
+              onClick={!isUpdatingDiscount ? toggleGlobalDiscount : undefined}
+              className={`flex items-center gap-3 px-4 py-1.5 rounded-full border text-sm font-medium transition-all cursor-pointer ${rawRates?.discountEnabled
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                : `${theme.inputBg} ${theme.border} text-gray-500`
+                } ${isUpdatingDiscount ? "opacity-50 cursor-wait" : "active:scale-95"}`}
+              title={rawRates?.discountEnabled ? "Disable global discounts" : "Enable global discounts"}
             >
-              {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600" />}
+              <div className="flex items-center gap-2">
+                <Percent size={14} />
+                <span className="text-[13px]">Discount</span>
+              </div>
+              {isUpdatingDiscount ? (
+                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              ) : rawRates?.discountEnabled ? (
+                <ToggleRight size={20} className="text-emerald-500" />
+              ) : (
+                <ToggleLeft size={20} className="text-gray-400" />
+              )}
+            </div>
+
+            {/* Close filters button on mobile */}
+            <button
+              onClick={() => setFiltersOpen(false)}
+              className={`lg:hidden flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase ${theme.inputBg} ${theme.border} ${theme.subText} ml-auto`}
+            >
+              <X size={13} />
+              Close
             </button>
           </div>
         </div>

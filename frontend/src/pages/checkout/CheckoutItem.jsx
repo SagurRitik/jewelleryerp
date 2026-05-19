@@ -77,6 +77,7 @@ function CheckoutItem({ item , isExpanded, onToggle}) {
     payable = grandTotal,
     
     componentBreakup = [],
+    accessoryValue = 0,
   } = breakup;
 
   // Derive net product value (Subtotal before discounts)
@@ -85,17 +86,26 @@ function CheckoutItem({ item , isExpanded, onToggle}) {
 
   // Separate components for display
   const diamonds = componentBreakup.filter(c => ["Diamond", "Polki", "Moissanite"].includes(c.type));
-  const gemstones = componentBreakup.filter(c => !["Diamond", "Polki", "Moissanite"].includes(c.type));
+  const accessories = componentBreakup.filter(c => c.pricingRef === "BELT");
+  const gemstones = componentBreakup.filter(c => 
+    !["Diamond", "Polki", "Moissanite"].includes(c.type) && 
+    c.pricingRef !== "BELT"
+  );
 
   const totalDiamondValue = diamonds.reduce(
-  (sum, d) => sum + Number(d.value || 0),
-  0
-);
+    (sum, d) => sum + Number(d.value || 0),
+    0
+  );
 
-const totalGemstoneValue = gemstones.reduce(
-  (sum, g) => sum + Number(g.value || 0),
-  0
-);
+  const totalGemstoneValue = gemstones.reduce(
+    (sum, g) => sum + Number(g.value || 0),
+    0
+  );
+
+  const totalAccessoryValue = accessories.reduce(
+    (sum, a) => sum + Number(a.value || 0),
+    0
+  );
 
   return (
     <div className="bg-[#F8EFF3] rounded-xl overflow-hidden mb-6 font-sans">
@@ -241,6 +251,30 @@ const totalGemstoneValue = gemstones.reduce(
     ₹{formatCurrency(totalGemstoneValue)}
   </span>
 </div>
+                </div>
+              )}
+
+              {/* Accessories (Belts) */}
+              {accessories.length > 0 && (
+                <div className="bg-[#EFE7EC]/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-[9px] font-bold tracking-[0.15em] uppercase text-[#6B4E5D] mb-3">
+                    <Tag size={10} /> ACCESSORIES
+                  </div>
+                  {accessories.map((a, i) => (
+                    <div key={i} className="flex justify-between items-center text-xs mb-2 last:mb-0">
+                      <span className="text-gray-500">
+                        {a.type} {a.category ? `(${a.category})` : ""} {a.shape ? `— ${a.shape}` : ""} · {a.count} pcs
+                      </span>
+                      <span className="font-medium text-gray-800">₹{formatCurrency(a.value)}</span>
+                    </div>
+                  ))}
+
+                  <div className="flex justify-between items-center text-xs mt-3 pt-2 border-t border-gray-200">
+                    <span className="text-gray-600 font-medium">Total Accessory Value</span>
+                    <span className="font-semibold text-[#462434]">
+                      ₹{formatCurrency(totalAccessoryValue)}
+                    </span>
+                  </div>
                 </div>
               )}
 

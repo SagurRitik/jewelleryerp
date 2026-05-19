@@ -65,65 +65,65 @@
 import mongoose from "mongoose";
 
 const MetalLedgerSchema = new mongoose.Schema(
-{
-type:{
-type:String,
-enum:["CREDIT","DEBIT"],
-required:true
-},
+    {
+        type: {
+            type: String,
+            enum: ["CREDIT", "DEBIT"],
+            required: true
+        },
 
-source:{
-type:String,
-enum:[
-"ORDER",
-"INVOICE",
-"MANUAL",
-"VENDOR",
-"REFINERY",
-"CASH_CONVERSION"
-],
-required:true
-},
+        source: {
+            type: String,
+            enum: [
+                "ORDER",
+                "INVOICE",
+                "MANUAL",
+                "VENDOR",
+                "REFINERY",
+                "CASH_CONVERSION"
+            ],
+            required: true
+        },
 
-referenceId:{
-type:mongoose.Schema.Types.ObjectId,
-default:null
-},
+        referenceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null
+        },
 
-referenceModel:{
-type:String,
-enum:["Order","SalesOrder", "Purchase"],
-default:null
-},
+        referenceModel: {
+            type: String,
+            enum: ["Order", "SalesOrder", "Purchase", "SupplierPayment"],
+            default: null
+        },
 
-partyName:String,   // 🔥 vendor / customer / refinery
+        partyName: String,   // 🔥 vendor / customer / refinery
 
-metalType:{
-type:String,
-enum:["Gold","Silver","Platinum","Other"]
-},
+        metalType: {
+            type: String,
+            enum: ["Gold", "Silver", "Platinum", "Other"]
+        },
 
-purity:String,
+        purity: String,
 
-weight:{
-type:Number,
-default:0
-},
+        weight: {
+            type: Number,
+            default: 0
+        },
 
-ratePerGram:{
-type:Number,
-default:0
-},
+        ratePerGram: {
+            type: Number,
+            default: 0
+        },
 
-value:{
-type:Number,
-required:true
-},
+        value: {
+            type: Number,
+            required: true
+        },
 
-notes:String
+        notes: String
 
-},
-{timestamps:true}
+    },
+    { timestamps: true }
 );
 
-export default mongoose.model("MetalLedger",MetalLedgerSchema);
+export default mongoose.model("MetalLedger", MetalLedgerSchema);

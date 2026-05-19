@@ -11,6 +11,10 @@ const RateConfigSchema = new mongoose.Schema(
     diamondRate: Number,
     stoneRate: Number,
     makingCharge: Number,
+    goldMakingCharge: Number,
+    silverMakingCharge: Number,
+    platinumMakingCharge: Number,
+
     
     /* ✅ NEW: MINIMUM MAKING CHARGE CONFIG */
     minMakingWeight: { type: Number, default: 0 },   // e.g., 1.5

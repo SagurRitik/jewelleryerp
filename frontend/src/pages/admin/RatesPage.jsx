@@ -7,6 +7,8 @@ import { useRates } from "../../context/RatesContext";
 import { useProductList } from "../../context/ProductListContext";
 import { useCart } from "../../context/CartContext";
 import { toast } from "sonner";
+import { fetchLiveRates } from "../../api/liveMarketApi";
+import { RefreshCw } from "lucide-react";
 
 export default function RatesPage() {
   const navigate = useNavigate();
@@ -22,7 +24,11 @@ export default function RatesPage() {
     diamondRate: "",
     stoneRate: "",
     makingCharge: "",
+    goldMakingCharge: "",
+    silverMakingCharge: "",
+    platinumMakingCharge: "",
     minMakingWeight: "",
+
     minMakingFlatFee: "",
     gstRate: 3,
     makingDiscountType: "none",
@@ -35,6 +41,24 @@ export default function RatesPage() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveRates, setLiveRates] = useState(null);
+
+  const getLiveMarketData = async () => {
+    try {
+      setLiveLoading(true);
+      const data = await fetchLiveRates();
+      setLiveRates(data);
+    } catch (err) {
+      console.error("Live Rates Error:", err);
+    } finally {
+      setLiveLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getLiveMarketData();
+  }, []);
 
   useEffect(() => {
     const loadRates = async () => {
@@ -75,7 +99,41 @@ export default function RatesPage() {
           <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">
             Configurations / Global Rates
           </p>
-          <h1 className="text-4xl font-bold text-[#5D3354] mb-2">Rate Configuration</h1>
+          <div className="flex items-center gap-3 flex-wrap mb-2">
+            <h1 className="text-4xl font-bold text-[#5D3354]">Rate Configuration</h1>
+
+            {/* LIVE RATES PILLS */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Gold Pill */}
+              <div className="flex items-center gap-2 bg-[#1E293B] text-white px-4 py-2 rounded-full shadow-md">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Gold 24K</span>
+                <span className="text-sm font-bold text-yellow-400">
+                  {liveLoading ? "..." : liveRates ? `₹${liveRates.gold.toLocaleString('en-IN')}/gm` : "---"}
+                </span>
+              </div>
+
+              {/* Silver Pill */}
+              <div className="flex items-center gap-2 bg-[#1E293B] text-white px-4 py-2 rounded-full shadow-md">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Silver 999</span>
+                <span className="text-sm font-bold text-slate-300">
+                  {liveLoading ? "..." : liveRates?.silver ? `₹${liveRates.silver.toLocaleString('en-IN')}/gm` : "---"}
+                </span>
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                onClick={getLiveMarketData}
+                disabled={liveLoading}
+                className="flex items-center gap-1.5 bg-[#1E293B] text-slate-400 hover:text-white px-3 py-2 rounded-full shadow-md transition-colors disabled:opacity-40"
+                title="Refresh Live Rates"
+              >
+                <RefreshCw size={12} className={liveLoading ? 'animate-spin' : ''} />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Refresh</span>
+              </button>
+            </div>
+          </div>
           <p className="text-gray-500 max-w-2xl text-sm leading-relaxed">
             Centrally manage live market-indexed precious metal rates and global
             discount rules to ensure pricing consistency across all sales channels.
@@ -85,6 +143,8 @@ export default function RatesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* LEFT COLUMN */}
           <div className="lg:col-span-2 space-y-6">
+
+
 
             {/* METAL RATES */}
             <section className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
@@ -170,15 +230,26 @@ export default function RatesPage() {
               <p className="text-xs text-gray-400 mb-8">Global labor and taxation overheads</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                 <Input
-                  label="MAKING RATE (PER GM)"
-                  value={rates.makingCharge}
-                  onChange={(v) => setRates({ ...rates, makingCharge: v })}
+                  label="GOLD MAKING RATE (PER GM)"
+                  value={rates.goldMakingCharge}
+                  onChange={(v) => setRates({ ...rates, goldMakingCharge: v })}
+                />
+                <Input
+                  label="SILVER MAKING RATE (PER GM)"
+                  value={rates.silverMakingCharge}
+                  onChange={(v) => setRates({ ...rates, silverMakingCharge: v })}
+                />
+                <Input
+                  label="PLATINUM MAKING RATE (PER GM)"
+                  value={rates.platinumMakingCharge}
+                  onChange={(v) => setRates({ ...rates, platinumMakingCharge: v })}
                 />
                 <Input
                   label="APPLICABLE GST (%)"
                   value={rates.gstRate}
                   onChange={(v) => setRates({ ...rates, gstRate: v })}
                 />
+
                 <Input
                   label="MIN WEIGHT THRESHOLD (GM)"
                   value={rates.minMakingWeight}
@@ -203,8 +274,8 @@ export default function RatesPage() {
                   onClick={() => setRates(prev => ({ ...prev, discountEnabled: !prev.discountEnabled }))}
                   className={`
                     flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all
-                    ${rates.discountEnabled 
-                      ? "bg-green-100 text-green-700 border border-green-200" 
+                    ${rates.discountEnabled
+                      ? "bg-green-100 text-green-700 border border-green-200"
                       : "bg-red-50 text-red-600 border border-red-100"
                     }
                   `}

@@ -431,6 +431,18 @@ export default function SupplierLedger() {
                               Mode: {entry.paymentMode}
                             </div>
                           )}
+                          {entry.paymentMode === "GOLD" && (
+                            <div className="flex gap-2 mt-0.5">
+                               <div className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold uppercase">
+                                 {entry.metalType || 'Gold'}: {entry.weight}g @ ₹{entry.rate}/g
+                               </div>
+                               {entry.purity && (
+                                 <div className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                                   Purity: {entry.purity}
+                                 </div>
+                               )}
+                            </div>
+                          )}
                         </div>
 
                         {entry.purchaseSlip && (

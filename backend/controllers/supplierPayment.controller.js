@@ -1,5 +1,6 @@
 import SupplierPayment from "../models/SupplierPayment.js";
 import Supplier from "../models/Supplier.js";
+import MetalLedger from "../models/MetalLedger.js";
 
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +9,7 @@ import path from 'path';
 // @route   POST /api/supplier-payments
 export const createSupplierPayment = async (req, res) => {
   try {
-    const { supplierId, amount } = req.body;
+    const { supplierId, amount, paymentMode, weight, rate, metalType, purity, reference, note } = req.body;
 
     if (!supplierId || !amount) {
       return res.status(400).json({ message: "Supplier ID and amount are required" });
@@ -25,6 +26,23 @@ export const createSupplierPayment = async (req, res) => {
 
     // Create the payment record
     const payment = await SupplierPayment.create(req.body);
+
+    // If payment mode is GOLD, update Metal Ledger (Debit our stock)
+    if (paymentMode === "GOLD") {
+      await MetalLedger.create({
+        type: "DEBIT",
+        source: "VENDOR",
+        referenceId: payment._id,
+        referenceModel: "SupplierPayment", // Note: Need to add this to MetalLedger schema or keep it generic
+        partyName: supplier.name,
+        metalType: metalType || "Gold",
+        purity: purity || "",
+        weight: Number(weight) || 0,
+        ratePerGram: Number(rate) || 0,
+        value: Number(amount),
+        notes: `Gold payment to supplier: ${note || ''}`
+      });
+    }
 
     // Update the supplier's balance (currentBalance -= amount)
     if (typeof supplier.currentBalance !== 'number' || isNaN(supplier.currentBalance)) {

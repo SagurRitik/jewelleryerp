@@ -11,11 +11,13 @@
 
 import React, { useState, useEffect } from "react";
 import { createManualInvoice } from "../api/invoiceApi";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import { toast } from "sonner";
 
 export default function ManualBillingForm() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [credits, setCredits] = useState([]);
   const [selectedCreditIds, setSelectedCreditIds] = useState([]);
@@ -40,6 +42,9 @@ export default function ManualBillingForm() {
     stones: [
       { qty: "", grossWeight: "", netWeight: "", rate: "" }
     ],
+    belts: [
+      { material: "", color: "", size: "", qty: "", rate: "" }
+    ],
 
     // OTHER
     makingRate: "", // ₹ per gram
@@ -48,6 +53,7 @@ export default function ManualBillingForm() {
       making: { type: "flat", value: "" },
       diamond: { type: "flat", value: "" },
       stone: { type: "flat", value: "" },
+      belt: { type: "flat", value: "" },
     },
     discountEnabled: true, // Auto-open for UI match
   };
@@ -107,7 +113,6 @@ export default function ManualBillingForm() {
     updated[itemIndex].stones.splice(sIndex, 1);
     setForm((p) => ({ ...p, items: updated }));
   };
-
   const handleStoneChange = (itemIndex, sIndex, field, value) => {
     const updated = [...form.items];
     const stone = updated[itemIndex].stones[sIndex];
@@ -123,6 +128,31 @@ export default function ManualBillingForm() {
       stone.netWeight = "";
     }
 
+    setForm((p) => ({ ...p, items: updated }));
+  };
+
+  const addBelt = (itemIndex) => {
+    const updated = [...form.items];
+    updated[itemIndex].belts.push({
+      material: "",
+      color: "",
+      size: "",
+      qty: "",
+      rate: "",
+    });
+    setForm((p) => ({ ...p, items: updated }));
+  };
+
+  const removeBelt = (itemIndex, bIndex) => {
+    const updated = [...form.items];
+    updated[itemIndex].belts.splice(bIndex, 1);
+    setForm((p) => ({ ...p, items: updated }));
+  };
+
+  const handleBeltChange = (itemIndex, bIndex, field, value) => {
+    const updated = [...form.items];
+    const belt = updated[itemIndex].belts[bIndex];
+    belt[field] = value;
     setForm((p) => ({ ...p, items: updated }));
   };
 
@@ -183,7 +213,9 @@ export default function ManualBillingForm() {
       },
 
       gstPercent: savedGST ? Number(savedGST) : 3,
-      makingRateGlobal: localStorage.getItem("billing_making") || "",
+      makingRates: localStorage.getItem("billing_making_rates")
+        ? JSON.parse(localStorage.getItem("billing_making_rates"))
+        : { Gold: "", Silver: "", Platinum: "" },
       ratesLocked: false,
     };
   };
@@ -194,6 +226,44 @@ export default function ManualBillingForm() {
     const savedRates = localStorage.getItem("billing_base_rates");
     const savedItems = localStorage.getItem("billing_items");
     const savedGST = localStorage.getItem("billing_gst");
+
+    // Check for Prefill from Location State during initialization
+    const prefill = location.state?.prefillDiamond;
+    let initialItems = [{ ...emptyItem }];
+
+    if (prefill) {
+      initialItems = [{
+        ...emptyItem,
+        title: prefill.sku
+          ? `Loose Diamond: ${prefill.labNatural || "Natural"} ${prefill.shape || ""} ${prefill.weight || ""}ct ${prefill.color || ""}/${prefill.clarity || ""} ${prefill.lab ? `(${prefill.lab})` : ""} [SKU: ${prefill.sku}]`
+          : `Loose Diamond: ${prefill.labNatural || "Natural"} ${prefill.shape || ""} ${prefill.weight || ""}ct`,
+        hsnCode: prefill.hsnCode || "",
+        netWeight: 0,
+        grossWeight: 0,
+        metalType: "Gold",
+        diamonds: [{
+          qty: prefill.qty || 1,
+          grossWeight: prefill.weight || 0,
+          netWeight: prefill.weight || 0,
+          rate: prefill.rate || 0,
+          shape: prefill.shape || "",
+          color: prefill.color || "",
+          clarity: prefill.clarity || "",
+          diamondId: prefill.diamondId
+        }],
+        certificates: prefill.certificateNo ? [{ lab: prefill.lab || "Cert", certificateNo: prefill.certificateNo }] : []
+      }];
+    } else if (savedItems) {
+      initialItems = JSON.parse(savedItems).map((item) => ({
+        ...emptyItem,
+        ...item,
+        discounts: {
+          ...emptyItem.discounts,
+          ...(item.discounts || {}),
+        },
+        discountEnabled: true,
+      }));
+    }
 
     return {
       baseRates: savedRates
@@ -214,13 +284,7 @@ export default function ManualBillingForm() {
         panNumber: "",
       },
 
-      items: savedItems
-        ? JSON.parse(savedItems).map((item) => ({
-          ...emptyItem,
-          ...item,
-          discountEnabled: true,
-        }))
-        : [{ ...emptyItem }],
+      items: initialItems,
 
       salesperson: "",
 
@@ -230,10 +294,17 @@ export default function ManualBillingForm() {
       },
 
       gstPercent: savedGST ? Number(savedGST) : 3,
-      makingRateGlobal: localStorage.getItem("billing_making") || "",
+      makingRates: localStorage.getItem("billing_making_rates")
+        ? JSON.parse(localStorage.getItem("billing_making_rates"))
+        : { Gold: "", Silver: "", Platinum: "" },
       ratesLocked: false,
     };
-  });
+  });  // Handle Prefill from Diamond Inventory (Enhanced for immediate capture)
+  useEffect(() => {
+    if (location.state?.prefillDiamond) {
+      toast.success("Diamond details auto-filled from stock!");
+    }
+  }, [location.state]);
 
   const handleCustomerChange = (field, value) => {
     setForm((p) => ({
@@ -291,16 +362,15 @@ export default function ManualBillingForm() {
     localStorage.setItem("billing_base_rates", JSON.stringify(form.baseRates));
     localStorage.setItem("billing_items", JSON.stringify(form.items));
     localStorage.setItem("billing_gst", form.gstPercent);
-    localStorage.setItem("billing_making", form.makingRateGlobal);
-  }, [form.baseRates, form.items, form.gstPercent, form.makingRateGlobal]);
+    localStorage.setItem("billing_making_rates", JSON.stringify(form.makingRates));
+  }, [form.baseRates, form.items, form.gstPercent, form.makingRates]);
 
   useEffect(() => {
     if (form.ratesLocked) return;
 
-    const rate = Number(form.makingRateGlobal || 0);
-
     const updatedItems = form.items.map((item) => {
       const weight = Number(item.netWeight || 0);
+      const rate = Number(form.makingRates[item.metalType] || 0);
       return {
         ...item,
         makingRate: rate,
@@ -309,7 +379,7 @@ export default function ManualBillingForm() {
     });
 
     setForm((p) => ({ ...p, items: updatedItems }));
-  }, [form.makingRateGlobal, form.items.length, form.ratesLocked]);
+  }, [form.makingRates, form.items.length, form.ratesLocked]);
 
   const handleItemChange = (index, field, value) => {
     const updated = [...form.items];
@@ -324,7 +394,7 @@ export default function ManualBillingForm() {
 
     if (field === "netWeight" && !form.ratesLocked) {
       const weight = Number(updated[index].netWeight || 0);
-      const rate = Number(form.makingRateGlobal || 0);
+      const rate = Number(form.makingRates[item.metalType] || 0);
       updated[index].makingCharge = (weight * rate).toFixed(2);
     }
 
@@ -423,15 +493,17 @@ export default function ManualBillingForm() {
       }, 0);
 
       const makingDiscount = calcDiscount(item.discounts.making, makingCharge);
-      const diamondDiscount = calcDiscount(
-        item.discounts.diamond,
-        diamondValue
-      );
+      const diamondDiscount = calcDiscount(item.discounts.diamond, diamondValue);
       const stoneDiscount = calcDiscount(item.discounts.stone, stoneValue);
 
-      const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount;
+      const beltValue = item.belts.reduce((sum, b) => {
+        return sum + (Number(b.qty || 0) * Number(b.rate || 0));
+      }, 0);
+      const beltDiscount = calcDiscount(item.discounts.belt, beltValue);
+
+      const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
       const subtotalBeforeDiscount =
-        metalValue + diamondValue + stoneValue + makingCharge;
+        metalValue + diamondValue + stoneValue + beltValue + makingCharge;
       const subtotal = Math.max(0, subtotalBeforeDiscount - totalDiscount);
 
       const gstPercent = Number(form.gstPercent || 0);
@@ -452,6 +524,7 @@ export default function ManualBillingForm() {
             weight: netWeight,
             rate,
             value: netWeight * rate,
+            diamondId: d.diamondId
           });
         }
       });
@@ -498,6 +571,7 @@ export default function ManualBillingForm() {
           discountMaking: makingDiscount,
           discountDiamond: diamondDiscount,
           discountStone: stoneDiscount,
+          discountBelt: beltDiscount,
           discount: totalDiscount,
           componentBreakup,
         },
@@ -530,7 +604,7 @@ export default function ManualBillingForm() {
         ...getInitialForm(),
         ratesLocked: prev.ratesLocked,
         baseRates: prev.baseRates,
-        makingRateGlobal: prev.makingRateGlobal,
+        makingRates: prev.makingRates,
       }));
 
       // optional: clear items cache
@@ -571,30 +645,37 @@ export default function ManualBillingForm() {
         return sum + (Number(s.netWeight || 0) * Number(s.rate || 0));
       }, 0);
 
+      const beltValue = item.belts.reduce((sum, b) => {
+        return sum + (Number(b.qty || 0) * Number(b.rate || 0));
+      }, 0);
+
       const makingDiscount = calcDiscount(item.discounts.making, makingCharge);
       const diamondDiscount = calcDiscount(
         item.discounts.diamond,
         diamondValue
       );
       const stoneDiscount = calcDiscount(item.discounts.stone, stoneValue);
+      const beltDiscount = calcDiscount(item.discounts.belt, beltValue);
 
-      const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount;
+      const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
 
       acc.metal += metalValue;
       acc.diamond += diamondValue;
       acc.stone += stoneValue;
+      acc.belt += beltValue;
       acc.making += makingCharge;
       acc.discount += totalDiscount;
 
       return acc;
     },
-    { metal: 0, diamond: 0, stone: 0, making: 0, discount: 0 }
+    { metal: 0, diamond: 0, stone: 0, belt: 0, making: 0, discount: 0 }
   );
 
   const subtotal =
     totals.metal +
     totals.diamond +
     totals.stone +
+    totals.belt +
     totals.making -
     totals.discount;
   const gst = subtotal * (Number(form.gstPercent || 0) / 100);
@@ -657,14 +738,17 @@ export default function ManualBillingForm() {
       return sum + (Number(s.netWeight || 0) * Number(s.rate || 0));
     }, 0);
 
-
+    const beltValue = item.belts.reduce((sum, b) => {
+      return sum + (Number(b.qty || 0) * Number(b.rate || 0));
+    }, 0);
 
     const makingDiscount = calcDiscount(item.discounts.making, makingCharge);
     const diamondDiscount = calcDiscount(item.discounts.diamond, diamondValue);
     const stoneDiscount = calcDiscount(item.discounts.stone, stoneValue);
-    const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount;
+    const beltDiscount = calcDiscount(item.discounts.belt, beltValue);
+    const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
 
-    const subtotalBeforeDiscount = metalValue + diamondValue + stoneValue + makingCharge;
+    const subtotalBeforeDiscount = metalValue + diamondValue + stoneValue + beltValue + makingCharge;
     return Math.max(0, subtotalBeforeDiscount - totalDiscount);
   };
 
@@ -1119,44 +1203,26 @@ export default function ManualBillingForm() {
 
                     {item.stones.map((s, sIndex) => (
                       <div key={sIndex} className="grid grid-cols-5 gap-2">
-
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Qty
-                          </label>
-
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Qty</label>
                           <input
                             placeholder="Qty"
                             className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
                             value={s.qty}
-                            onChange={(e) =>
-                              handleStoneChange(i, sIndex, "qty", e.target.value)
-                            }
+                            onChange={(e) => handleStoneChange(i, sIndex, "qty", e.target.value)}
                           />
                         </div>
-
-
-
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Total (CT)
-                          </label>
-
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Total (CT)</label>
                           <input
                             placeholder="Total (Ct)"
                             className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
                             value={s.grossWeight}
-                            onChange={(e) =>
-                              handleStoneChange(i, sIndex, "grossWeight", e.target.value)
-                            }
+                            onChange={(e) => handleStoneChange(i, sIndex, "grossWeight", e.target.value)}
                           />
                         </div>
-
-
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            weight (CT)
-                          </label>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">weight (CT)</label>
                           <input
                             placeholder="Weight (CT)"
                             className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
@@ -1164,27 +1230,86 @@ export default function ManualBillingForm() {
                             readOnly
                           />
                         </div>
-
-
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Rate
-                          </label>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Rate</label>
                           <input
                             placeholder="Rate"
                             className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
                             value={s.rate}
-                            onChange={(e) =>
-                              handleStoneChange(i, sIndex, "rate", e.target.value)
-                            }
+                            onChange={(e) => handleStoneChange(i, sIndex, "rate", e.target.value)}
                           />
                         </div>
-
                         <button
                           type="button"
                           onClick={() => removeStone(i, sIndex)}
                           className="text-xs text-red-600 hover:text-red-800"
-                          title="Remove Stone"
+                        >
+                          remove
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* BELT BUTTON & INFO */}
+                    <button
+                      className={`px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors ml-2
+  ${item.belts.length === 0 ? "mt-0" : ""}`}
+                      type="button"
+                      onClick={() => addBelt(i)}
+                    >
+                      + Add Belt
+                    </button>
+
+                    {item.belts.map((b, bIndex) => (
+                      <div key={bIndex} className="grid grid-cols-6 gap-2">
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Material</label>
+                          <input
+                            placeholder="Material"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={b.material}
+                            onChange={(e) => handleBeltChange(i, bIndex, "material", e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Color</label>
+                          <input
+                            placeholder="Color"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={b.color}
+                            onChange={(e) => handleBeltChange(i, bIndex, "color", e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Size</label>
+                          <input
+                            placeholder="Size"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={b.size}
+                            onChange={(e) => handleBeltChange(i, bIndex, "size", e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Qty</label>
+                          <input
+                            placeholder="Qty"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={b.qty}
+                            onChange={(e) => handleBeltChange(i, bIndex, "qty", e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Rate</label>
+                          <input
+                            placeholder="Rate"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={b.rate}
+                            onChange={(e) => handleBeltChange(i, bIndex, "rate", e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeBelt(i, bIndex)}
+                          className="text-xs text-red-600 hover:text-red-800 self-end mb-2"
                         >
                           remove
                         </button>
@@ -1218,7 +1343,7 @@ export default function ManualBillingForm() {
 
                       {item.discountEnabled && (
                         <div className="space-y-4">
-                          {["making", "diamond", "stone"].map((type) => (
+                          {["making", "diamond", "stone", "belt"].map((type) => (
                             <div
                               key={type}
                               className="grid grid-cols-[1fr_auto_auto] gap-2 items-center"
@@ -1404,7 +1529,7 @@ export default function ManualBillingForm() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-7 gap-2">
                 <input
                   title="Gold 24k"
                   min="0"
@@ -1439,14 +1564,36 @@ export default function ManualBillingForm() {
                   }
                 />
                 <input
-                  title="Making Rate Global"
-                  placeholder="Making Rate"
+                  title="Gold Making"
+                  placeholder="Gold M"
                   min="0"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
                   disabled={form.ratesLocked}
-                  value={form.makingRateGlobal}
+                  value={form.makingRates.Gold}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, makingRateGlobal: e.target.value }))
+                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Gold: e.target.value } }))
+                  }
+                />
+                <input
+                  title="Silver Making"
+                  placeholder="Silver M"
+                  min="0"
+                  className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
+                  disabled={form.ratesLocked}
+                  value={form.makingRates.Silver}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Silver: e.target.value } }))
+                  }
+                />
+                <input
+                  title="Platinum Making"
+                  placeholder="Plat M"
+                  min="0"
+                  className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
+                  disabled={form.ratesLocked}
+                  value={form.makingRates.Platinum}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Platinum: e.target.value } }))
                   }
                 />
                 <input
@@ -1485,6 +1632,10 @@ export default function ManualBillingForm() {
                 <div className="flex justify-between items-center">
                   <span className="text-[#d8c5cf]">Stone Value</span>
                   <span>₹ {totals.stone.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#d8c5cf]">Belt Value</span>
+                  <span>₹ {totals.belt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
                 <div className="flex justify-between items-center font-bold text-white pt-4 pb-3">

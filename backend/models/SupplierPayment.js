@@ -14,8 +14,30 @@ const supplierPaymentSchema = new mongoose.Schema(
     },
     paymentMode: { 
       type: String, 
-      enum: ["CASH", "BANK", "UPI"], 
+      enum: ["CASH", "BANK", "UPI", "GOLD"], 
       required: true 
+    },
+    // Metal specific fields (only if paymentMode is GOLD)
+    metalType: {
+      type: String,
+      enum: ["Gold", "Silver", "Platinum", "Other"],
+      default: "Gold"
+    },
+    weight: {
+      type: Number,
+      default: 0
+    },
+    purity: {
+      type: String,
+      default: ""
+    },
+    fineWeight: {
+      type: Number,
+      default: 0
+    },
+    rate: {
+      type: Number,
+      default: 0
     },
     reference: { 
       type: String, 

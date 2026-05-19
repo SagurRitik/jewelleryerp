@@ -106,6 +106,7 @@ const sanitizeProductData = (data) => {
           ? Number(c.rateOverride)
           : null,
 
+      description: c.description || "",
       settingApplicable: Boolean(c.settingApplicable),
       settingRuleRef: c.settingRuleRef || "",
     }));
@@ -237,83 +238,172 @@ export const getProducts = async (req, res) => {
     if (req.query.inStock === "true")
       filter.stock = { $gt: 0 };
 
-    const sort =
-      req.query.sort === "stock-desc"
-        ? { stock: -1 }
-        : { createdAt: -1 };
+    const sortOption = req.query.sort || "latest";
+    let sort = { createdAt: -1 }; // Default
+
+    if (sortOption === "latest") sort = { createdAt: -1 };
+    else if (sortOption === "oldest") sort = { createdAt: 1 };
+    else if (sortOption === "sku-asc") sort = { sku: 1 };
+    else if (sortOption === "sku-desc") sort = { sku: -1 };
+    else if (sortOption === "title-asc") sort = { title: 1 };
+    else if (sortOption === "title-desc") sort = { title: -1 };
+    else if (sortOption === "stock-desc") sort = { stock: -1 };
 
     /* ---------- FETCH PRODUCTS ---------- */
-    const [productsRaw, total] = await Promise.all([
-      Product.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Product.countDocuments(filter),
-    ]);
+    const hasPriceFilter = req.query.minPrice !== undefined || req.query.maxPrice !== undefined;
+    const hasPriceSort = sortOption === "price-asc" || sortOption === "price-desc";
 
-    /* ---------- LOAD ACTIVE RATE CONFIG ---------- */
-    const rateConfig = await RateConfig.findOne({ active: true });
+    if (hasPriceFilter || hasPriceSort) {
+      // 1. Fetch ALL matching products (without skip/limit)
+      const productsRaw = await Product.find(filter)
+        .sort(hasPriceSort ? { createdAt: -1 } : sort)
+        .collation({ locale: "en", numericOrdering: true })
+        .lean();
 
-    if (!rateConfig) {
-      return res.status(500).json({
-        success: false,
-        message: "No active rate configuration found",
-      });
-    }
+      // 2. Load active rate config
+      const rateConfig = await RateConfig.findOne({ active: true });
+      if (!rateConfig) {
+        return res.status(500).json({
+          success: false,
+          message: "No active rate configuration found",
+        });
+      }
 
-    /* ---------- CALCULATE PRICING ---------- */
-    const products = await Promise.all(
-      productsRaw.map(async (product) => {
-        try {
-          const wrappedItem = {
-            quantity: 1,
-            customSnapshot: {
-              productDetails: JSON.parse(JSON.stringify(product)),
-            },
-          };
+      // 3. Calculate pricing for ALL matching products
+      let productsPriced = await Promise.all(
+        productsRaw.map(async (product) => {
+          try {
+            const wrappedItem = {
+              quantity: 1,
+              customSnapshot: {
+                productDetails: JSON.parse(JSON.stringify(product)),
+              },
+            };
+            const breakup = await calculateItem(wrappedItem, rateConfig);
+            return {
+              ...product,
+              images: (product.images || []).map(normalizeImage),
+              pricing: breakup,
+            };
+          } catch (err) {
+            console.error("Price calculation failed for:", product.sku, err);
+            return {
+              ...product,
+              pricing: null,
+            };
+          }
+        })
+      );
 
-          const breakup = await calculateItem(
-            wrappedItem,
-            rateConfig
+      // 4. Apply price range filtering
+      if (req.query.minPrice !== undefined) {
+        const minVal = Number(req.query.minPrice);
+        if (!isNaN(minVal)) {
+          productsPriced = productsPriced.filter(
+            p => (p.pricing?.payable ?? p.pricing?.grandTotal ?? 0) >= minVal
           );
-
-          // .lean() returns plain objects — no ._doc — use product directly
-          return {
-            ...product,
-            images: (product.images || []).map(normalizeImage),
-            pricing: breakup,
-          };
-        } catch (err) {
-          console.error(
-            "Price calculation failed for:",
-            product.sku,
-            err
-          );
-
-          return {
-            ...product,
-            pricing: null,
-          };
         }
-      })
-    );
+      }
+      if (req.query.maxPrice !== undefined) {
+        const maxVal = Number(req.query.maxPrice);
+        if (!isNaN(maxVal)) {
+          productsPriced = productsPriced.filter(
+            p => (p.pricing?.payable ?? p.pricing?.grandTotal ?? 0) <= maxVal
+          );
+        }
+      }
 
-    /* ---------- PREPARE & CACHE RESPONSE ---------- */
-    const responseData = {
-      success: true,
-      products,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+      // 5. Apply price sorting in memory if requested
+      if (sortOption === "price-asc") {
+        productsPriced.sort((a, b) => {
+          const priceA = a.pricing?.payable ?? a.pricing?.grandTotal ?? 0;
+          const priceB = b.pricing?.payable ?? b.pricing?.grandTotal ?? 0;
+          return priceA - priceB;
+        });
+      } else if (sortOption === "price-desc") {
+        productsPriced.sort((a, b) => {
+          const priceA = a.pricing?.payable ?? a.pricing?.grandTotal ?? 0;
+          const priceB = b.pricing?.payable ?? b.pricing?.grandTotal ?? 0;
+          return priceB - priceA;
+        });
+      }
 
-    setCache(cacheKey, responseData);
+      // 6. Paginate
+      const total = productsPriced.length;
+      const paginatedProducts = productsPriced.slice(skip, skip + limit);
 
-    res.json(responseData);
+      const responseData = {
+        success: true,
+        products: paginatedProducts,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+
+      setCache(cacheKey, responseData);
+      return res.json(responseData);
+    } else {
+      // original optimized path when no price filter or price sort is applied
+      const [productsRaw, total] = await Promise.all([
+        Product.find(filter)
+          .sort(sort)
+          .collation({ locale: "en", numericOrdering: true })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Product.countDocuments(filter),
+      ]);
+
+      const rateConfig = await RateConfig.findOne({ active: true });
+      if (!rateConfig) {
+        return res.status(500).json({
+          success: false,
+          message: "No active rate configuration found",
+        });
+      }
+
+      const products = await Promise.all(
+        productsRaw.map(async (product) => {
+          try {
+            const wrappedItem = {
+              quantity: 1,
+              customSnapshot: {
+                productDetails: JSON.parse(JSON.stringify(product)),
+              },
+            };
+            const breakup = await calculateItem(wrappedItem, rateConfig);
+            return {
+              ...product,
+              images: (product.images || []).map(normalizeImage),
+              pricing: breakup,
+            };
+          } catch (err) {
+            console.error("Price calculation failed for:", product.sku, err);
+            return {
+              ...product,
+              pricing: null,
+            };
+          }
+        })
+      );
+
+      const responseData = {
+        success: true,
+        products,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+
+      setCache(cacheKey, responseData);
+      return res.json(responseData);
+    }
 
   } catch (error) {
     console.error("GET PRODUCTS ERROR:", error);
@@ -558,8 +648,9 @@ export const getInventorySummary = async (req, res) => {
 
       if (categoryCompare !== 0) return categoryCompare;
 
-      return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+      return String(a.sku || "").localeCompare(String(b.sku || ""), undefined, {
         sensitivity: "base",
+        numeric: true,
       });
     });
 
@@ -736,9 +827,6 @@ export const getProductById = async (req, res) => {
 export const updateProductBySku = async (req, res) => {
   try {
     const data = sanitizeProductData(req.body);
-
-    // 🔥 DEBUG
-    console.log("🚀 INCOMING DATA:", JSON.stringify(data, null, 2));
 
     const existing = await Product.findOne({ sku: req.params.sku });
 

@@ -48,11 +48,16 @@ const PRINT_STYLE = `
     print-color-adjust: exact !important;
   }
   @page {
-    margin: 0 !important;
-    size: auto; /* Allow browser to determine size but hide margins */
+    margin: 5mm !important;
+    size: A4;
   }
   
   .no-print, nav, footer, header, button, .sticky { display: none !important; }
+  
+  #print-area, .item-card { 
+    overflow: visible !important;
+    height: auto !important;
+  }
 
   .print-container {
     padding: 0 !important;
@@ -62,16 +67,14 @@ const PRINT_STYLE = `
 
   #print-area {
     display: block !important;
-    position: relative !important;
-    width: 210mm !important; 
-    height: 297mm !important; 
+    position: static !important;
+    width: 100% !important; 
     max-width: none !important;
-    margin: 0 auto !important;
-    padding: 10mm !important; 
+    margin: 0 !important;
+    padding: 5mm !important; 
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    overflow: hidden !important;
     background: white !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -80,21 +83,23 @@ const PRINT_STYLE = `
   .item-card {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    border: 1px solid #333 !important;
+    margin-bottom: 12px !important;
+    border: 1px solid #94a3b8 !important;
+    display: block !important;
   }
 
   table {
     width: 100% !important;
     border-collapse: collapse !important;
+    page-break-inside: auto;
   }
-
-  th, td {
-    border-color: #333 !important;
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
   }
 }
 `;
-
-
 
 /* ═══════════════════════════════════════════════════════════════ */
 /*  PRINT DOCUMENT (what actually comes out on paper / PDF)       */
@@ -106,20 +111,20 @@ function PrintDocument({ q }) {
   return (
     <div id="print-area" className="print-area bg-white text-gray-900 rounded-2xl shadow-2xl border border-slate-300 overflow-hidden mx-auto" style={{ maxWidth: 820, fontFamily: "'Inter', sans-serif" }}>
       {/* ── HEADER ── */}
-      <div style={{ background: "#5A374F", color: "white", padding: "8px 25px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ background: "#5A374F", color: "white", padding: "6px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
 
           <div>
-            <img src={logoLight} alt="Nazara Diamonds" style={{ height: 60, objectFit: "contain" }} />
+            <img src={logoLight} alt="Nazara Diamonds" style={{ height: 50, objectFit: "contain" }} />
           </div>
           <div style={{ textAlign: "right" }}>
-            <h1 style={{ fontSize: 13, fontWeight: 900, letterSpacing: "2px", margin: "0 0 2px", color: "white", opacity: 0.8 }}>ESTIMATE</h1>
-            <p style={{ fontSize: 20, fontWeight: 900, fontFamily: "monospace", margin: "0 0 8px", color: "#f5f0f5ff" }}>{q.quotationNo}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
-              <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: "white" }}>
+            <h1 style={{ fontSize: 11, fontWeight: 900, letterSpacing: "2px", margin: "0 0 1px", color: "white", opacity: 0.8 }}>ESTIMATE</h1>
+            <p style={{ fontSize: 16, fontWeight: 900, fontFamily: "monospace", margin: "0 0 4px", color: "#f5f0f5ff" }}>{q.quotationNo}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 1 }}>
+              <p style={{ fontSize: 9, fontWeight: 600, margin: 0, color: "white" }}>
                 <span style={{ opacity: 0.6 }}>Issued Date:</span> {issueDate}
               </p>
-              <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: "white" }}>
+              <p style={{ fontSize: 9, fontWeight: 600, margin: 0, color: "white" }}>
                 <span style={{ opacity: 0.6 }}>Valid Until:</span> {validUntil}
               </p>
             </div>
@@ -127,74 +132,64 @@ function PrintDocument({ q }) {
         </div>
       </div>
 
-
-
-
       {/* ── CUSTOMER TABLE ── */}
-      <div style={{ padding: "10px 15px 0" }}>
+      <div style={{ padding: "8px 15px 0" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", border: "2px solid #5A374F", borderRadius: 8, overflow: "hidden" }}>
-
           <thead>
             <tr style={{ background: "#5A374F", color: "white" }}>
-              <th colSpan={2} style={{ padding: "8px 15px", textAlign: "left", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "2px", color: "white" }}>
+              <th colSpan={2} style={{ padding: "6px 15px", textAlign: "left", fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "2px", color: "white" }}>
                 Client Information
               </th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", width: "150px", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>CUSTOMER NAME</td>
-              <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 13, fontWeight: 800, color: "#0f172a" }}>{q.customerName}</td>
+              <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", width: "130px", fontSize: 9, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>CUSTOMER NAME</td>
+              <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 12, fontWeight: 800, color: "#0f172a" }}>{q.customerName}</td>
             </tr>
             {q.mobile && (
               <tr>
-                <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>PHONE NUMBER</td>
-                <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 12, color: "#334155", fontWeight: 700 }}>📞 {q.mobile}</td>
+                <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 9, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>PHONE NUMBER</td>
+                <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 11, color: "#334155", fontWeight: 700 }}>📞 {q.mobile}</td>
               </tr>
             )}
             {q.email && (
               <tr>
-                <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>EMAIL ADDRESS</td>
-                <td style={{ padding: "6px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 12, color: "#334155", fontWeight: 700 }}>✉ {q.email}</td>
+                <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 9, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>EMAIL ADDRESS</td>
+                <td style={{ padding: "4px 12px", borderBottom: "1px solid #e2e8f0", fontSize: 11, color: "#334155", fontWeight: 700 }}>✉ {q.email}</td>
               </tr>
             )}
-
             {q.address && (
               <tr>
-                <td style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>ADDRESS</td>
-                <td style={{ padding: "6px 12px", fontSize: 12, color: "#334155", fontWeight: 500 }}>📍 {q.address}</td>
+                <td style={{ padding: "4px 12px", fontSize: 9, fontWeight: 700, color: "#64748b", background: "#f8fafc" }}>ADDRESS</td>
+                <td style={{ padding: "4px 12px", fontSize: 11, color: "#334155", fontWeight: 500 }}>📍 {q.address}</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-
-
       {/* ── ITEMS ── */}
-      <div style={{ padding: "8px 15px" }}>
+      <div style={{ padding: "6px 15px" }}>
         {(q.items || []).map((item, idx) => {
           const b = item.breakup || {};
           return (
-            <div key={idx} className="item-card" style={{ marginBottom: 10, border: "1px solid #94a3b8", borderRadius: 12, overflow: "hidden" }}>
-              {/* Item title */}
-
-              <div style={{ background: "#5A374F", color: "white", padding: "6px 15px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 6, background: "rgba(116, 85, 131, 0.81)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#e4e1f2ff" }}>
+            <div key={idx} className="item-card" style={{ marginBottom: 6, border: "1px solid #94a3b8", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: "#5A374F", color: "white", padding: "4px 15px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 5, background: "rgba(116, 85, 131, 0.81)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#e4e1f2ff" }}>
                     {idx + 1}
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>{item.title || "Jewellery Item"}</span>
+                  <span style={{ fontWeight: 700, fontSize: 12 }}>{item.title || "Jewellery Item"}</span>
                 </div>
-                <span style={{ fontWeight: 800, fontSize: 14, color: "#ebe9f3ff", fontFamily: "monospace" }}>₹{fmt(b.grandTotal)}</span>
+                <span style={{ fontWeight: 800, fontSize: 13, color: "#ebe9f3ff", fontFamily: "monospace" }}>₹{fmt(b.grandTotal)}</span>
               </div>
 
-              {/* Product Images (Rendered only if images exist) */}
+              {/* Product Images */}
               {item.images && item.images.length > 0 && (
-                <div style={{ padding: "8px 15px", background: "#fff", display: "flex", gap: 8, overflowX: "auto", borderBottom: "1px solid #f3f4f6" }}>
-                  {item.images.map((img, i) => (
-                    <div key={i} style={{ flexShrink: 0, width: 70, height: 70, borderRadius: 6, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+                <div style={{ padding: "6px 15px", background: "#fff", display: "flex", gap: 6, borderBottom: "1px solid #f3f4f6" }}>
+                  {item.images.slice(0, 4).map((img, i) => (
+                    <div key={i} style={{ width: 55, height: 55, borderRadius: 6, overflow: "hidden", border: "1px solid #e5e7eb" }}>
                       <img
                         src={getImageUrl(img.url || img)}
                         alt={`Product ${i + 1}`}
@@ -222,8 +217,8 @@ function PrintDocument({ q }) {
                     <td style={{ padding: "6px 15px", textAlign: "right", fontWeight: 700 }}>₹{fmt(b.metalValue)}</td>
                   </tr>
 
-                  {/* Components */}
-                  {(b.componentBreakup || []).map((cb, cIdx) => (
+                  {/* Diamonds & Gemstones */}
+                  {(b.componentBreakup || []).filter(cb => cb.pricingRef !== "BELT").map((cb, cIdx) => (
                     <tr key={cIdx} style={{ borderBottom: "1px solid #cbd5e1" }}>
                       <td style={{ padding: "6px 15px", textTransform: "uppercase", fontSize: 10 }}>
                         {cb.type} {cb.shape && `— ${cb.shape}`} {cb.color && `${cb.color}`} {cb.clarity && `${cb.clarity}`}
@@ -234,6 +229,28 @@ function PrintDocument({ q }) {
                       <td style={{ padding: "6px 15px", textAlign: "right", fontWeight: 700 }}>₹{fmt(cb.value)}</td>
                     </tr>
                   ))}
+
+                  {/* Accessories (Belts) */}
+                  {(b.componentBreakup || []).filter(cb => cb.pricingRef === "BELT").length > 0 && (
+                    <>
+                      <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
+                        <td colSpan={3} style={{ padding: "4px 15px", color: "#5A374F", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                          Accessories
+                        </td>
+                      </tr>
+                      {(b.componentBreakup || []).filter(cb => cb.pricingRef === "BELT").map((cb, cIdx) => (
+                        <tr key={`belt-${cIdx}`} style={{ borderBottom: "1px solid #cbd5e1" }}>
+                          <td style={{ padding: "6px 15px", fontSize: 10 }}>
+                            Belt {cb.category ? `(${cb.category})` : ""} {cb.shape ? `— ${cb.shape}` : ""} {cb.size ? `| Size: ${cb.size}` : ""}
+                          </td>
+                          <td style={{ padding: "6px 15px", textAlign: "center", color: "#64748b" }}>
+                            {cb.count} pcs × ₹{fmt(cb.value / (cb.count || 1))}
+                          </td>
+                          <td style={{ padding: "6px 15px", textAlign: "right", fontWeight: 700 }}>₹{fmt(cb.value)}</td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
 
                   {/* Summary Rows */}
                   {b.diamondValue > 0 && (
@@ -246,6 +263,12 @@ function PrintDocument({ q }) {
                     <tr style={{ borderBottom: "1px solid #cbd5e1", background: "#fdfdfd" }}>
                       <td colSpan={2} style={{ padding: "4px 15px", color: "#64748b", fontSize: 10 }}>Stone Value</td>
                       <td style={{ padding: "4px 15px", textAlign: "right", fontWeight: 700, fontSize: 11 }}>₹{fmt(b.stoneValue)}</td>
+                    </tr>
+                  )}
+                  {b.accessoryValue > 0 && (
+                    <tr style={{ borderBottom: "1px solid #cbd5e1", background: "#fdfdfd" }}>
+                      <td colSpan={2} style={{ padding: "4px 15px", color: "#64748b", fontSize: 10 }}>Accessories Value</td>
+                      <td style={{ padding: "4px 15px", textAlign: "right", fontWeight: 700, fontSize: 11 }}>₹{fmt(b.accessoryValue)}</td>
                     </tr>
                   )}
                   <tr style={{ borderBottom: "1px solid #cbd5e1", background: "#fdfdfd" }}>

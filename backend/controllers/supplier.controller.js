@@ -202,7 +202,11 @@ export const getSupplierLedger = async (req, res) => {
         amount: -p.amount, // Payment reduces the liability (PAYABLE balance)
         paymentMode: p.paymentMode,
         reference: p.reference,
-        note: p.note
+        note: p.note,
+        weight: p.weight,
+        rate: p.rate,
+        metalType: p.metalType,
+        purity: p.purity
       });
     });
 

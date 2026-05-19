@@ -9,9 +9,10 @@ import { useCart } from "../context/CartContext";
 import { getImageUrl } from "../utils/getImageUrl";
 import { 
   ChevronDown, ShoppingBag, ChevronRight, 
-  ShieldCheck, Tag, Headset, Check 
+  ShieldCheck, Tag, Headset, Check, FileText
 } from "lucide-react";
 import { formatCt } from "../utils/format";
+import { useTheme } from "../context/ThemeContext";
 
 const displayValue = (v) =>
   v !== undefined && v !== null && v !== "" ? v : "-";
@@ -50,6 +51,7 @@ export default function SingleProduct() {
   const navigate = useNavigate();
   const { id ,sku } = useParams();
   const { addProduct } = useCart();
+  const { isDark } = useTheme();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -207,8 +209,9 @@ const handleMouseLeave = () => {
     { value: "rose-gold", name: "Rose Gold" },
   ];
 
-  const diamonds = product.components?.filter(c => c.type === "Diamond") || [];
-  const gemstones = product.components?.filter(c => c.type !== "Diamond") || [];
+  const diamonds = product.components?.filter(c => ["Diamond", "Polki", "Moissanite"].includes(c.type)) || [];
+  const belts = product.components?.filter(c => c.type === "Belt" || c.type === "Accessory") || [];
+  const gemstones = product.components?.filter(c => !["Diamond", "Polki", "Moissanite", "Belt", "Accessory"].includes(c.type)) || [];
 
   const getGrossWeight = (c) => {
   return c.grossWeight != null && c.grossWeight > 0
@@ -246,9 +249,11 @@ const totalGemstoneWeight = gemstones.reduce(
   0
 );
 
+const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0);
+
   return (
-    <div className="min-h-screen bg-[#F8EFF3] text-[#3A332C] font-sans pb-24 relative">
-      <div  className="max-w-7xl mx-auto  bg-[#F8EFF3]">
+    <div className={`min-h-screen transition-colors duration-300 ${isDark ? "bg-[#121212] text-[#e0e0e0]" : "bg-[#F8EFF3] text-[#3A332C]"} font-sans pb-24 relative`}>
+      <div  className={`max-w-7xl mx-auto ${isDark ? "bg-[#121212]" : "bg-[#F8EFF3]"}`}>
 
       {/* Toast Notification */}
       {showToast && (
@@ -361,7 +366,7 @@ const totalGemstoneWeight = gemstones.reduce(
   )}
 
   {/* Right Column: Main Image & Badges */}
-  <div className="bg-[#F3E9E8] flex flex-col gap-4 flex-1 overflow-hidden">
+  <div className={`${isDark ? "bg-[#1a1a1a]" : "bg-[#F3E9E8]"} flex flex-col gap-4 flex-1 overflow-hidden transition-colors`}>
     
     {/* Main Image Container */}
 
@@ -475,7 +480,7 @@ const totalGemstoneWeight = gemstones.reduce(
               </div>
 
               {/* Selection Status Note */}
-              <div className="bg-[#FAF8F5] border border-[#EAE3D9] rounded-xl p-4 flex gap-3 items-center">
+              <div className={`${isDark ? "bg-[#1f1f1f] border-[#333333]" : "bg-[#FAF8F5] border-[#EAE3D9]"} border rounded-xl p-4 flex gap-3 items-center transition-colors`}>
                 <div 
                   className="w-6 h-6 rounded-full shrink-0 shadow-sm border border-black/5"
                   style={{ background: getMetalColorHex(selectedMetalColor) }}
@@ -595,7 +600,7 @@ const totalGemstoneWeight = gemstones.reduce(
             
             {/* Header Area */}
             <div className="flex justify-between items-start mb-2">
-              <h1 className="text-[40px] font-serif text-[#6B3151] leading-tight rounded-md font-sans">
+              <h1 className={`text-[40px] font-serif leading-tight rounded-md font-sans transition-colors ${isDark ? "text-pink-400" : "text-[#6B3151]"}`}>
                 {displayValue(product.title)}
               </h1>
 
@@ -728,6 +733,52 @@ const totalGemstoneWeight = gemstones.reduce(
     Customize Product
 
     {/* 🔻 Arrow */}
+    <span className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-black rotate-45"></span>
+  </span>
+</button>
+
+<button
+  type="button"
+  onClick={() => {
+    navigate("/quotations/new", {
+      state: {
+        initialProduct: {
+          title: product.title,
+          jewelleryCategory: product.jewelleryCategory,
+          description: product.description,
+          metalType: product.metalType || "Gold",
+          metalPurity: product.metalPurity || "22KT",
+          metalColor: product.metalColor,
+          netWeight: product.netWeight,
+          grossWeight: product.grossWeight,
+          fineGold: product.fineGold,
+          huid: product.huid,
+          hsnCode: product.hsnCode,
+          components: product.components || [],
+          images: product.images || [],
+        },
+      },
+    });
+  }}
+  className="
+    group relative inline-flex items-center justify-center
+    h-9 px-4 rounded-full
+    text-xs font-medium tracking-tight
+    border border-[#EAE3D9]
+    bg-white text-[#6B3151]
+    shadow-[0_2px_6px_rgba(0,0,0,0.05)]
+    hover:bg-[#6B3151] hover:text-white
+    hover:shadow-[0_4px_12px_rgba(107,49,81,0.25)]
+    transition-all duration-200 ease-out
+    active:scale-[0.95]
+  "
+>
+  <FileText size={14} className="mr-2" />
+  <span>Estimate</span>
+  
+  {/* Tooltip */}
+  <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 text-[11px] font-medium bg-black text-white rounded-lg whitespace-nowrap opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 pointer-events-none">
+    Create Estimate
     <span className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-black rotate-45"></span>
   </span>
 </button>
@@ -880,7 +931,7 @@ const totalGemstoneWeight = gemstones.reduce(
 {product.fineGold && (
   <div className="col-span-2 mt-2">
     <div className="bg-[#F8EFF3] border border-[#EAE3D9] rounded-xl p-3 flex justify-between items-center">
-      <span className="text-sm text-[#8A8178]">Fine Gold</span>
+      <span className="text-sm text-[#8A8178]">Fine Metal</span>
       <span className="text-[#B89047] font-semibold">
         {displayValue(product.fineGold)} g
       </span>
@@ -1469,6 +1520,52 @@ const totalGemstoneWeight = gemstones.reduce(
       </div>
     </div>
 
+  </div>
+)}
+
+{belts.length > 0 && (
+  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-6 shadow-sm font-serif mb-6 relative">
+    <div className="flex justify-between items-center mb-8">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 italic">
+          03
+        </div>
+        <h3 className="text-xl text-[#4A2C3C] font-medium tracking-tight">Accessories</h3>
+      </div>
+      <div className="bg-[#F4F1F0] text-[#8A8178] text-[9px] tracking-[0.2em] px-4 py-1.5 rounded-full font-sans uppercase">
+        Product Accessories
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 gap-4">
+      {belts.map((belt, idx) => (
+        <div
+          key={`accessory-${idx}`}
+          className="bg-[#F8EFF3] border border-[#F0EDEA] rounded-xl p-5 grid grid-cols-2 sm:grid-cols-5 gap-4"
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Category</p>
+            <p className="text-sm font-semibold text-[#3A332C] break-words uppercase">{belt.category || "-"}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Material</p>
+            <p className="text-sm font-semibold text-[#3A332C] break-words uppercase">{belt.description || "-"}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Color</p>
+            <p className="text-sm font-semibold text-[#3A332C] break-words">{belt.shape || "-"}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Size</p>
+            <p className="text-sm font-semibold text-[#3A332C] break-words">{belt.size || "-"}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-1">Qty</p>
+            <p className="text-sm font-semibold text-[#3A332C] break-words">{belt.count || 1}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 )}
 

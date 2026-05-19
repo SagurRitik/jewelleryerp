@@ -6,6 +6,7 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import helmet from "helmet";            // 🛡️ Security Headers
 import cookieParser from "cookie-parser"; // 🍪 Cookie Parsing for JWT
@@ -51,6 +52,9 @@ import quotationRoutes from "./routes/quotationRoutes.js";
 import supplierRoutes from "./routes/supplier.routes.js";
 import supplierPaymentRoutes from "./routes/supplierPayment.routes.js";
 import purchaseRoutes from "./routes/purchase.routes.js";
+import catalogueRoutes from "./routes/catalogueRoutes.js";
+import diamondStockRoutes from "./routes/diamondStockRoutes.js";
+
 
 dotenv.config();
 connectDB();
@@ -123,7 +127,12 @@ app.use("/api/products", validateExcelRoutes);
 
 
 /* ---------------- STATIC UPLOADS ---------------- */
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use("/uploads", express.static(UPLOADS_DIR));
+
 
 /* ---------------- API ROUTES ---------------- */
 
@@ -169,6 +178,9 @@ app.use("/api/quotation", quotationRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/supplier-payments", supplierPaymentRoutes);
 app.use("/api/purchases", purchaseRoutes);
+app.use("/api/catalogues", catalogueRoutes);
+app.use("/api/diamonds", diamondStockRoutes);
+
 
 /* ---------------- HANDLE UNKNOWN API REQUESTS ---------------- */
 app.all(/^\/api\/.*/, (req, res) => {
@@ -178,9 +190,7 @@ app.all(/^\/api\/.*/, (req, res) => {
 /* ---------------- SERVE FRONTEND (Build) ---------------- */
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
-const uploadsPath = path.join(__dirname, "..", "uploads");
 
-app.use("/uploads", express.static(uploadsPath));
 
 /* ---------------- SPA FALLBACK ---------------- */
 

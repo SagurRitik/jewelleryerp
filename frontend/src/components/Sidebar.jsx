@@ -4,12 +4,14 @@ import { Upload, ChevronDown, X, Home, ShoppingBag, PlusCircle, FileText, Calcul
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/NazaraWhite.png";
 import { useState, useEffect } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Sidebar({ isOpen, onClose }) {
   const [openMenu, setOpenMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { isDark } = useTheme();
 
   const handleLogout = async () => {
     await logout();
@@ -52,7 +54,9 @@ export default function Sidebar({ isOpen, onClose }) {
       children: [
         { name: "Inventory Summary", path: "/inventory-management" },
         { name: "Add Product", path: "/add" },
+        { name: "Diamond Inventory", path: "/diamonds" },
         { name: "Bulk Upload", path: "/products/bulk-upload" },
+        { name: "Catalogues", path: "/catalogues", icon: FileText, permission: "catalogues" },
       ],
     },
 
@@ -111,7 +115,11 @@ export default function Sidebar({ isOpen, onClose }) {
       />
 
       <div
-        className={`fixed top-0 left-0 h-full w-72 bg-[#5A374F] text-white z-[70] shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } ${
+          isDark ? "bg-[#1a1a1a] border-r border-[#333333]" : "bg-[#5A374F]"
+        } text-white`}
       >
         <div className="flex items-center justify-between p-6 shrink-0 relative">
           <div className="flex flex-col">
@@ -147,7 +155,7 @@ export default function Sidebar({ isOpen, onClose }) {
                         : onClose()
                     }
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isParentActive
-                      ? "bg-white text-[#5A374F] font-semibold"
+                      ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
                       : "text-white/70 hover:bg-white/5"
                       }`}
                   >
@@ -178,7 +186,7 @@ export default function Sidebar({ isOpen, onClose }) {
                               to={child.path}
                               onClick={onClose}
                               className={`px-3 py-2 rounded-lg text-sm transition-all ${isActive
-                                ? "bg-white text-[#5A374F] font-semibold"
+                                ? isDark ? "bg-pink-600/20 text-pink-300 font-semibold" : "bg-white text-[#5A374F] font-semibold"
                                 : "text-white/60 hover:text-white hover:bg-white/5"
                                 }`}
                             >

@@ -29,6 +29,7 @@ const componentSchema = new mongoose.Schema(
     color: { type: String, default: "" },   // G-H
     clarity: { type: String, default: "" }, // VS1-SI1
     cut: { type: String, default: "" },     // EX, VG
+    description: { type: String, default: "" },
 
     // certificateNo: { type: String, default: "" },
 

@@ -85,10 +85,14 @@ export const RatesProvider = ({ children }) => {
         diamondRate: Number(rawRates.diamondRate) || 0,
         stoneRate: Number(rawRates.stoneRate) || 0,
         makingCharge: Number(rawRates.makingCharge) || 0,
+        goldMakingCharge: Number(rawRates.goldMakingCharge) || 0,
+        silverMakingCharge: Number(rawRates.silverMakingCharge) || 0,
+        platinumMakingCharge: Number(rawRates.platinumMakingCharge) || 0,
         gstRate: Number(rawRates.gstRate) || 3, // Default 3%
         settingChargePerPc: Number(rawRates.settingChargePerPc) || 0,
         minMakingWeight: Number(rawRates.minMakingWeight) || 0,
         minMakingFlatFee: Number(rawRates.minMakingFlatFee) || 0,
+
       },
 
       // Derived metal rates with purity factors
@@ -122,9 +126,13 @@ export const RatesProvider = ({ children }) => {
       // Making charges configuration
       making: {
         perGram: Number(rawRates.makingCharge) || 0,
+        gold: Number(rawRates.goldMakingCharge) || Number(rawRates.makingCharge) || 0,
+        silver: Number(rawRates.silverMakingCharge) || Number(rawRates.makingCharge) || 0,
+        platinum: Number(rawRates.platinumMakingCharge) || Number(rawRates.makingCharge) || 0,
         minWeight: Number(rawRates.minMakingWeight) || 0,
         flatFee: Number(rawRates.minMakingFlatFee) || 0,
       },
+
 
       // Setting charges
       setting: {

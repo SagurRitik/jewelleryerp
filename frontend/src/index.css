@@ -4,6 +4,36 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-primary: #faf9f6;
+  --text-primary: #2b2b2b;
+  --text-muted: #6b6b6b;
+  --card-bg: #ffffff;
+  --card-border: #e6e2d8;
+  --input-bg: #ffffff;
+  --input-border: #e6e2d8;
+  --input-text: #2b2b2b;
+  --navbar-scrolled: #fdfbf7;
+  --navbar-scrolled-border: #e7e2d8;
+  --accent-primary: #562748;
+  --accent-hover: #6e3359;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #121212;
+  --text-primary: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --card-bg: #1e1e1e;
+  --card-border: #333333;
+  --input-bg: #2d2d2d;
+  --input-border: #444444;
+  --input-text: #e0e0e0;
+  --navbar-scrolled: #1a1a1a;
+  --navbar-scrolled-border: #333333;
+  --accent-primary: #a15c8a;
+  --accent-hover: #b86fa0;
+}
+
 /* Prevent horizontal scroll issues */
 /* html, body {
   overflow-x: hidden;
@@ -164,17 +194,19 @@ input[type="number"] {
 
 /* -------------------- ROOT / BODY -------------------- */
 body {
-  background-color: #faf9f6;
-  color: #2b2b2b;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* -------------------- CARD -------------------- */
 .card {
-  background: #ffffff;
-  border: 1px solid #e6e2d8;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 }
 
 /* -------------------- SECTION TITLE -------------------- */
@@ -182,7 +214,7 @@ body {
   font-family: serif;
   font-size: 18px;
   font-weight: 600;
-  color: #2b2b2b;
+  color: var(--text-primary);
   padding-bottom: 10px;
   margin-bottom: 20px;
   border-bottom: 1px solid rgba(86, 39, 72, 0.2);
@@ -204,9 +236,9 @@ body {
   width: 100%;
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid #e6e2d8;
-  background: #ffffff;
-  color: #2b2b2b;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -249,7 +281,7 @@ body {
 }
 
 .text-primary {
-  color: #562748;
+  color: var(--accent-primary);
 }
 
 /* -------------------- IMAGE -------------------- */

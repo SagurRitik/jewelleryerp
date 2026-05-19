@@ -2,6 +2,33 @@ import RateConfig from "../models/RateConfig.js";
 import Quotation from "../models/Quotation.js";
 import Order from "../models/Order.js";
 import calculateItem from "../utils/calculateItem.js";
+import sharp from "sharp";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, "..", "uploads");
+
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+/* Save an in-memory multer file buffer to disk and return the filename */
+const saveUploadedFile = async (file) => {
+  const uniqueSuffix = Date.now() + "-" + crypto.randomBytes(4).toString("hex");
+  const filename = `quotation-${uniqueSuffix}.webp`;
+  const outputPath = path.join(UPLOADS_DIR, filename);
+  await sharp(file.buffer)
+    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+    .toFormat("webp")
+    .webp({ quality: 80 })
+    .toFile(outputPath);
+  return filename;
+};
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -28,6 +55,8 @@ function buildCalcItem(item) {
           rateOverride: Number(c.rateOverride || 0),
           rateType: c.rateType || "PER_CT",
           size: c.size || "",
+          category: c.category || "",
+          description: c.description || "",
         })),
 
       },
@@ -99,6 +128,9 @@ export const calculateQuotation = async (req, res) => {
         silver999: rates.silver999,
         platinum950: rates.platinum950,
         makingCharge: rates.makingCharge,
+        goldMakingCharge: rates.goldMakingCharge,
+        silverMakingCharge: rates.silverMakingCharge,
+        platinumMakingCharge: rates.platinumMakingCharge,
         gstRate: rates.gstRate,
       },
     });
@@ -182,12 +214,17 @@ export const createQuotation = async (req, res) => {
           })),
         };
 
-        // Handle Images
+        // Handle Images — save buffers to disk (memoryStorage has no filename)
         const fieldName = `images_${idx}`;
         const itemFiles = (req.files || []).filter(f => f.fieldname === fieldName);
-        const uploadedImages = itemFiles.map(f => `/uploads/${f.filename}`);
+        const uploadedImages = await Promise.all(
+          itemFiles.map(async (f) => {
+            const filename = await saveUploadedFile(f);
+            return `/uploads/${filename}`;
+          })
+        );
         // Combine existing strings (already saved) + newly uploaded
-        const existingStrings = (item.images || []).filter(img => typeof img === "string");
+        const existingStrings = (item.images || []).filter(img => typeof img === "string" && img !== "/uploads/undefined");
         const finalImages = [...existingStrings, ...uploadedImages];
 
         calculatedItems.push({
@@ -308,75 +345,81 @@ export const updateQuotation = async (req, res) => {
       try { items = JSON.parse(items); } catch (e) { items = []; }
     }
 
-    const rates = await RateConfig.findOne({ active: true }).lean();
-    if (!rates) return res.status(400).json({ success: false, error: "Rate config not found" });
-
     const calculatedItems = [];
-    const s = (val) => {
-      const n = Number(val);
-      return isNaN(n) || !isFinite(n) ? 0 : round2(n);
-    };
+    
+    if (req.body.items !== undefined) {
+      const rates = await RateConfig.findOne({ active: true }).lean();
+      if (!rates) return res.status(400).json({ success: false, error: "Rate config not found" });
 
-    for (let idx = 0; idx < items.length; idx++) {
-      const item = items[idx];
-      if (!item) continue;
-      
-      const calcItem = buildCalcItem(item);
-      const breakup = await calculateItem(calcItem, rates);
-      
-      const sanitizedBreakup = {
-        metalRate: s(breakup.metalRate),
-        metalValue: s(breakup.metalValue),
-        diamondValue: s(breakup.diamondValue),
-        stoneValue: s(breakup.stoneValue),
-        makingCharge: s(breakup.makingCharge),
-        grossTotal: s(breakup.grossTotal),
-        discountDiamond: s(breakup.discountDiamond),
-        discountStone: s(breakup.discountStone),
-        discountMaking: s(breakup.discountMaking),
-        discount: s(breakup.discount),
-        subtotal: s(breakup.subtotal),
-        gst: s(breakup.gst),
-        gstPercent: s(breakup.gstPercent || 3),
-        grandTotal: s(breakup.grandTotal),
-        netWeight: s(breakup.netWeight),
-        componentBreakup: (breakup.componentBreakup || []).map(cb => ({
-          ...cb, value: s(cb.value), rate: s(cb.rate), weight: s(cb.weight), count: Number(cb.count || 0),
-        })),
+      const s = (val) => {
+        const n = Number(val);
+        return isNaN(n) || !isFinite(n) ? 0 : round2(n);
       };
 
-      // Handle Images
-      const fieldName = `images_${idx}`;
-      const itemFiles = (req.files || []).filter(f => f.fieldname === fieldName);
-      const uploadedImages = itemFiles.map(f => `/uploads/${f.filename}`);
-      // Keep existing strings (already saved in DB)
-      const existingStrings = (item.images || []).filter(img => typeof img === "string");
-      const finalImages = [...existingStrings, ...uploadedImages];
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        if (!item) continue;
+        
+        const calcItem = buildCalcItem(item);
+        const breakup = await calculateItem(calcItem, rates);
+        
+        const sanitizedBreakup = {
+          metalRate: s(breakup.metalRate),
+          metalValue: s(breakup.metalValue),
+          diamondValue: s(breakup.diamondValue),
+          stoneValue: s(breakup.stoneValue),
+          makingCharge: s(breakup.makingCharge),
+          grossTotal: s(breakup.grossTotal),
+          discountDiamond: s(breakup.discountDiamond),
+          discountStone: s(breakup.discountStone),
+          discountMaking: s(breakup.discountMaking),
+          discount: s(breakup.discount),
+          subtotal: s(breakup.subtotal),
+          gst: s(breakup.gst),
+          gstPercent: s(breakup.gstPercent || 3),
+          grandTotal: s(breakup.grandTotal),
+          netWeight: s(breakup.netWeight),
+          componentBreakup: (breakup.componentBreakup || []).map(cb => ({
+            ...cb, value: s(cb.value), rate: s(cb.rate), weight: s(cb.weight), count: Number(cb.count || 0),
+          })),
+        };
 
-      calculatedItems.push({
-        title: item.title || `Jewellery Item ${idx + 1}`,
-        metalType: item.metalType || "gold",
-        metalPurity: item.metalPurity || "18KT",
-        netWeight: s(item.netWeight),
-        grossWeight: s(item.grossWeight),
-        fineGold: s(item.fineGold),
-        description: item.description || "",
-        huid: item.huid || "",
-        hsnCode: item.hsnCode || "",
-        quantity: Number(item.quantity || 1),
-        discountEnabled: item.discountEnabled !== false,
-        images: finalImages,
-        components: (item.components || []).map(c => ({
-          ...c, 
-          weight: s(c.weight), 
-          count: Number(c.count || 1), 
-          grossWeight: s(c.grossWeight),
-          rateOverride: s(c.rateOverride),
-          rateType: c.rateType || "PER_CT",
-        })),
-        breakup: sanitizedBreakup,
+        // Handle Images
+        const fieldName = `images_${idx}`;
+        const itemFiles = (req.files || []).filter(f => f.fieldname === fieldName);
+        const uploadedImages = await Promise.all(
+          itemFiles.map(async (f) => {
+            const filename = await saveUploadedFile(f);
+            return `/uploads/${filename}`;
+          })
+        );
+        const existingStrings = (item.images || []).filter(img => typeof img === "string" && img !== "/uploads/undefined");
+        const finalImages = [...existingStrings, ...uploadedImages];
 
-      });
+        calculatedItems.push({
+          title: item.title || `Jewellery Item ${idx + 1}`,
+          metalType: item.metalType || "gold",
+          metalPurity: item.metalPurity || "18KT",
+          netWeight: s(item.netWeight),
+          grossWeight: s(item.grossWeight),
+          fineGold: s(item.fineGold),
+          description: item.description || "",
+          huid: item.huid || "",
+          hsnCode: item.hsnCode || "",
+          quantity: Number(item.quantity || 1),
+          discountEnabled: item.discountEnabled !== false,
+          images: finalImages,
+          components: (item.components || []).map(c => ({
+            ...c, 
+            weight: s(c.weight), 
+            count: Number(c.count || 1), 
+            grossWeight: s(c.grossWeight),
+            rateOverride: s(c.rateOverride),
+            rateType: c.rateType || "PER_CT",
+          })),
+          breakup: sanitizedBreakup,
+        });
+      }
     }
 
     const sum = (arr, key) => arr.reduce((acc, curr) => acc + (curr.breakup?.[key] || 0), 0);
@@ -385,13 +428,16 @@ export const updateQuotation = async (req, res) => {
     existing.email = email?.trim() ?? existing.email;
     existing.address = address?.trim() ?? existing.address;
     
-    // Use .set() and .markModified() to ensure Mongoose detects deep array changes
-    existing.set("items", calculatedItems);
-    existing.markModified("items");
-    
-    existing.subtotal = round2(sum(calculatedItems, "subtotal"));
-    existing.gstTotal = round2(sum(calculatedItems, "gst"));
-    existing.grandTotal = round2(sum(calculatedItems, "grandTotal"));
+    // Only update items if they were provided in the request
+    if (req.body.items !== undefined) {
+      // Use .set() and .markModified() to ensure Mongoose detects deep array changes
+      existing.set("items", calculatedItems);
+      existing.markModified("items");
+      
+      existing.subtotal = round2(sum(calculatedItems, "subtotal"));
+      existing.gstTotal = round2(sum(calculatedItems, "gst"));
+      existing.grandTotal = round2(sum(calculatedItems, "grandTotal"));
+    }
 
     if (validDays !== undefined) existing.validDays = Number(validDays) || existing.validDays;
     if (notes !== undefined) existing.notes = notes;

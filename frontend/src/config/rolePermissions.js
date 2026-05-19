@@ -21,6 +21,7 @@ export const rolePermissions = {
      "inquiries",
      "quotation",
      "suppliers",
+     "catalogues",
   ],
 
   admin: [
@@ -46,7 +47,9 @@ export const rolePermissions = {
     "gst-reports",
     "quotation",
     "suppliers",
+    "catalogues",
   ],
+
 
   manager: [
     "dashboard",
@@ -68,7 +71,9 @@ export const rolePermissions = {
     "products",
     "inquiries",
     "quotation",
+    "catalogues",
   ],
+
 
   accountant: [
     "dashboard",

@@ -6,7 +6,7 @@ import { useLocation } from "react-router-dom";
 import { getImageUrl } from "../utils/getImageUrl";
 import { useRates } from "../context/RatesContext";
 import { useModal } from "../context/ModalContext";
-import { Camera } from "lucide-react";
+import { Camera, ToggleLeft, ToggleRight } from "lucide-react";
 import Webcam from "react-webcam";
 import { useRef } from "react";
 import { getDiamondRates } from "../api/diamondRateApi";
@@ -24,6 +24,7 @@ const SHAPE_OPTIONS = ["Round", "Princess", "Cushion", "Oval", "Emerald", "Pear"
 const CLARITY_OPTIONS = ["FL", "IF", "VVS-VS", "VVS1", "VVS2", "VS1", "VS2", "SI", "I"];
 const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
 const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];
+const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 
 
 export default function OrderForm({ onSuccess, initialProduct: propInitialProduct, initialOrder }) {
@@ -47,6 +48,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       grossWeight: 0,
       diamonds: [],
       gemstones: [],
+      belts: [],
       hsnCode: "",
       // productImage: null,
       productImages: [],
@@ -100,11 +102,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     },
   };
 
-  const PURITY_MAP = {
-    "24KT": 1, "22KT": 0.916, "18KT": 0.75, "14KT": 0.585, "10KT": 0.417, "9KT": 0.375,
-    "999": 1, "925": 0.925, "835": 0.835, "800": 0.8,
-    "950": 1, "900": 0.947,
-  };
+
 
 
 
@@ -116,6 +114,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
 
     const diamonds = [];
     const gemstones = [];
+    const belts = [];
 
     (initialProduct.components || []).forEach(c => {
       if (c.pricingRef === "DIAMOND") {
@@ -128,6 +127,15 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
           clarity: c.clarity || "VVS",
           color: c.color || "D-F",
           rateOverride: c.rateOverride ?? null,
+        });
+      } else if (c.pricingRef === "BELT") {
+        belts.push({
+          material: c.category || "",
+          color: c.shape || "",
+          size: c.size || "",
+          count: Number(c.count) || 1,
+          rateOverride: c.rateOverride ?? null,
+          rateLocked: !!c.rateOverride
         });
       } else {
         gemstones.push({
@@ -155,6 +163,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         grossWeight: Number(initialProduct.grossWeight) || 0,
         diamonds,
         gemstones,
+        belts,
         productImages: (initialProduct.images || []).map(img =>
           getImageUrl(img)
         ),
@@ -190,6 +199,9 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         gemstones: (initialOrder.productSnapshot?.components || [])
           .filter(c => c.pricingRef === "STONE")
           .map(g => ({ ...g, name: g.type, rateLocked: !!g.rateOverride })),
+        belts: (initialOrder.productSnapshot?.components || [])
+          .filter(c => c.pricingRef === "BELT")
+          .map(b => ({ ...b, material: b.category, color: b.shape, rateLocked: !!b.rateOverride })),
         productImages: initialOrder.productSnapshot?.productImages || [],
       },
       advancePayment: {
@@ -438,6 +450,56 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     }));
   };
 
+  /* ================= BELT HANDLERS ================= */
+  const addBelt = () => {
+    setForm((prev) => ({
+      ...prev,
+      productSnapshot: {
+        ...prev.productSnapshot,
+        belts: [
+          ...(prev.productSnapshot.belts || []),
+          {
+            category: "Belt",
+            material: "",
+            color: "",
+            size: "",
+            count: 1,
+            rateOverride: null,
+            rateLocked: false,
+          }
+        ],
+      },
+    }));
+  };
+
+  const updateBelt = (index, field, value) => {
+    const updatedBelts = [...form.productSnapshot.belts];
+    updatedBelts[index] = {
+      ...updatedBelts[index],
+      [field]: field === "count" || field === "rateOverride"
+        ? (value === "" ? "" : Number(value))
+        : value,
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      productSnapshot: {
+        ...prev.productSnapshot,
+        belts: updatedBelts,
+      },
+    }));
+  };
+
+  const removeBelt = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      productSnapshot: {
+        ...prev.productSnapshot,
+        belts: prev.productSnapshot.belts.filter((_, i) => i !== index),
+      },
+    }));
+  };
+
 
   /* ================= METAL PAYMENT HANDLERS ================= */
   // const handleMetalPaymentChange = (field, value) => {
@@ -539,10 +601,26 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     return total.toFixed(2);
   };
 
+  const calculateBeltValue = () => {
+    if (!rates) return "0.00";
+
+    const total = (form.productSnapshot.belts || []).reduce((sum, b) => {
+      if (!b.count) return sum;
+
+      const overrideVal = parseFloat(b.rateOverride);
+      let rate = overrideVal || 0; // Default to 0 for belts if no override, as they are custom accessories
+
+      return sum + (rate * parseFloat(b.count));
+    }, 0);
+
+    return total.toFixed(2);
+  };
+
   const calculateTotalComponents = () => {
     return (
       Number(calculateDiamondValue()) +
-      Number(calculateStoneValue())
+      Number(calculateStoneValue()) +
+      Number(calculateBeltValue())
     ).toFixed(2);
   };
 
@@ -580,6 +658,22 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         grossWeight: g.grossWeight,
         pricingRef: "STONE",
         rateOverride: g.rateOverride ?? undefined,
+      });
+    });
+
+    (form.productSnapshot.belts || []).forEach((b) => {
+      if (!b.count) return;
+
+      components.push({
+        type: "Accessory",
+        componentRole: "SIDE",
+        shape: b.color || "", 
+        category: b.category || "Belt", 
+        description: b.material || "", // Store material in description or keep as is
+        size: b.size || "",
+        count: b.count,
+        pricingRef: "BELT",
+        rateOverride: b.rateOverride ?? undefined,
       });
     });
 
@@ -663,9 +757,12 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         }
 
 
-        fd.append(`productSnapshot[components][${index}][weight]`, c.weight);
+        fd.append(`productSnapshot[components][${index}][weight]`, c.weight || 0);
         fd.append(`productSnapshot[components][${index}][count]`, c.count);
         fd.append(`productSnapshot[components][${index}][pricingRef]`, c.pricingRef);
+        if (c.category) {
+          fd.append(`productSnapshot[components][${index}][category]`, c.category);
+        }
         if (c.rateOverride !== undefined) {
           fd.append(`productSnapshot[components][${index}][rateOverride]`, c.rateOverride);
         }
@@ -834,11 +931,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
                           type="button"
                           onClick={() => removeImage(i)}
                           className="absolute top-2 right-2 bg-[#632947] text-white 
-w-7 h-7 rounded-full text-xs flex items-center justify-center
-
-
-
-active:scale-90"
+w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden active:scale-90"
                         >
                           ✕
                         </button>
@@ -1430,8 +1523,121 @@ active:scale-90"
                 >
                   + Add
                 </button>
+              </div>
 
+              {/* Belts */}
+              <div className="border border-gray-200 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
+                    <h2 className="text-base font-semibold text-gray-800">Accessories</h2>
+                  </div>
+                </div>
 
+                {(form.productSnapshot.belts || []).map((belt, index) => (
+                  <div key={index} className="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-sm font-medium text-gray-700">Accessory {index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeBelt(index)}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-6 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Category</label>
+                        <select
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
+                          value={belt.category || "Belt"}
+                          onChange={(e) => updateBelt(index, "category", e.target.value)}
+                        >
+                          {ACCESSORY_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Material</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
+                          value={belt.material}
+                          onChange={(e) => updateBelt(index, "material", e.target.value)}
+                          placeholder="e.g. Leather"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Color</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
+                          value={belt.color}
+                          onChange={(e) => updateBelt(index, "color", e.target.value)}
+                          placeholder="e.g. Black"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Size</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
+                          value={belt.size}
+                          onChange={(e) => updateBelt(index, "size", e.target.value)}
+                          placeholder="e.g. 42mm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
+                          value={belt.count === 0 ? "" : belt.count}
+                          onChange={(e) => updateBelt(index, "count", e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1 flex items-center justify-between">
+                          Rate (₹)
+                          <button
+                            type="button"
+                            className="text-xs text-blue-600"
+                            onClick={() => updateBelt(index, "rateLocked", !belt.rateLocked)}
+                          >
+                            {belt.rateLocked ? "🔓" : "🔒"}
+                          </button>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          disabled={!belt.rateLocked}
+                          className={`w-full px-2 py-1.5 border rounded text-xs ${belt.rateLocked ? "border-gray-300 bg-white" : "border-gray-200 bg-gray-100"}`}
+                          value={belt.rateOverride || ""}
+                          onChange={(e) => updateBelt(index, "rateOverride", e.target.value)}
+                          placeholder="Rate"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addBelt}
+                  className="px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors"
+                >
+                  + Add Accessory
+                </button>
               </div>
 
               {/* Payment Details */}

@@ -747,6 +747,7 @@ import { useModal } from "../context/ModalContext";
 import { useRates } from "../context/RatesContext";
 import { updateRate } from "../api/ratesApi";
 import { toast } from "sonner";
+import { useTheme } from "../context/ThemeContext";
 
 
 export default function Products() {
@@ -758,6 +759,7 @@ export default function Products() {
   const { showConfirm } = useModal();
 
   const { rawRates, refreshRates } = useRates();
+  const { isDark } = useTheme();
   const [isUpdatingDiscount, setIsUpdatingDiscount] = useState(false);
 
   const totalItems =
@@ -798,7 +800,7 @@ export default function Products() {
     }, 0) || 0;
 
   return (
-    <div className="flex h-[calc(100vh-80px)] w-full bg-gradient-to-br from-gray-50 to-slate-100 overflow-hidden">
+    <div className={`flex h-[calc(100vh-80px)] w-full overflow-hidden transition-colors duration-300 ${isDark ? "bg-[#121212]" : "bg-gradient-to-br from-gray-50 to-slate-100"}`}>
 
       {/* ================= MAIN CONTENT ================= */}
       <div
@@ -826,16 +828,17 @@ export default function Products() {
         className={`
           fixed top-0 right-0 h-full
           w-full sm:w-[400px] lg:w-[420px]
-          bg-[#F5F5F5] shadow-[-10px_0_30px_rgba(0,0,0,0.05)]
+          shadow-[-10px_0_30px_rgba(0,0,0,0.05)]
           flex flex-col z-50
           transform transition-transform duration-500 ease-in-out
+          ${isDark ? "bg-[#1a1a1a] border-l border-[#333333]" : "bg-[#F5F5F5]"}
           ${isCartOpen ? "translate-x-0" : "translate-x-full"}
         `}
       >
         {/* ================= HEADER ================= */}
-        <div className="flex-shrink-0 bg-[#5A374F] px-6 py-2 border-b border-gray-100">
+        <div className={`flex-shrink-0 px-6 py-2 border-b transition-colors ${isDark ? "bg-[#0d0d0d] border-white/5" : "bg-[#5A374F] border-gray-100"}`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-[#F2F2F2]">
+            <h2 className={`text-sm font-bold uppercase tracking-widest ${isDark ? "text-pink-400" : "text-[#F2F2F2]"}`}>
               Shopping Cart
             </h2>
             <button
@@ -866,7 +869,7 @@ export default function Products() {
 
         {/* ================= FOOTER ================= */}
         {cart?.items?.length > 0 && (
-          <div className="flex-shrink-0 bg-white border-t border-gray-100 p-4 space-y-4">
+          <div className={`flex-shrink-0 border-t p-4 space-y-4 transition-colors ${isDark ? "bg-[#0d0d0d] border-white/5" : "bg-white border-gray-100"}`}>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-500 uppercase tracking-tighter">
                 Subtotal:
@@ -892,7 +895,7 @@ export default function Products() {
                   navigate("/checkout/calculate");
                   setIsCartOpen(false);
                 }}
-                className="w-full py-3 rounded-md bg-[#F2F2F2] text-gray-800 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                className={`w-full py-3 rounded-md font-bold text-[10px] uppercase tracking-widest transition-all ${isDark ? "bg-pink-600 text-white hover:bg-pink-700" : "bg-[#F2F2F2] text-gray-800 hover:bg-gray-200"}`}
               >
                 Checkout
               </button>

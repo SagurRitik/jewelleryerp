@@ -139,7 +139,7 @@ const ComponentBadge = ({ component, index }) => (
 
       <div>
         <p className="text-stone-400 text-[9px] uppercase">per piece (ct)</p>
-        <p className="font-semibold">{component.weight} ct</p>
+        <p className="font-semibold">{component.weight.toFixed(3)} ct</p>
       </div>
 
       <div>
@@ -326,7 +326,12 @@ export default function OrderDetails() {
         .map(c => `• ${c.type}: ${c.count}pcs (${c.grossWeight || c.weight}ct)`)
         .join("\n");
 
-      const message = `🔨 *NEW MANUFACTURING ORDER* 🔨\n\nनमस्ते,\n\nनया ऑर्डर तैयार है:\n*Order No:* ${orderNo}\n\n*आइटम विवरण:*\n--------------------------------\n• श्रेणी: ${product.jewelleryCategory || "Jewellery"}\n• मेटल: ${product.metalType || ""} (${product.metalPurity || ""})\n• नेट वजन: ${product.netWeight || 0} g\n• साइज: ${product.size || "Standard"}\n--------------------------------\n\n${diamondText ? `*हीरे (Diamonds):*\n${diamondText}\n\n` : ""}${stoneText ? `*नग (Stones):*\n${stoneText}\n\n` : ""}*विशेष निर्देश (Notes):*\n${product.description || product.notes || "No special instructions"}\n\n कृपया काम शुरू करें।\nधन्यवाद,\n💎 *Nazara Diamonds* 💎`;
+      const beltText = components
+        .filter(c => c.pricingRef === "BELT")
+        .map(c => `• Belt: ${c.category || ""} ${c.shape || ""} ${c.size || ""} (${c.count}pcs)`)
+        .join("\n");
+
+      const message = `🔨 *NEW MANUFACTURING ORDER* 🔨\n\nनमस्ते,\n\nनया ऑर्डर तैयार है:\n*Order No:* ${orderNo}\n\n*आइटम विवरण:*\n--------------------------------\n• श्रेणी: ${product.jewelleryCategory || "Jewellery"}\n• मेटल: ${product.metalType || ""} (${product.metalPurity || ""})\n• नेट वजन: ${product.netWeight || 0} g\n• साइज: ${product.size || "Standard"}\n--------------------------------\n\n${diamondText ? `*हीरे (Diamonds):*\n${diamondText}\n\n` : ""}${stoneText ? `*नग (Stones):*\n${stoneText}\n\n` : ""}${beltText ? `*बेल्ट/एक्सेसरीज (Belts):*\n${beltText}\n\n` : ""}*विशेष निर्देश (Notes):*\n${product.description || product.notes || "No special instructions"}\n\n कृपया काम शुरू करें।\nधन्यवाद,\n💎 *Nazara Diamonds* 💎`;
 
       const encodedMessage = encodeURIComponent(message);
       const mobile = supplier.mobile.replace(/\D/g, "");
@@ -408,7 +413,11 @@ export default function OrderDetails() {
   ) || [];
 
   const gemstoneComponents = productSnapshot.components?.filter(c =>
-    !c.type.toLowerCase().includes("diamond") && c.pricingRef === "STONE"
+    (!c.type.toLowerCase().includes("diamond") && c.pricingRef === "STONE") || (c.pricingRef === "STONE")
+  ) || [];
+
+  const beltComponents = productSnapshot.components?.filter(c =>
+    c.pricingRef === "BELT"
   ) || [];
 
   const orderDate = new Date(order.createdAt);
@@ -855,6 +864,33 @@ export default function OrderDetails() {
                           </span>
                         </div>
                       </div>
+                    </div>
+                  </AccordionSection>
+                )}
+
+                {/* Belts / Accessories */}
+                {beltComponents.length > 0 && (
+                  <AccordionSection title="Belts & Accessories" icon={Settings}>
+                    <div className="space-y-4">
+                      {beltComponents.map((belt, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 bg-white border border-stone-200/60">
+                          <div className="flex items-center gap-4">
+                            <span className="text-stone-300 font-serif text-lg italic font-light">0{idx + 1}</span>
+                            <div>
+                              <p className="font-semibold text-[#2D2D2D] capitalize text-sm">Belt Accessory</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {belt.category && <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">{belt.category}</span>}
+                                {belt.shape && <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">{belt.shape}</span>}
+                                {belt.size && <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">{belt.size}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-stone-400 text-[9px] uppercase">Quantity</p>
+                            <p className="font-semibold">{belt.count} pcs</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </AccordionSection>
                 )}

@@ -35,6 +35,9 @@ function buildFilterKey(filters) {
     metalType: filters.metalType || "",
     targetAudience: filters.targetAudience || "",
     inStockOnly: !!filters.inStockOnly,
+    sort: filters.sort || "latest",
+    minPrice: filters.minPrice || "",
+    maxPrice: filters.maxPrice || "",
   });
 }
 
@@ -65,13 +68,24 @@ export function ProductListProvider({ children }) {
   const [error, setError] = useState("");
 
   /* ── Filters ── */
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "",
-    metalType: "",
-    targetAudience: "",
-    inStockOnly: false,
+  const [filters, setFilters] = useState(() => {
+    const saved = localStorage.getItem("nazara_product_filters");
+    if (saved) {
+      try { return JSON.parse(saved); } catch { }
+    }
+    return {
+      search: "",
+      category: "",
+      metalType: "",
+      targetAudience: "",
+      inStockOnly: false,
+      sort: "latest",
+      minPrice: "",
+      maxPrice: "",
+    };
   });
+
+
 
   /* ── Refs ── */
   const abortRef = useRef(null);
@@ -119,6 +133,9 @@ export function ProductListProvider({ children }) {
         inStock: currentFilters.inStockOnly || undefined,
         metalType: currentFilters.metalType || undefined,
         targetAudience: currentFilters.targetAudience || undefined,
+        sort: currentFilters.sort || "latest",
+        minPrice: currentFilters.minPrice || undefined,
+        maxPrice: currentFilters.maxPrice || undefined,
       };
 
       const res = await API.get("/", { params, signal: controller.signal });
@@ -140,7 +157,10 @@ export function ProductListProvider({ children }) {
 
       if (append) {
         setProducts(prev => {
-          const next = [...prev, ...productsArray];
+          // Deduplicate by _id to prevent duplicate key warnings
+          const existingIds = new Set(prev.map(p => p._id));
+          const newItems = productsArray.filter(p => !existingIds.has(p._id));
+          const next = [...prev, ...newItems];
           productsLenRef.current = next.length;
           return next;
         });
@@ -193,6 +213,7 @@ export function ProductListProvider({ children }) {
     if (abortRef.current) abortRef.current.abort();
 
     setFilters(newFilters);
+    localStorage.setItem("nazara_product_filters", JSON.stringify(newFilters));
     filtersRef.current = newFilters;
     setPage(1);
     productsLenRef.current = 0;  // reset so initLoad won't skip on next mount
@@ -238,10 +259,14 @@ export function ProductListProvider({ children }) {
       metalType: "",
       targetAudience: "",
       inStockOnly: false,
+      sort: "latest",
+      minPrice: "",
+      maxPrice: "",
     };
 
     // reset UI and Ref
     setFilters(defaultFilters);
+    localStorage.removeItem("nazara_product_filters");
     filtersRef.current = defaultFilters;
 
     setPage(1);
@@ -260,6 +285,9 @@ export function ProductListProvider({ children }) {
    */
   const invalidateCache = useCallback(() => {
     PAGE_CACHE.clear();
+    // Reset so next initLoad will do a fresh fetch
+    initializedRef.current = false;
+    productsLenRef.current = 0;
   }, []);
 
   /* ════════════════════════════════════════════════════════════ */
@@ -290,6 +318,8 @@ export function ProductListProvider({ children }) {
         refresh,
         clearFilters,
         invalidateCache,
+
+
       }}
     >
       {children}

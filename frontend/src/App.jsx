@@ -8,6 +8,7 @@ import { useState } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { ModalProvider } from "./context/ModalContext";
 import { ProductListProvider } from "./context/ProductListContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 
 // COMPONENTS
 import Navbar from "./components/Navbar";
@@ -54,6 +55,10 @@ import SalesInvoices from "./pages/SalesInvoices.jsx";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard/Dashboard.jsx";
 import BulkUploadProducts from "./pages/bulkUpload/BulkUploadProducts.jsx";
+import CataloguePage from "./pages/CataloguePage.jsx";
+import CatalogueViewPage from "./pages/CatalogueViewPage.jsx";
+
+
 
 /* ADMIN – RATE MASTERS */
 import DiamondRateList from "./pages/admin/diamond/DiamondRateList.jsx";
@@ -96,6 +101,11 @@ import SalesReportPage from "./pages/Dashboard/SalesReportPage.jsx";
 import StonesReportPage from "./pages/Dashboard/StonesReportPage.jsx";
 import GSTDashboard from "./pages/Dashboard/GSTDashboard.jsx";
 
+/* DIAMOND STOCK */
+import DiamondStockPage from "./pages/DiamondStockPage.jsx";
+import AddDiamondStock from "./pages/AddDiamondStock.jsx";
+import DiamondDetailsPage from "./pages/DiamondDetailsPage.jsx";
+
 /* SUPPLIERS */
 import SupplierList from "./pages/suppliers/SupplierList.jsx";
 import SupplierForm from "./pages/suppliers/SupplierForm.jsx";
@@ -112,9 +122,12 @@ import EstimatePreview from "./pages/quotation/EstimatePreview";
 /* ================= MAIN LAYOUT WRAPPER ================= */
 function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { isDark } = useTheme();
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#faf9f6] text-[#1a1a1a] w-full m-0 p-0 relative">
+    <div className={`min-h-screen flex flex-col w-full m-0 p-0 relative transition-colors duration-300 ${
+      isDark ? "bg-[#121212] text-[#e0e0e0]" : "bg-[#faf9f6] text-[#1a1a1a]"
+    }`}>
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <Navbar toggleSidebar={() => setIsSidebarOpen(true)} />
       <main className="flex-1 w-full m-0 p-0">
@@ -127,120 +140,132 @@ function MainLayout() {
 /* ================= APP COMPONENT ================= */
 export default function App() {
   return (
-    <AuthProvider>
-      <ModalProvider>
-        {/* ProductListProvider wraps Router so product cache persists across ALL route changes */}
-        <ProductListProvider>
-          <Toaster richColors position="top-right" />
-          <Router>
-            <Routes>
-              {/* ================= PUBLIC ROUTES ================= */}
-              <Route path="/verify-otp" element={<VerifyEmail />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/set-password/:token" element={<SetPassword />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <ModalProvider>
+          {/* ProductListProvider wraps Router so product cache persists across ALL route changes */}
+          <ProductListProvider>
+            <Toaster richColors position="top-right" />
+            <Router>
+              <Routes>
+                {/* ... existing routes ... */}
+                <Route path="/verify-otp" element={<VerifyEmail />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/set-password/:token" element={<SetPassword />} />
 
-              {/* ================= PROTECTED ROUTES (with Navbar) ================= */}
-              <Route element={<MainLayout />}>
+                {/* ================= PROTECTED ROUTES (with Navbar) ================= */}
+                <Route element={<MainLayout />}>
 
-                {/* Salesperson + Admin + Superadmin */}
+                  {/* Salesperson + Admin + Superadmin */}
+                  <Route element={<PrivateRoute allowedRoles={["superadmin", "admin", "salesperson"]} />}>
+                    <Route path="/" element={<Products />} />
+                    <Route path="/inventory-management" element={<InventoryManagement />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/product/:id" element={<SingleProduct />} />
+                    <Route path="/LandingPage" element={<LandingPage />} />
+
+                    {/* Cart & Orders */}
+                    <Route path="/cart" element={<CartPage />} />
+                    <Route path="/checkout-success" element={<CheckoutSuccess />} />
+                    <Route path="/checkout/calculate" element={<CheckoutPage />} />
+                    <Route path="/add" element={<AddProduct />} />
+                    <Route path="/orders" element={<Orders />} />
+                    <Route path="/orders/new" element={<AddOrder />} />
+                    <Route path="/orders/:id" element={<OrderDetails />} />
+                    <Route path="/orders/:id/edit" element={<EditOrder />} />
+                    <Route path="/orders/:id/complete" element={<CompleteOrder />} />
+                    <Route path="/orders/:id/slip" element={<OrderSlip />} />
+
+                    {/* Invoices */}
+                    <Route path="/sales-invoices" element={<SalesInvoices />} />
+
+                    {/* Tools */}
+                    <Route path="/calculator" element={<JewelleryCalculator />} />
+
+                    {/* Edit/rates (shared) */}
+                    <Route path="/edit/:id" element={<EditProduct />} />
+                    <Route path="/admin/diamond-rates" element={<DiamondRateList />} />
+                    <Route path="/admin/diamond-rates/new" element={<DiamondRateForm />} />
+                    <Route path="/admin/diamond-rates/:id/edit" element={<DiamondRateForm />} />
+                    <Route path="/admin/stone-rates" element={<StoneRateList />} />
+                    <Route path="/admin/stone-rates/new" element={<StoneRateForm />} />
+                    <Route path="/admin/stone-rates/:id/edit" element={<StoneRateForm />} />
+
+                    {/* Reports */}
+                    <Route path="/reports/sales-closing" element={<DailySalesClosing />} />
+                    <Route path="/orders/closing-report" element={<OrderClosingReport />} />
+                    <Route path="/catalogues" element={<CataloguePage />} />
+                    <Route path="/catalogues/:id" element={<CatalogueViewPage />} />
+                  </Route>
+
+
+
+                  {/* Admin + Superadmin only */}
+                  <Route element={<PrivateRoute allowedRoles={["superadmin", "admin"]} />}>
+                    <Route path="/products/bulk-upload" element={<BulkUploadProducts />} />
+                    <Route path="/admin/users" element={<UserManagement />} />
+                    <Route path="/admin/users/new" element={<CreateUser />} />
+                    <Route path="/rates" element={<RatesPage />} />
+                    <Route path="/metal-ledger" element={<MetalLedgerPage />} />
+                    <Route path="/metal-credit" element={<MetalManualCreditPage />} />
+                    <Route path="/metal-debit" element={<MetalDebitPage />} />
+                    <Route path="/metal-stock" element={<MetalStockPurityPage />} />
+                    <Route path="/gst-dashboard" element={<GSTDashboard />} />
+                    <Route path="/invoices/:id" element={<InvoiceDetails />} />
+                    <Route path="/returns" element={<ReturnList />} />
+                    <Route path="/returns/create/:invoiceId" element={<CreateReturn />} />
+                    <Route path="/returns/:id" element={<ReturnDetails />} />
+                    <Route path="/credit-notes" element={<CreditNoteList />} />
+                    <Route path="/manual-billing" element={<ManualBillingForm />} />
+                    <Route path="/expenses" element={<ExpensePage />} />
+                    <Route path="/expenses/new" element={<AddExpensePage />} />
+                    <Route path="/expenses/edit/:id" element={<AddExpensePage />} />
+                    <Route path="/inquiries" element={<InquiryList />} />
+                    <Route path="/inquiries/bulk" element={<BulkUploadInquiries />} />
+                    <Route path="/inquiries/new" element={<AddInquiryPage />} />
+                    <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
+                    <Route path="/sales-breakdown" element={<SalesBreakdown />} />
+                    <Route path="/reports/metals" element={<MetalReportPage />} />
+                    <Route path="/reports/diamonds" element={<DiamondReportPage />} />
+                    <Route path="/reports/stones" element={<StonesReportPage />} />
+                    <Route path="/reports/sales" element={<SalesReportPage />} />
+                    <Route path="/suppliers" element={<SupplierList />} />
+                    <Route path="/suppliers/new" element={<SupplierForm />} />
+                    <Route path="/suppliers/edit/:id" element={<SupplierForm />} />
+                    <Route path="/suppliers/:id" element={<SupplierLedger />} />
+                    <Route path="/purchases/new" element={<PurchaseEntry />} />
+                    <Route path="/quotation" element={<QuotationPage />} />
+                    {/* ===== ESTIMATES ===== */}
+                    <Route path="/quotations" element={<EstimateList />} />
+                    <Route path="/quotations/new" element={<EstimateBuilder />} />
+                    <Route path="/quotations/:id" element={<EstimatePreview />} />
+                    <Route path="/quotations/:id/edit" element={<EstimateBuilder />} />
+
+                    {/* DIAMOND STOCK */}
+                    <Route path="/diamonds" element={<DiamondStockPage />} />
+                    <Route path="/diamonds/new" element={<AddDiamondStock />} />
+                    <Route path="/diamonds/edit/:id" element={<AddDiamondStock />} />
+                    <Route path="/diamonds/:id" element={<DiamondDetailsPage />} />
+                  </Route>
+
+                </Route>
+                {/* END MAIN LAYOUT */}
+
+                {/* ================= STANDALONE PRINT ROUTES (no Navbar) ================= */}
                 <Route element={<PrivateRoute allowedRoles={["superadmin", "admin", "salesperson"]} />}>
-                  <Route path="/" element={<Products />} />
-                  <Route path="/inventory-management" element={<InventoryManagement />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/product/:id" element={<SingleProduct />} />
-                  <Route path="/LandingPage" element={<LandingPage />} />
-
-                  {/* Cart & Orders */}
-                  <Route path="/cart" element={<CartPage />} />
-                  <Route path="/checkout-success" element={<CheckoutSuccess />} />
-                  <Route path="/checkout/calculate" element={<CheckoutPage />} />
-                  <Route path="/add" element={<AddProduct />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/orders/new" element={<AddOrder />} />
-                  <Route path="/orders/:id" element={<OrderDetails />} />
-                  <Route path="/orders/:id/edit" element={<EditOrder />} />
-                  <Route path="/orders/:id/complete" element={<CompleteOrder />} />
-                  <Route path="/orders/:id/slip" element={<OrderSlip />} />
-
-                  {/* Invoices */}
-                  <Route path="/sales-invoices" element={<SalesInvoices />} />
-
-                  {/* Tools */}
-                  <Route path="/calculator" element={<JewelleryCalculator />} />
-
-                  {/* Edit/rates (shared) */}
-                  <Route path="/edit/:id" element={<EditProduct />} />
-                  <Route path="/admin/diamond-rates" element={<DiamondRateList />} />
-                  <Route path="/admin/diamond-rates/new" element={<DiamondRateForm />} />
-                  <Route path="/admin/diamond-rates/:id/edit" element={<DiamondRateForm />} />
-                  <Route path="/admin/stone-rates" element={<StoneRateList />} />
-                  <Route path="/admin/stone-rates/new" element={<StoneRateForm />} />
-                  <Route path="/admin/stone-rates/:id/edit" element={<StoneRateForm />} />
-
-                  {/* Reports */}
-                  <Route path="/reports/sales-closing" element={<DailySalesClosing />} />
-                  <Route path="/orders/closing-report" element={<OrderClosingReport />} />
+                  <Route path="/invoice/:invoiceId" element={<InvoicePreview />} />
+                  <Route path="/invoice/:id" element={<InvoicePage />} />
                 </Route>
 
-                {/* Admin + Superadmin only */}
-                <Route element={<PrivateRoute allowedRoles={["superadmin", "admin"]} />}>
-                  <Route path="/products/bulk-upload" element={<BulkUploadProducts />} />
-                  <Route path="/admin/users" element={<UserManagement />} />
-                  <Route path="/admin/users/new" element={<CreateUser />} />
-                  <Route path="/rates" element={<RatesPage />} />
-                  <Route path="/metal-ledger" element={<MetalLedgerPage />} />
-                  <Route path="/metal-credit" element={<MetalManualCreditPage />} />
-                  <Route path="/metal-debit" element={<MetalDebitPage />} />
-                  <Route path="/metal-stock" element={<MetalStockPurityPage />} />
-                  <Route path="/gst-dashboard" element={<GSTDashboard />} />
-                  <Route path="/invoices/:id" element={<InvoiceDetails />} />
-                  <Route path="/returns" element={<ReturnList />} />
-                  <Route path="/returns/create/:invoiceId" element={<CreateReturn />} />
-                  <Route path="/returns/:id" element={<ReturnDetails />} />
-                  <Route path="/credit-notes" element={<CreditNoteList />} />
-                  <Route path="/manual-billing" element={<ManualBillingForm />} />
-                  <Route path="/expenses" element={<ExpensePage />} />
-                  <Route path="/expenses/new" element={<AddExpensePage />} />
-                  <Route path="/expenses/edit/:id" element={<AddExpensePage />} />
-                  <Route path="/inquiries" element={<InquiryList />} />
-                  <Route path="/inquiries/bulk" element={<BulkUploadInquiries />} />
-                  <Route path="/inquiries/new" element={<AddInquiryPage />} />
-                  <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
-                  <Route path="/sales-breakdown" element={<SalesBreakdown />} />
-                  <Route path="/reports/metals" element={<MetalReportPage />} />
-                  <Route path="/reports/diamonds" element={<DiamondReportPage />} />
-                  <Route path="/reports/stones" element={<StonesReportPage />} />
-                  <Route path="/reports/sales" element={<SalesReportPage />} />
-                  <Route path="/suppliers" element={<SupplierList />} />
-                  <Route path="/suppliers/new" element={<SupplierForm />} />
-                  <Route path="/suppliers/edit/:id" element={<SupplierForm />} />
-                  <Route path="/suppliers/:id" element={<SupplierLedger />} />
-                  <Route path="/purchases/new" element={<PurchaseEntry />} />
-                  <Route path="/quotation" element={<QuotationPage />} />
-                  {/* ===== ESTIMATES ===== */}
-                  <Route path="/quotations" element={<EstimateList />} />
-                  <Route path="/quotations/new" element={<EstimateBuilder />} />
-                  <Route path="/quotations/:id" element={<EstimatePreview />} />
-                  <Route path="/quotations/:id/edit" element={<EstimateBuilder />} />
-                </Route>
-
-              </Route>
-              {/* END MAIN LAYOUT */}
-
-              {/* ================= STANDALONE PRINT ROUTES (no Navbar) ================= */}
-              <Route element={<PrivateRoute allowedRoles={["superadmin", "admin", "salesperson"]} />}>
-                <Route path="/invoice/:invoiceId" element={<InvoicePreview />} />
-                <Route path="/invoice/:id" element={<InvoicePage />} />
-              </Route>
-
-              {/* 404 */}
-              <Route path="*" element={<div className="p-10 text-center text-red-500 font-bold">404 - Page Not Found</div>} />
-            </Routes>
-          </Router>
-        </ProductListProvider>
-      </ModalProvider>
-    </AuthProvider>
+                {/* 404 */}
+                <Route path="*" element={<div className="p-10 text-center text-red-500 font-bold">404 - Page Not Found</div>} />
+              </Routes>
+            </Router>
+          </ProductListProvider>
+        </ModalProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

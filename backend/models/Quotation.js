@@ -19,7 +19,8 @@ const componentSchema = new mongoose.Schema({
   rateOverride: { type: Number, default: 0 },
   rateType: { type: String, enum: ["PER_CT", "PER_PCS"], default: "PER_CT" },
   size: { type: String, default: "" },
-
+  category: { type: String, default: "" },
+  description: { type: String, default: "" },
 }, { _id: false });
 
 const breakupSchema = new mongoose.Schema({

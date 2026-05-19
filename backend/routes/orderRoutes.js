@@ -1,6 +1,4 @@
 
-
-
 // export default router;
 import express from "express";
 import {
@@ -19,6 +17,7 @@ import {
 
 import { getOrderClosingSummary } from "../controllers/order/orderClosingController.js";
 import { upload } from "../middlewares/upload.js";
+import { optimizeProductImages } from "../middlewares/imageOptimizer.js";
 
 const router = express.Router();
 
@@ -31,7 +30,8 @@ const router = express.Router();
 
 router.post(
   "/",
-  upload.array("productImages", 5),   // 🔥 CHANGE THIS
+  upload.array("productImages", 5),
+  optimizeProductImages,
   createOrder
 );
 
@@ -48,7 +48,7 @@ router.get("/order-no/:orderNo", getOrderByOrderNo);
 router.get("/:id", getOrderById);
 
 /* ================= UPDATE ================= */
-router.patch("/:id", upload.array("productImages", 5), updateOrderById);
+router.patch("/:id", upload.array("productImages", 5), optimizeProductImages, updateOrderById);
 router.patch("/:id/status", updateOrderStatusById);
 router.patch("/:id/cancel", cancelOrderById);
 

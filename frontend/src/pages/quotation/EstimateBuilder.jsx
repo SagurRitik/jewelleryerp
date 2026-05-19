@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Save, Eye,
@@ -23,6 +23,7 @@ const PURITY_OPTIONS = {
   Platinum: ["950"],
 };
 const METAL_TYPES = ["Gold", "Silver", "Platinum"];
+const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 const STONE_OPTIONS = [
   "ruby", "pearl", "red-coral", "emerald", "yellow-sapphire",
   "diamond", "blue-sapphire", "hessonite", "cats-eye", "gemstone"
@@ -88,6 +89,7 @@ const defaultItem = () => ({
   imagePreviews: [],
   diamonds: [],
   gemstones: [],
+  belts: [],
   breakup: null,
   collapsed: false,
 });
@@ -167,6 +169,8 @@ export default function EstimateBuilder() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { rates, loading: ratesLoading } = useRates();
+  const location = useLocation();
+  const initialProduct = location.state?.initialProduct;
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState(defaultForm());
@@ -239,6 +243,7 @@ export default function EstimateBuilder() {
       ...it,
       diamonds: [...it.diamonds, {
         _key: Math.random().toString(36).slice(2),
+        type: "Diamond",
         shape: "Round", weight: "", count: "1", grossWeight: "",
         rateOverride: "", rateLocked: true, color: "G", clarity: "VS1", size: ""
       }]
@@ -333,6 +338,48 @@ export default function EstimateBuilder() {
     } : it));
   };
 
+  /* ───── BELT HANDLERS ───── */
+  const addBelt = (itemIndex) => {
+    setItems(prev => prev.map((it, i) => i === itemIndex ? {
+      ...it,
+      belts: [...it.belts, {
+        _key: Math.random().toString(36).slice(2),
+        category: "Belt", material: "", color: "", size: "", count: "1",
+        rateOverride: "", rateLocked: false
+      }]
+    } : it));
+  };
+
+  const removeBelt = (itemIndex, bIndex) => {
+    setItems(prev => prev.map((it, i) => i === itemIndex ? {
+      ...it,
+      belts: it.belts.filter((_, bi) => bi !== bIndex)
+    } : it));
+  };
+
+  const updateBelt = (itemIndex, bIndex, field, value) => {
+    setItems(prev => prev.map((it, i) => {
+      if (i !== itemIndex) return it;
+      const updatedBelts = it.belts.map((b, bi) => {
+        if (bi !== bIndex) return b;
+        return {
+          ...b,
+          [field]: field === "count" || field === "rateOverride"
+            ? (value === "" ? "" : Number(value))
+            : value
+        };
+      });
+      return { ...it, belts: updatedBelts };
+    }));
+  };
+
+  const toggleBeltRateLock = (itemIndex, bIndex) => {
+    setItems(prev => prev.map((it, i) => i === itemIndex ? {
+      ...it,
+      belts: it.belts.map((b, bi) => bi === bIndex ? { ...b, rateLocked: !b.rateLocked } : b)
+    } : it));
+  };
+
   /* ───── Load for Edit ───── */
   useEffect(() => {
     if (!isEdit) return;
@@ -353,6 +400,7 @@ export default function EstimateBuilder() {
           (q.items || []).map((it) => {
             const diamonds = [];
             const gemstones = [];
+            const belts = [];
             (it.components || []).forEach(c => {
               const comp = {
                 ...c,
@@ -363,6 +411,7 @@ export default function EstimateBuilder() {
                 rateOverride: String(c.rateOverride || ""),
               };
               if (c.pricingRef === "DIAMOND") diamonds.push(comp);
+              else if (c.pricingRef === "BELT") belts.push({ ...comp, category: c.category || "Belt", material: c.description || "", color: c.shape });
               else gemstones.push({ ...comp, name: c.type });
             });
 
@@ -385,6 +434,7 @@ export default function EstimateBuilder() {
 
               diamonds,
               gemstones,
+              belts,
               breakup: it.breakup || null,
               collapsed: false,
             };
@@ -401,6 +451,70 @@ export default function EstimateBuilder() {
     load();
   }, [id, isEdit, navigate]);
 
+  /* ───── Load from Initial Product (Deep Copy & Map) ───── */
+  useEffect(() => {
+    if (initialProduct && !isEdit) {
+      const mappedItems = [{
+        ...defaultItem(),
+        title: initialProduct.title || "",
+        jewelleryCategory: initialProduct.jewelleryCategory || "Ring",
+        description: initialProduct.description || "",
+        metalType: initialProduct.metalType || "Gold",
+        metalPurity: initialProduct.metalPurity || "22KT",
+        netWeight: String(initialProduct.netWeight || ""),
+        grossWeight: String(initialProduct.grossWeight || ""),
+        fineGold: String(initialProduct.fineGold || ""),
+        huid: initialProduct.huid || "",
+        hsnCode: initialProduct.hsnCode || "",
+        images: initialProduct.images || [],
+        imagePreviews: (initialProduct.images || []).map(img => getImageUrl(img)),
+        diamonds: (initialProduct.components || [])
+          .filter(c => ["Diamond", "Polki", "Moissanite"].includes(c.type))
+          .map(c => ({
+            _key: Math.random().toString(36).slice(2),
+            type: c.type || "Diamond",
+            shape: c.shape || "Round",
+            weight: String(c.weight || ""),
+            count: String(c.count || "1"),
+            grossWeight: String(c.grossWeight || ""),
+            rateOverride: String(c.rateOverride || ""),
+            rateLocked: true,
+            color: c.color || "G",
+            clarity: c.clarity || "VS1",
+            size: c.size || ""
+          })),
+        belts: (initialProduct.components || [])
+          .filter(c => c.type === "Belt" || c.type === "Accessory")
+          .map(c => ({
+            _key: Math.random().toString(36).slice(2),
+            category: c.category || "Belt",
+            material: c.description || "",
+            color: c.shape || "",
+            size: c.size || "",
+            count: String(c.count || "1"),
+            rateOverride: String(c.rateOverride || ""),
+            rateLocked: true
+          })),
+        gemstones: (initialProduct.components || [])
+          .filter(c => !["Diamond", "Polki", "Moissanite", "Belt", "Accessory"].includes(c.type))
+          .map(c => ({
+            _key: Math.random().toString(36).slice(2),
+            name: c.type || "gemstone",
+            shape: c.shape || "",
+            weight: String(c.weight || ""),
+            count: String(c.count || "1"),
+            grossWeight: String(c.grossWeight || ""),
+            rateOverride: String(c.rateOverride || ""),
+            rateLocked: true,
+            rateType: c.rateType || "PER_CT"
+          }))
+      }];
+      setItems(mappedItems);
+      // Clear state so it doesn't re-populate on refresh if unwanted, 
+      // though usually location state persists only for that navigation.
+    }
+  }, [initialProduct, isEdit]);
+
   /* ───── DEBOUNCED CALCULATE ───── */
   const triggerCalculate = useCallback(() => {
     clearTimeout(calcTimerRef.current);
@@ -408,7 +522,7 @@ export default function EstimateBuilder() {
       const payloadItems = items.map((it) => {
         const components = [];
         (it.diamonds || []).forEach(d => components.push({
-          type: "diamond",
+          type: d.type || "diamond",
           pricingRef: "DIAMOND",
           shape: d.shape || "",
           color: d.color || "",
@@ -429,6 +543,17 @@ export default function EstimateBuilder() {
           rateOverride: Number(g.rateOverride || 0),
           rateType: g.rateType || "PER_CT",
         }));
+        (it.belts || []).forEach(b => components.push({
+          type: "Belt",
+          pricingRef: "BELT",
+          category: b.category || "Belt",
+          shape: b.color || "",
+          description: b.material || "",
+          size: b.size || "",
+          count: Number(b.count || 1),
+          rateOverride: Number(b.rateOverride || 0),
+          rateType: "PER_PCS",
+        }));
 
 
         return {
@@ -441,7 +566,10 @@ export default function EstimateBuilder() {
         };
       });
 
-      const hasWeight = payloadItems.some((it) => it.netWeight > 0 || it.components.some((c) => c.weight > 0));
+      const hasWeight = payloadItems.some((it) =>
+        it.netWeight > 0 ||
+        it.components.some((c) => c.weight > 0 || (c.pricingRef === "BELT" && c.count > 0))
+      );
       if (!hasWeight) {
         setTotals({ subtotal: 0, gstTotal: 0, grandTotal: 0 });
         return;
@@ -484,7 +612,7 @@ export default function EstimateBuilder() {
     items: items.map((it) => {
       const components = [];
       (it.diamonds || []).forEach(d => components.push({
-        type: "diamond",
+        type: d.type || "diamond",
         pricingRef: "DIAMOND",
         shape: d.shape || "",
         color: d.color || "",
@@ -521,7 +649,20 @@ export default function EstimateBuilder() {
         quantity: Number(it.quantity || 1),
         discountEnabled: it.discountEnabled !== false,
         images: it.images, // Backend will handle File objects via FormData separately
-        components
+        components: [
+          ...components,
+          ...(it.belts || []).map(b => ({
+            type: "Accessory",
+            pricingRef: "BELT",
+            category: b.category || "Belt",
+            shape: b.color || "",
+            description: b.material || "",
+            size: b.size || "",
+            count: Number(b.count || 1),
+            rateOverride: Number(b.rateOverride || 0),
+            rateType: "PER_PCS"
+          }))
+        ]
       };
     }),
   });
@@ -793,7 +934,7 @@ export default function EstimateBuilder() {
                           <button
                             type="button"
                             onClick={() => removeImage(itemIndex, idx)}
-                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md z-10 print:hidden"
                           >
                             <Plus size={12} className="rotate-45" />
                           </button>
@@ -1068,6 +1209,66 @@ export default function EstimateBuilder() {
                       ))}
                     </div>
                     <button type="button" onClick={() => addGemstone(itemIndex)} className={addButtonClass}>+ Add Gemstone</button>
+                  </div>
+
+                  {/* Accessories Section */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className={sectionTitleClass}><span className={lineMarkerClass}></span>Accessories</div>
+                    </div>
+                    <div className="space-y-3">
+                      {item.belts?.map((belt, bIndex) => (
+                        <div key={belt._key} className="border border-slate-100 rounded-lg p-3 bg-slate-50/30 relative group">
+                          <button
+                            type="button"
+                            onClick={() => removeBelt(itemIndex, bIndex)}
+                            className="absolute top-2 right-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Category</label>
+                              <select
+                                value={belt.category || "Belt"}
+                                onChange={(e) => updateBelt(itemIndex, bIndex, "category", e.target.value)}
+                                className={selectClass}
+                              >
+                                {ACCESSORY_CATEGORIES.map(cat => (
+                                  <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Material</label>
+                              <input value={belt.material || ""} onChange={(e) => updateBelt(itemIndex, bIndex, "material", e.target.value)} className={inputClass} placeholder="e.g. Leather" />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Color</label>
+                              <input value={belt.color || ""} onChange={(e) => updateBelt(itemIndex, bIndex, "color", e.target.value)} className={inputClass} placeholder="Brown" />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Size</label>
+                              <input value={belt.size || ""} onChange={(e) => updateBelt(itemIndex, bIndex, "size", e.target.value)} className={inputClass} placeholder="42mm" />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Qty</label>
+                              <input type="number" min="1" value={belt.count ?? ""} onChange={(e) => updateBelt(itemIndex, bIndex, "count", e.target.value)} className={inputClass} />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className={labelClass}>Rate (₹)</label>
+                              <div className="relative">
+                                <input type="number" step="0.01" value={belt.rateOverride || ""} readOnly={belt.rateLocked} onChange={(e) => updateBelt(itemIndex, bIndex, "rateOverride", e.target.value)} className={`${inputClass} pr-8 ${belt.rateLocked ? "bg-slate-50 text-slate-500" : ""}`} />
+                                <button type="button" onClick={() => toggleBeltRateLock(itemIndex, bIndex)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#632947] transition">
+                                  {belt.rateLocked ? "🔒" : "🔓"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => addBelt(itemIndex)} className={addButtonClass}>+ Add Accessory</button>
                   </div>
 
                   {/* Breakup Panel */}
