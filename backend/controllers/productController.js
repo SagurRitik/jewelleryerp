@@ -252,11 +252,15 @@ export const getProducts = async (req, res) => {
     /* ---------- FETCH PRODUCTS ---------- */
     const hasPriceFilter = req.query.minPrice !== undefined || req.query.maxPrice !== undefined;
     const hasPriceSort = sortOption === "price-asc" || sortOption === "price-desc";
+    const hasSkuSort = sortOption === "sku-asc" || sortOption === "sku-desc";
 
-    if (hasPriceFilter || hasPriceSort) {
+    if (hasPriceFilter || hasPriceSort || hasSkuSort) {
       // 1. Fetch ALL matching products (without skip/limit)
+      // If we are overriding sort in memory, just sort by default createdAt first
+      const dbSort = (hasPriceSort || hasSkuSort) ? { createdAt: -1 } : sort;
+
       const productsRaw = await Product.find(filter)
-        .sort(hasPriceSort ? { createdAt: -1 } : sort)
+        .sort(dbSort)
         .collation({ locale: "en", numericOrdering: true })
         .lean();
 
@@ -313,7 +317,7 @@ export const getProducts = async (req, res) => {
         }
       }
 
-      // 5. Apply price sorting in memory if requested
+      // 5. Apply sorting in memory if requested
       if (sortOption === "price-asc") {
         productsPriced.sort((a, b) => {
           const priceA = a.pricing?.payable ?? a.pricing?.grandTotal ?? 0;
@@ -325,6 +329,18 @@ export const getProducts = async (req, res) => {
           const priceA = a.pricing?.payable ?? a.pricing?.grandTotal ?? 0;
           const priceB = b.pricing?.payable ?? b.pricing?.grandTotal ?? 0;
           return priceB - priceA;
+        });
+      } else if (sortOption === "sku-asc") {
+        productsPriced.sort((a, b) => {
+          const numA = parseInt(String(a.sku || "").replace(/\D/g, "")) || 0;
+          const numB = parseInt(String(b.sku || "").replace(/\D/g, "")) || 0;
+          return numA - numB;
+        });
+      } else if (sortOption === "sku-desc") {
+        productsPriced.sort((a, b) => {
+          const numA = parseInt(String(a.sku || "").replace(/\D/g, "")) || 0;
+          const numB = parseInt(String(b.sku || "").replace(/\D/g, "")) || 0;
+          return numB - numA;
         });
       }
 

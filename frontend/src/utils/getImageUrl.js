@@ -19,10 +19,12 @@ export const getImageUrl = (img) => {
 
   let normalized = img.replace(/\\/g, "/");
 
-  // 2. Strip accidentally stored local domains
-  normalized = normalized.replace(/^https?:\/\/(localhost|127\.0\.0\.1):[0-9]+/, "");
+  // 2. Strip any domain prefix for uploaded files to ensure we use our configured base URL
+  if (normalized.includes("/uploads/") || normalized.includes("uploads/")) {
+    normalized = normalized.replace(/^https?:\/\/[^/]+/, "");
+  }
 
-  // 3. If it's already a full URL, return it
+  // 3. If it's already a full URL (like external images or blob URLs), return it
   if (normalized.startsWith("http") || normalized.startsWith("blob:")) {
     return normalized;
   }

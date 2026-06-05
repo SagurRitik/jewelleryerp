@@ -53,7 +53,9 @@ export const normalizeImage = (img) => {
   if (!img) return null;
 
   const BASE_URL =
-    process.env.BASE_URL || "https://jewelleryerp.nazaradiamonds.com";
+    process.env.IMAGE_BASE_URL ||
+    process.env.BASE_URL ||
+    "https://jewelleryerp.nazaradiamonds.com";
 
   // 🔥 REMOVE DOMAIN ALWAYS (IMPORTANT FIX)
   if (img.startsWith("http")) {

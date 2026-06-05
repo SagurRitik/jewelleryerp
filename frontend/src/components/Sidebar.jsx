@@ -57,6 +57,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: "Diamond Inventory", path: "/diamonds" },
         { name: "Bulk Upload", path: "/products/bulk-upload" },
         { name: "Catalogues", path: "/catalogues", icon: FileText, permission: "catalogues" },
+        { name: "Barcode Designer", path: "/barcode-print" },
       ],
     },
 
@@ -67,6 +68,7 @@ export default function Sidebar({ isOpen, onClose }) {
       children: [
         { name: "Sales Invoices", path: "/sales-invoices" },
         { name: "Daily Closing", path: "/reports/sales-closing" },
+        { name: "Dead Stock", path: "/reports/dead-stock" },
       ],
     },
     {

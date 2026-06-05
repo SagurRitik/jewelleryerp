@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback, useRef, memo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Loader from "./Loader";
@@ -7,8 +6,9 @@ import { useProductList } from "../context/ProductListContext";
 import {
   Search, Moon, Sun, Check, ShoppingBag, PackageX,
   Heart, BarChart2, Eye, SlidersHorizontal, Package,
-  ChevronDown, ChevronUp, X
+  ChevronDown, ChevronUp, X, Barcode
 } from "lucide-react";
+
 import MetalRateCards from "./MetalRateCards";
 import { getImageUrl } from "../utils/getImageUrl";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
@@ -97,6 +97,16 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
           <button type="button" className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
             <BarChart2 size={14} strokeWidth={2} />
           </button>
+          {p?.sku && (
+            <button 
+              type="button" 
+              title="Print Barcode Tag"
+              onClick={() => navigate(`/barcode-print`, { state: { products: [p] } })}
+              className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-emerald-500" : "bg-white border border-gray-200 text-gray-500 hover:text-emerald-500 hover:border-emerald-500"}`}
+            >
+              <Barcode size={14} strokeWidth={2} />
+            </button>
+          )}
           {p?.sku && (
             <button type="button" onClick={() => navigate(`/product/${p.sku}`)} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
               <Eye size={14} strokeWidth={2} />
@@ -772,8 +782,8 @@ export default function ProductList() {
                 <option value="oldest">Oldest First</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
-                <option value="sku-asc">SKU (A-Z)</option>
-                <option value="sku-desc">SKU (Z-A)</option>
+                <option value="sku-asc">SKU (0-9)</option>
+                <option value="sku-desc">SKU (9-0)</option>
                 <option value="title-asc">Title (A-Z)</option>
                 <option value="title-desc">Title (Z-A)</option>
               </select>

@@ -100,6 +100,8 @@ import DiamondReportPage from "./pages/Dashboard/DiamondReportPage.jsx";
 import SalesReportPage from "./pages/Dashboard/SalesReportPage.jsx";
 import StonesReportPage from "./pages/Dashboard/StonesReportPage.jsx";
 import GSTDashboard from "./pages/Dashboard/GSTDashboard.jsx";
+import DeadStockReportPage from "./pages/Dashboard/DeadStockReportPage.jsx";
+import BarcodeTagPrinter from "./pages/BarcodeTagPrinter.jsx";
 
 /* DIAMOND STOCK */
 import DiamondStockPage from "./pages/DiamondStockPage.jsx";
@@ -195,6 +197,7 @@ export default function App() {
 
                     {/* Reports */}
                     <Route path="/reports/sales-closing" element={<DailySalesClosing />} />
+                    <Route path="/reports/dead-stock" element={<DeadStockReportPage />} />
                     <Route path="/orders/closing-report" element={<OrderClosingReport />} />
                     <Route path="/catalogues" element={<CataloguePage />} />
                     <Route path="/catalogues/:id" element={<CatalogueViewPage />} />
@@ -231,6 +234,8 @@ export default function App() {
                     <Route path="/reports/diamonds" element={<DiamondReportPage />} />
                     <Route path="/reports/stones" element={<StonesReportPage />} />
                     <Route path="/reports/sales" element={<SalesReportPage />} />
+                    <Route path="/reports/dead-stock" element={<DeadStockReportPage />} />
+                    <Route path="/barcode-print" element={<BarcodeTagPrinter />} />
                     <Route path="/suppliers" element={<SupplierList />} />
                     <Route path="/suppliers/new" element={<SupplierForm />} />
                     <Route path="/suppliers/edit/:id" element={<SupplierForm />} />

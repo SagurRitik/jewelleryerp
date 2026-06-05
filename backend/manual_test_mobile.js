@@ -15,10 +15,10 @@ async function test() {
     console.log('Connecting to:', process.env.MONGO_URI);
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
-    
+
     // The number from the screenshot
     const mobile = '06265541081';
-    
+
     const results = await CreditNote.find({
       "customer.mobile": mobile
     });
@@ -36,9 +36,9 @@ async function test() {
     console.log(`Searching for regex "${normalizedMobile}": FOUND ${partialResults.length}`);
 
     if (results.length === 0 && resultsNorm.length === 0 && partialResults.length === 0) {
-        const any = await CreditNote.find({}).limit(5);
-        console.log('Sample data from DB:');
-        any.forEach(a => console.log(`- ${a.customer?.name}: ${a.customer?.mobile} (Status: ${a.status}, Remaining: ${a.remainingAmount})`));
+      const any = await CreditNote.find({}).limit(5);
+      console.log('Sample data from DB:');
+      any.forEach(a => console.log(`- ${a.customer?.name}: ${a.customer?.mobile} (Status: ${a.status}, Remaining: ${a.remainingAmount})`));
     }
 
   } catch (err) {
