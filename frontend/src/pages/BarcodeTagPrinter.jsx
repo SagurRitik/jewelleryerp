@@ -56,11 +56,8 @@ export default function BarcodeTagPrinter() {
       { stoneType: "Diamond", stoneWeight: 0.50 },
       { stoneType: "Stone", stoneWeight: 0.20 }
     ],
-<<<<<<< HEAD
     diamondGW: 0.50,
     stoneGW: 0.20,
-=======
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
     fine: 9.160,
     huid: "HUID12345",
     custom: "LIMITED EDITION",
@@ -437,11 +434,7 @@ export default function BarcodeTagPrinter() {
                     <input
                       type="number" step="0.001" value={manualData.fine}
                       onChange={(e) => handleManualChange("fine", parseFloat(e.target.value))}
-<<<<<<< HEAD
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
-=======
-                      className="w-full bg-slate-50 border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
                     />
                   </div>
                   <div className="space-y-1">
@@ -453,7 +446,6 @@ export default function BarcodeTagPrinter() {
                     />
                   </div>
                 </div>
-<<<<<<< HEAD
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Diamond GW</label>
@@ -472,8 +464,6 @@ export default function BarcodeTagPrinter() {
                     />
                   </div>
                 </div>
-=======
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Custom Note</label>
                   <input
@@ -750,7 +740,6 @@ export default function BarcodeTagPrinter() {
               }
 
               // Standard Tag Designer Loop
-<<<<<<< HEAD
               let diamondGW = 0;
               let stoneGW = 0;
 
@@ -773,10 +762,6 @@ export default function BarcodeTagPrinter() {
                 diamondGW = p.jewelleryStones.filter(s => s.stoneType?.toUpperCase() === "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
                 stoneGW = p.jewelleryStones.filter(s => s.stoneType?.toUpperCase() !== "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
               }
-=======
-              const diamondGW = p.jewelleryStones?.filter(s => s.stoneType?.toUpperCase() === "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
-              const stoneGW = p.jewelleryStones?.filter(s => s.stoneType?.toUpperCase() !== "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
 
               return (
                 <div
@@ -913,11 +898,7 @@ export default function BarcodeTagPrinter() {
                       className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none"
                       style={{ gap: `${elements.dgw.gap}mm` }}
                     >
-<<<<<<< HEAD
                       <span className="text-slate-400">D.GW:</span><span className="text-black">{diamondGW.toFixed(2)}ct</span>
-=======
-                      <span className="text-slate-400">D.GW:</span><span className="text-black">{diamondGW.toFixed(2)}g</span>
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
                     </div>
                   </div>
 
@@ -936,11 +917,7 @@ export default function BarcodeTagPrinter() {
                       className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none"
                       style={{ gap: `${elements.sgw.gap}mm` }}
                     >
-<<<<<<< HEAD
                       <span className="text-slate-400">S.GW:</span><span className="text-black">{stoneGW.toFixed(2)}ct</span>
-=======
-                      <span className="text-slate-400">S.GW:</span><span className="text-black">{stoneGW.toFixed(2)}g</span>
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
                     </div>
                   </div>
 
@@ -957,11 +934,7 @@ export default function BarcodeTagPrinter() {
                     }}
                   >
                     <div className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none gap-[0.5mm]">
-<<<<<<< HEAD
                       <span className="text-slate-400">FINE:</span><span className="text-black">{Number(p.fineGold ?? p.fine ?? 0).toFixed(3)}g</span>
-=======
-                      <span className="text-slate-400">FINE:</span><span className="text-black">{Number(p.fine || 0).toFixed(3)}g</span>
->>>>>>> d81576b63e56b55cf046da3fb6f2d7fb0046318d
                     </div>
                   </div>
 
