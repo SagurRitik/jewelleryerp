@@ -83,7 +83,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: "Calculator", path: "/calculator", icon: Calculator, permission: "products" },
         { name: "Expenses", path: "/expenses", icon: FileText, permission: "expenses" },
         { name: "Purchase Entry", path: "/purchases/new", icon: PlusCircle, permission: "suppliers" },
-        { name: "Suppliers", path: "/suppliers", icon: User, permission: "suppliers" },
+        // { name: "Suppliers", path: "/suppliers", icon: User, permission: "suppliers" },
       ]
     },
     {
