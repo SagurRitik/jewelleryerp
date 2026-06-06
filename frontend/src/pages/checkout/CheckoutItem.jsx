@@ -3,13 +3,11 @@
 import React, { memo, useMemo , useState } from "react";
 import { Gem, Sparkles, Tag, Scale } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getImageUrl } from "../../utils/getImageUrl";
 
 /* ================= UTILS ================= */
 const resolveImage = (img) => {
-  if (!img) return "https://via.placeholder.com/150?text=No+Image";
-  const clean = img.replace(/\\/g, "/");
-  if (clean.startsWith("http")) return clean;
-  return clean.startsWith("/") ? clean : `/${clean}`;
+  return getImageUrl(img);
 };
 
 const formatCurrency = (n) =>
@@ -135,7 +133,7 @@ function CheckoutItem({ item , isExpanded, onToggle}) {
             src={image}
             alt={title}
             className="w-full h-full object-cover"
-            onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/150")}
+            onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
           />
         </div>
 

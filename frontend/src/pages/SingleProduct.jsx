@@ -9,7 +9,8 @@ import { useCart } from "../context/CartContext";
 import { getImageUrl } from "../utils/getImageUrl";
 import { 
   ChevronDown, ShoppingBag, ChevronRight, 
-  ShieldCheck, Tag, Headset, Check, FileText
+  ShieldCheck, Tag, Headset, Check, FileText,
+  Barcode, Printer
 } from "lucide-react";
 import { formatCt } from "../utils/format";
 import { useTheme } from "../context/ThemeContext";
@@ -779,6 +780,38 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
   {/* Tooltip */}
   <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 text-[11px] font-medium bg-black text-white rounded-lg whitespace-nowrap opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 pointer-events-none">
     Create Estimate
+    <span className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-black rotate-45"></span>
+  </span>
+</button>
+
+<button
+  type="button"
+  onClick={() => {
+    navigate("/barcode-print", {
+      state: {
+        products: [product],
+      },
+    });
+  }}
+  className="
+    group relative inline-flex items-center justify-center
+    h-9 px-4 rounded-full
+    text-xs font-medium tracking-tight
+    border border-[#EAE3D9]
+    bg-white text-[#6B3151]
+    shadow-[0_2px_6px_rgba(0,0,0,0.05)]
+    hover:bg-[#6B3151] hover:text-white
+    hover:shadow-[0_4px_12px_rgba(107,49,81,0.25)]
+    transition-all duration-200 ease-out
+    active:scale-[0.95]
+    mr-2
+  "
+>
+  <Barcode size={14} className="mr-2" />
+  <span>Barcode</span>
+  
+  <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 text-[11px] font-medium bg-black text-white rounded-lg whitespace-nowrap opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 pointer-events-none">
+    Generate Barcode
     <span className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-black rotate-45"></span>
   </span>
 </button>

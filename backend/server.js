@@ -35,6 +35,7 @@ import salesClosingRoutes from "./routes/reports/salesClosing.routes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import excelUploadRoutes from "./routes/exceluploadRoutes.js";
 import imageUploadRoutes from "./routes/imageUploadRoutes.js";
+import deadStockRoutes from "./routes/reports/deadStockRoutes.js";
 import zipExcelRoutes from "./routes/zipexcelRoutes.js";
 import validateExcelRoutes from "./routes/validateExcelOnlyRoutes.js";
 import diamondRateRoutes from "./routes/admin/diamondRate.routes.js";
@@ -161,6 +162,7 @@ app.use("/api/dashboard", dashboardRoutes);
 // app.use("/api/reports", reportRoutes);
 app.use("/api/reports", salesClosingRoutes);
 app.use("/api/reports", gstSummaryRoutes);
+app.use("/api/reports", deadStockRoutes);
 
 
 // ADMIN & RATES
