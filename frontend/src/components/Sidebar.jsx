@@ -68,7 +68,7 @@ export default function Sidebar({ isOpen, onClose }) {
       children: [
         { name: "Sales Invoices", path: "/sales-invoices" },
         { name: "Daily Closing", path: "/reports/sales-closing" },
-        // { name: "Dead Stock", path: "/reports/dead-stock" },
+        { name: "Dead Stock", path: "/reports/dead-stock" },
       ],
     },
     {
