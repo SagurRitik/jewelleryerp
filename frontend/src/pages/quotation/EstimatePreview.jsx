@@ -499,8 +499,14 @@ export default function EstimatePreview() {
 
       toast.error(res.data?.error || "Failed to send WhatsApp");
     } catch (err) {
-      const msg = err?.response?.data?.error || err.message || "Failed to send WhatsApp";
-      toast.error(msg);
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err.message ||
+        "Failed to send WhatsApp";
+      console.error("WhatsApp send error:", err?.response?.data || err.message);
+      toast.error(`WhatsApp Error: ${msg}`);
+
     } finally {
       setWhatsAppLoading(false);
     }
