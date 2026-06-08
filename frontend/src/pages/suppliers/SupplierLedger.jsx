@@ -447,7 +447,7 @@ export default function SupplierLedger() {
 
                         {entry.purchaseSlip && (
                           <a 
-                            href={`http://localhost:5000${entry.purchaseSlip}`} 
+                            href={`${entry.purchaseSlip}`} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="mt-2 inline-flex items-center text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-lg transition-all"

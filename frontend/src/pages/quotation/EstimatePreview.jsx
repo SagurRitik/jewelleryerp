@@ -10,6 +10,8 @@ import {
   getEstimate,
   markEstimateSent,
   convertEstimateToOrder,
+  getEstimatePdfBlob,
+  sendEstimateWhatsAppAuto,
 } from "../../api/quotationApi";
 import { getImageUrl } from "../../utils/getImageUrl";
 import logoDark from "../../assets/nazara_logo.png";
@@ -360,6 +362,7 @@ export default function EstimatePreview() {
   const [q, setQ] = useState(null);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
+  const [whatsAppLoading, setWhatsAppLoading] = useState(false);
   const printStyleRef = useRef(null);
 
   /* Inject print CSS */
@@ -443,11 +446,64 @@ export default function EstimatePreview() {
     });
   };
 
-  const handleWhatsApp = () => {
-    const amount = fmt(q?.grandTotal);
-    const text = `Hello ${q?.customerName || "Customer"},\n\nYour jewellery estimate is ready.\nTotal Amount: ₹${amount}\n\nThank you,\nNazara Diamonds 💎`;
-    const url = `https://wa.me/${q?.mobile}?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
+  const handleWhatsApp = async () => {
+    if (whatsAppLoading) return;
+    setWhatsAppLoading(true);
+    try {
+      const res = await sendEstimateWhatsAppAuto(id);
+
+      if (res.data?.success) {
+        // ✅ AiSensy sent it directly
+        toast.success(`📲 Estimate PDF sent to customer's WhatsApp!`);
+        if (q.status === "DRAFT") {
+          try { await markEstimateSent(id); } catch (_) {}
+          setQ((prev) => ({ ...prev, status: "SENT" }));
+        }
+        return;
+      }
+
+      if (res.data?.canFallback) {
+        // ⚠️ AiSensy unavailable (e.g. localhost) — fall back to download + WhatsApp text
+        toast.info("Direct send unavailable. Downloading PDF to share manually…", { duration: 4000 });
+
+        // 1. Download the PDF
+        const pdfRes = await getEstimatePdfBlob(id);
+        const blob = new Blob([pdfRes.data], { type: "application/pdf" });
+        const safeNo = (q?.quotationNo || id).replace(/[/\\:*?"<>|]/g, "-");
+        const filename = `Estimate-${safeNo}.pdf`;
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+
+        // 2. Open WhatsApp with a pre-filled message
+        setTimeout(() => {
+          const mobile = (q?.mobile || "").replace(/\D/g, "");
+          const finalMobile = mobile.length === 10 ? `91${mobile}` : mobile;
+          const amount = fmt(q?.grandTotal);
+          const text =
+            `✨ *ESTIMATE: ${q?.quotationNo}* ✨\n\nनमस्ते *${q?.customerName || "Customer"}*,` +
+            `\n\nआपके गहनों का एस्टीमेट तैयार है।\n*कुल: ₹${amount}*` +
+            `\n\nकृपया संलग्न PDF देखें।\n\n💎 *Nazara Diamonds*`;
+          const waUrl = finalMobile
+            ? `https://wa.me/${finalMobile}?text=${encodeURIComponent(text)}`
+            : `https://wa.me/?text=${encodeURIComponent(text)}`;
+          window.open(waUrl, "_blank");
+        }, 600);
+
+        toast.success("PDF downloaded! Attach it in the WhatsApp chat that just opened.", { duration: 6000 });
+        return;
+      }
+
+      toast.error(res.data?.error || "Failed to send WhatsApp");
+    } catch (err) {
+      const msg = err?.response?.data?.error || err.message || "Failed to send WhatsApp";
+      toast.error(msg);
+    } finally {
+      setWhatsAppLoading(false);
+    }
   };
 
   if (loading) {
@@ -513,10 +569,13 @@ export default function EstimatePreview() {
             {/* WhatsApp */}
             <button
               onClick={handleWhatsApp}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-sm font-bold transition shadow-sm"
+              disabled={whatsAppLoading}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-sm font-bold transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Phone size={14} />
-              <span className="hidden sm:inline">WhatsApp</span>
+              {whatsAppLoading
+                ? <RefreshCw size={14} className="animate-spin" />
+                : <Phone size={14} />}
+              <span className="hidden sm:inline">{whatsAppLoading ? "Generating…" : "WhatsApp"}</span>
             </button>
 
             {/* Print */}

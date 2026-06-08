@@ -6,7 +6,7 @@ import {
   Phone, ChevronLeft, ChevronRight, ShoppingBag, Send,
   RefreshCw, TrendingUp, Clock, CheckCircle, XCircle, MessageCircle
 } from "lucide-react";
-import { listEstimates, deleteEstimate, markEstimateSent } from "../../api/quotationApi";
+import { listEstimates, deleteEstimate, markEstimateSent, getEstimatePdfBlob, sendEstimateWhatsAppAuto } from "../../api/quotationApi";
 import BackButton from "../../components/BackButton";
 
 /* ===== STATUS CONFIG ===== */
@@ -124,36 +124,66 @@ export default function EstimateList() {
     }
   };
 
-  const handleWhatsApp = (e, est) => {
+  const handleWhatsApp = async (e, est) => {
     e.stopPropagation();
+    const toastId = `wa-${est._id}`;
     try {
-      const customerName = est.customerName || "Customer";
-      const mobile = est.mobile?.replace(/\D/g, "");
-      const quotationNo = est.quotationNo || "N/A";
-      const grandTotal = est.grandTotal || 0;
-      const validDays = est.validDays || 7;
+      toast.loading("Sending to WhatsApp…", { id: toastId });
+      const res = await sendEstimateWhatsAppAuto(est._id);
+      toast.dismiss(toastId);
 
-      // Build Items Breakdown
-      const itemsBreakdown = (est.items || []).map((item, idx) => {
-        const name = item.title || `Item ${idx + 1}`;
-        const price = item.breakup?.grandTotal || 0;
-        return `${idx + 1}. *${name}* - ₹${price.toLocaleString('en-IN')}`;
-      }).join('\n');
-
-      const message = `✨ *ESTIMATE: ${quotationNo}* ✨\n\nनमस्ते *${customerName}*,\n\nआपके गहनों का एस्टीमेट (Estimate) तैयार है।\n\n*विवरण:*\n--------------------------------\n${itemsBreakdown}\n--------------------------------\n\n*कुल एस्टीमेट:* ₹${grandTotal.toLocaleString('en-IN')}\n*वैधता:* ${validDays} दिन\n\nधन्यवाद,\n💎 *Nazara Diamonds - Royal Atelier* 💎`;
-
-      const encodedMessage = encodeURIComponent(message);
-
-      if (mobile) {
-        // Ensure 91 prefix if 10 digits
-        const finalMobile = mobile.length === 10 ? `91${mobile}` : mobile;
-        window.open(`https://wa.me/${finalMobile}?text=${encodedMessage}`, "_blank");
-      } else {
-        toast.error("No mobile number on this estimate");
+      if (res.data?.success) {
+        toast.success(`📲 Estimate sent to ${est.customerName}'s WhatsApp!`);
+        return;
       }
+
+      if (res.data?.canFallback) {
+        // AiSensy unavailable — fall back to download + WhatsApp text
+        toast.info("Direct send unavailable. Downloading PDF…", { duration: 3000 });
+
+        const pdfRes = await getEstimatePdfBlob(est._id);
+        const blob = new Blob([pdfRes.data], { type: "application/pdf" });
+        const safeNo = (est.quotationNo || est._id).replace(/[/\\:*?"<>|]/g, "-");
+        const filename = `Estimate-${safeNo}.pdf`;
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+
+        setTimeout(() => {
+          const mobile = (est.mobile || "").replace(/\D/g, "");
+          const finalMobile = mobile.length === 10 ? `91${mobile}` : mobile;
+          const grandTotal = est.grandTotal || 0;
+          const itemsBreakdown = (est.items || [])
+            .map((item, idx) => {
+              const name = item.title || `Item ${idx + 1}`;
+              const price = item.breakup?.grandTotal || 0;
+              return `${idx + 1}. *${name}* - ₹${price.toLocaleString("en-IN")}`;
+            })
+            .join("\n");
+          const message =
+            `✨ *ESTIMATE: ${est.quotationNo}* ✨\n\nनमस्ते *${est.customerName}*,` +
+            `\n\nआपके गहनों का एस्टीमेट तैयार है।` +
+            (itemsBreakdown ? `\n\n*विवरण:*\n${itemsBreakdown}` : "") +
+            `\n\n*कुल एस्टीमेट:* ₹${grandTotal.toLocaleString("en-IN")}` +
+            `\n\nकृपया संलग्न PDF देखें।\n\n💎 *Nazara Diamonds*`;
+          const waUrl = finalMobile
+            ? `https://wa.me/${finalMobile}?text=${encodeURIComponent(message)}`
+            : `https://wa.me/?text=${encodeURIComponent(message)}`;
+          window.open(waUrl, "_blank");
+        }, 600);
+
+        toast.success("PDF downloaded! Attach it in the WhatsApp chat.", { duration: 5000 });
+        return;
+      }
+
+      toast.error(res.data?.error || "Failed to send WhatsApp");
     } catch (err) {
-      console.error("WhatsApp Error:", err);
-      toast.error("Failed to generate WhatsApp message");
+      toast.dismiss(toastId);
+      const msg = err?.response?.data?.error || err.message || "Failed to send WhatsApp";
+      toast.error(msg);
     }
   };
 
