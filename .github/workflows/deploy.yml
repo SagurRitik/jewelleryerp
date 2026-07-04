@@ -3,7 +3,7 @@ name: Deploy JewelryERP
 on:
   push:
     branches:
-      - main
+      - dev
 
 jobs:
   deploy:
