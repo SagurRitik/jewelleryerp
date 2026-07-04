@@ -1,0 +1,123 @@
+name: Deploy JewelryERP — PRODUCTION
+
+# ============================================================================
+#  PRODUCTION deployment pipeline  (fully ISOLATED from Development)
+# ----------------------------------------------------------------------------
+#  Trigger : push to `main`
+#  Target  : PRODUCTION server 52.27.144.75   (path: /var/www/html/jewelleryerp)
+#  Env     : GitHub Environment `production`   (its OWN secrets — never dev's)
+#
+#  This file is deliberately SEPARATE from deploy.yml (the development
+#  pipeline) so the two can never interfere with each other:
+#      deploy.yml             -> triggers on `dev`  -> development server
+#      deploy-production.yml  -> triggers on `main` -> production server (here)
+#
+#  WHY THIS IS SAFE (three independent guards):
+#    GUARD #1  Different trigger branch: this workflow only listens to `main`,
+#              deploy.yml only listens to `dev`. A `dev` push can never start
+#              this file; a `main` push can never start deploy.yml — even if
+#              both files exist on both branches after a merge (merge-safe).
+#    GUARD #2  Job-level ref check (if: github.ref == 'refs/heads/main') — a
+#              second, independent net in case the trigger is ever widened.
+#    GUARD #3  environment: production — every secret below resolves to the
+#              PRODUCTION environment ONLY; development secrets are unreachable.
+# ============================================================================
+
+on:
+  push:
+    branches:
+      - main            # PRODUCTION only — nothing else starts this workflow
+
+# Least privilege: deployment happens over SSH, so the workflow token needs
+# only read access to the repository. Nothing here writes back to GitHub.
+permissions:
+  contents: read
+
+# Never let two production deploys run against the same box at once.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    # ---- GUARD #2 (branch guard) -----------------------------------------
+    # Runs ONLY when the pushed ref is exactly refs/heads/main.
+    if: github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # ---- GUARD #3 (environment isolation) --------------------------------
+    # Binding to the `production` Environment means every `secrets.*` below
+    # resolves to the PRODUCTION environment's secrets only. This job has no
+    # access to the development environment's secrets at all.
+    environment: production
+
+    steps:
+      - name: Deploy to Production Server (52.27.144.75)
+        uses: appleboy/ssh-action@v1.2.2
+        # Secrets/paths are forwarded to the remote shell via `envs:` (below)
+        # instead of being interpolated into the script text — this keeps them
+        # out of the logs and avoids shell-injection surprises.
+        env:
+          # Non-secret values are PINNED here as literals (not pulled from
+          # secrets) on purpose: production can then NEVER be accidentally
+          # re-pointed at a different server/path by a mis-set secret.
+          DEPLOY_BRANCH: main
+          DEPLOY_PATH: /var/www/html/jewelleryerp
+          BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }}  # optional: base64 of backend/.env
+        with:
+          host: 52.27.144.75                       # PRODUCTION server IP (pinned for safety)
+          port: 22                                 # SSH port (pinned)
+          username: ${{ secrets.SERVER_USER }}     # production SSH user (production env secret)
+          key: ${{ secrets.SSH_PRIVATE_KEY }}      # production private SSH key (production env secret)
+          envs: DEPLOY_BRANCH,DEPLOY_PATH,BACKEND_ENV_B64
+          script: |
+            # Fail the whole deploy on the FIRST error.
+            set -eo pipefail
+            trap 'echo "::error::[PROD] Deployment FAILED (exit code $?)"; exit 1' ERR
+
+            echo "==== [PROD] Deployment started: $(date -u) ===="
+            echo "Target : 52.27.144.75"
+            echo "Branch : $DEPLOY_BRANCH"
+            echo "Path   : $DEPLOY_PATH"
+
+            echo "[1/8] Go to project directory"
+            cd "$DEPLOY_PATH"
+
+            echo "[2/8] Load Node & NVM environment"
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            echo "[3/8] Fetch & hard-reset to origin/$DEPLOY_BRANCH"
+            git fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+
+            # Optional: recreate backend/.env from the production environment
+            # secret. No-op if BACKEND_ENV_B64 is not set (server keeps its .env).
+            if [ -n "${BACKEND_ENV_B64:-}" ]; then
+              echo "[3b/8] Writing backend/.env from secret"
+              echo "$BACKEND_ENV_B64" | base64 -d > backend/.env
+            fi
+
+            echo "[4/8] Backend dependencies"
+            cd backend
+            npm install
+
+            echo "[5/8] Frontend dependencies"
+            cd ../frontend
+            npm install
+
+            echo "[6/8] Build frontend"
+            npm run build
+
+            echo "[7/8] Restart backend via local PM2"
+            cd ../backend
+            ../node_modules/.bin/pm2 restart jewellery-backend --update-env \
+              || ../node_modules/.bin/pm2 start server.js --name jewellery-backend --update-env
+
+            echo "[8/8] Persist PM2 process list"
+            ../node_modules/.bin/pm2 save
+            ../node_modules/.bin/pm2 list
+
+            echo "==== [PROD] Deployment finished successfully: $(date -u) ===="
