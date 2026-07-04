@@ -109,7 +109,12 @@ jobs:
             npm install
 
             echo "[6/8] Build frontend"
-            npm run build
+            # This is a low-memory host (~1 GB RAM); Node auto-caps its heap
+            # near ~467 MB, which OOM-kills the Vite build. Raise the heap
+            # ceiling for THIS command only (spills into swap if needed) so the
+            # production build completes. Scoped to the build — backend/PM2 and
+            # npm installs are left on their defaults.
+            NODE_OPTIONS=--max-old-space-size=2048 npm run build
 
             echo "[7/8] Restart backend via local PM2"
             cd ../backend
