@@ -1,56 +1,117 @@
 name: Deploy JewelryERP
 
+# ============================================================================
+#  DEVELOPMENT deployment pipeline  (DEV ONLY)
+# ----------------------------------------------------------------------------
+#  Trigger : push to `dev`
+#  Target  : DEVELOPMENT server (via the `development` GitHub Environment)
+#
+#  Production lives in a completely separate file — deploy-production.yml —
+#  which triggers on `main`. The two workflows listen to DIFFERENT branches
+#  and use DIFFERENT GitHub Environments, so they can never interfere:
+#      deploy.yml             -> `dev`  -> development server (this file)
+#      deploy-production.yml  -> `main` -> production server (52.27.144.75)
+#
+#  Two independent guards keep this file dev-only:
+#    GUARD #1  on.push.branches lists ONLY `dev` — a `main` push cannot start
+#              this workflow at all.
+#    GUARD #2  if: github.ref == 'refs/heads/dev' — a second, independent net.
+# ============================================================================
+
 on:
   push:
     branches:
-      - main
+      - dev    # Development ONLY (production is handled by deploy-production.yml)
+
+# Least-privilege: deployment happens over SSH, so the workflow token only
+# needs read access to the repository. Nothing here writes back to GitHub.
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  # ==========================================================================
+  #  DEVELOPMENT  —  runs ONLY for the `dev` branch
+  # ==========================================================================
+  deploy-development:
+    # ---- GUARD #2 (branch guard) -----------------------------------------
+    # This job runs ONLY when the pushed ref is exactly refs/heads/dev.
+    if: github.ref == 'refs/heads/dev'
+
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # ---- Environment isolation -------------------------------------------
+    # Binding to the `development` Environment means every `secrets.*` below
+    # resolves to the DEVELOPMENT environment's secrets only. This job has no
+    # access to production secrets at all.
+    environment: development
+
+    # Stop two overlapping dev deploys from racing on the same server.
+    concurrency:
+      group: deploy-development
+      cancel-in-progress: false
 
     steps:
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Deploy to Development Server
+        uses: appleboy/ssh-action@v1.2.2
+        # Values passed to the remote shell. Secrets/paths are forwarded via
+        # `envs:` (below) instead of being interpolated into the script text,
+        # which keeps them out of logs and avoids shell-injection surprises.
+        env:
+          DEPLOY_BRANCH: dev                              # hard-coded: this job only ever deploys dev
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}         # development deploy path
+          BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }} # optional: base64 of backend/.env
         with:
-          host: 122.176.216.225
-          username: root
-          port: 22
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SERVER_HOST }}                # development server IP
+          username: ${{ secrets.SERVER_USER }}            # development SSH user
+          port: ${{ secrets.SERVER_PORT }}                # development SSH port (e.g. 22)
+          key: ${{ secrets.SSH_PRIVATE_KEY }}             # development private SSH key
+          envs: DEPLOY_BRANCH,DEPLOY_PATH,BACKEND_ENV_B64
           script: |
-            echo "Go to project directory"
-            cd /var/www/html/jewelleryerp
+            # Fail the whole deploy on the FIRST error (satisfies "fail on any error").
+            set -eo pipefail
+            trap 'echo "::error::[DEV] Deployment FAILED (exit code $?)"; exit 1' ERR
 
-            echo "Load Local Node & NVM Environment"
+            echo "==== [DEV] Deployment started: $(date -u) ===="
+            echo "Branch : $DEPLOY_BRANCH"
+            echo "Path   : $DEPLOY_PATH"
+
+            echo "[1/8] Go to project directory"
+            cd "$DEPLOY_PATH"
+
+            echo "[2/8] Load Node & NVM environment"
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-            echo "Reset old code"
-            git fetch origin
-            git reset --hard origin/main
+            echo "[3/8] Fetch & hard-reset to origin/$DEPLOY_BRANCH"
+            git fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
 
-            echo "Pull latest code"
-            git pull origin main
+            # Optional: recreate backend/.env from the environment secret.
+            # No-op if BACKEND_ENV_B64 is not set (server keeps its own .env).
+            if [ -n "${BACKEND_ENV_B64:-}" ]; then
+              echo "[3b/8] Writing backend/.env from secret"
+              echo "$BACKEND_ENV_B64" | base64 -d > backend/.env
+            fi
 
-            echo "Backend setup"
+            echo "[4/8] Backend dependencies"
             cd backend
             npm install
 
-            echo "Frontend setup"
+            echo "[5/8] Frontend dependencies"
             cd ../frontend
             npm install
 
-            echo "Build frontend"
+            echo "[6/8] Build frontend"
             npm run build
 
-            echo "Restart backend with local PM2"
+            echo "[7/8] Restart backend via local PM2"
             cd ../backend
-            
-            # Local PM2 binary ka sahi path use kar rahe hain jo isolated hai
-            ../node_modules/.bin/pm2 restart jewellery-backend || ../node_modules/.bin/pm2 start server.js --name jewellery-backend --update-env
+            ../node_modules/.bin/pm2 restart jewellery-backend --update-env \
+              || ../node_modules/.bin/pm2 start server.js --name jewellery-backend --update-env
 
-            echo "Save PM2 configuration"
+            echo "[8/8] Persist PM2 process list"
             ../node_modules/.bin/pm2 save
-
-            echo "PM2 Status"
             ../node_modules/.bin/pm2 list
+
+            echo "==== [DEV] Deployment finished successfully: $(date -u) ===="

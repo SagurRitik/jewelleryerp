@@ -6,7 +6,14 @@ import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import puppeteer from "puppeteer";
 import { fileURLToPath } from "url";
+import { estimateTemplate } from "../templates/estimate.template.js";
+import {
+  saveTempPdf,
+  scheduleTempDelete,
+  sendEstimateViaWhatsApp,
+} from "../utils/whatsappService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,7 +93,7 @@ export const calculateQuotation = async (req, res) => {
         try {
           const calcItem = buildCalcItem(item);
           const breakup = await calculateItem(calcItem, rates);
-          
+
           const sanitizedBreakup = {
             metalRate: round2(breakup.metalRate || 0),
             metalValue: round2(breakup.metalValue || 0),
@@ -146,11 +153,11 @@ export const calculateQuotation = async (req, res) => {
 export const createQuotation = async (req, res) => {
   try {
     console.log("📝 START: createQuotation");
-    let { 
-      customerName, mobile, email, address, 
-      items = [], validDays = 7, notes = "", status = "DRAFT" 
+    let {
+      customerName, mobile, email, address,
+      items = [], validDays = 7, notes = "", status = "DRAFT"
     } = req.body;
-    
+
     console.log("📂 Files received:", req.files?.length || 0);
     if (req.files?.length > 0) {
       console.log("📄 Fieldnames:", req.files.map(f => f.fieldname));
@@ -158,11 +165,11 @@ export const createQuotation = async (req, res) => {
 
 
     if (typeof items === "string") {
-      try { 
-        items = JSON.parse(items); 
-      } catch (e) { 
+      try {
+        items = JSON.parse(items);
+      } catch (e) {
         console.error("❌ JSON Parse Error (items):", e.message);
-        items = []; 
+        items = [];
       }
     }
 
@@ -192,7 +199,7 @@ export const createQuotation = async (req, res) => {
       try {
         const calcItem = buildCalcItem(item);
         const breakup = await calculateItem(calcItem, rates);
-        
+
         const sanitizedBreakup = {
           metalRate: s(breakup.metalRate),
           metalValue: s(breakup.metalValue),
@@ -241,9 +248,9 @@ export const createQuotation = async (req, res) => {
           discountEnabled: item.discountEnabled !== false,
           images: finalImages,
           components: (item.components || []).map(c => ({
-            ...c, 
-            weight: s(c.weight), 
-            count: Number(c.count || 1), 
+            ...c,
+            weight: s(c.weight),
+            count: Number(c.count || 1),
             grossWeight: s(c.grossWeight),
             rateOverride: s(c.rateOverride),
             rateType: c.rateType || "PER_CT",
@@ -338,7 +345,7 @@ export const updateQuotation = async (req, res) => {
     if (!existing) return res.status(404).json({ success: false, error: "Quotation not found" });
 
     let { customerName, mobile, email, address, items = [], validDays, notes, status } = req.body;
-    
+
     console.log("📂 Update Files received:", req.files?.length || 0);
 
     if (typeof items === "string") {
@@ -346,7 +353,7 @@ export const updateQuotation = async (req, res) => {
     }
 
     const calculatedItems = [];
-    
+
     if (req.body.items !== undefined) {
       const rates = await RateConfig.findOne({ active: true }).lean();
       if (!rates) return res.status(400).json({ success: false, error: "Rate config not found" });
@@ -359,10 +366,10 @@ export const updateQuotation = async (req, res) => {
       for (let idx = 0; idx < items.length; idx++) {
         const item = items[idx];
         if (!item) continue;
-        
+
         const calcItem = buildCalcItem(item);
         const breakup = await calculateItem(calcItem, rates);
-        
+
         const sanitizedBreakup = {
           metalRate: s(breakup.metalRate),
           metalValue: s(breakup.metalValue),
@@ -410,9 +417,9 @@ export const updateQuotation = async (req, res) => {
           discountEnabled: item.discountEnabled !== false,
           images: finalImages,
           components: (item.components || []).map(c => ({
-            ...c, 
-            weight: s(c.weight), 
-            count: Number(c.count || 1), 
+            ...c,
+            weight: s(c.weight),
+            count: Number(c.count || 1),
             grossWeight: s(c.grossWeight),
             rateOverride: s(c.rateOverride),
             rateType: c.rateType || "PER_CT",
@@ -427,13 +434,13 @@ export const updateQuotation = async (req, res) => {
     existing.mobile = mobile?.trim() ?? existing.mobile;
     existing.email = email?.trim() ?? existing.email;
     existing.address = address?.trim() ?? existing.address;
-    
+
     // Only update items if they were provided in the request
     if (req.body.items !== undefined) {
       // Use .set() and .markModified() to ensure Mongoose detects deep array changes
       existing.set("items", calculatedItems);
       existing.markModified("items");
-      
+
       existing.subtotal = round2(sum(calculatedItems, "subtotal"));
       existing.gstTotal = round2(sum(calculatedItems, "gst"));
       existing.grandTotal = round2(sum(calculatedItems, "grandTotal"));
@@ -453,11 +460,9 @@ export const updateQuotation = async (req, res) => {
 
 export const deleteQuotation = async (req, res) => {
   try {
-    const q = await Quotation.findById(req.params.id);
+    const q = await Quotation.findByIdAndDelete(req.params.id);
     if (!q) return res.status(404).json({ success: false, error: "Quotation not found" });
-    q.status = "CANCELLED";
-    await q.save();
-    return res.json({ success: true, message: "Quotation cancelled" });
+    return res.json({ success: true, message: "Quotation permanently deleted" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -477,7 +482,7 @@ export const convertToOrder = async (req, res) => {
     const q = await Quotation.findById(req.params.id);
     if (!q || q.status === "CONVERTED") return res.status(400).json({ success: false, error: "Invalid status" });
     const rates = await RateConfig.findOne({ active: true }).lean();
-    
+
     // ... Simplified convert logic or keep existing
     const firstItem = q.items?.[0] || {};
     const orderNo = `NZD-ORD-${Date.now()}`; // Simplified for brevity here
@@ -485,11 +490,11 @@ export const convertToOrder = async (req, res) => {
     const order = await Order.create({
       orderNo,
       customer: { name: q.customerName, mobile: q.mobile, email: q.email, address: q.address },
-      productSnapshot: { 
-        title: firstItem.title, 
+      productSnapshot: {
+        title: firstItem.title,
         jewelleryCategory: firstItem.jewelleryCategory,
-        metalType: firstItem.metalType, 
-        metalPurity: firstItem.metalPurity, 
+        metalType: firstItem.metalType,
+        metalPurity: firstItem.metalPurity,
         netWeight: firstItem.netWeight,
         components: firstItem.components,
         productImages: firstItem.images,
@@ -509,3 +514,138 @@ export const convertToOrder = async (req, res) => {
 };
 
 export const manualQuotation = calculateQuotation;
+
+/* ================================================= */
+/* ========== INTERNAL: BUILD PDF BUFFER =========== */
+/* ================================================= */
+const generatePdfBuffer = async (q, baseUrl) => {
+  const html = estimateTemplate(q, baseUrl);
+
+  const launchArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-zygote",
+    "--single-process",
+    "--disable-extensions",
+  ];
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: launchArgs,
+  });
+  try {
+    const page = await browser.newPage();
+    // Use domcontentloaded instead of networkidle0 for self-contained HTML (faster, no hanging)
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "5mm", bottom: "5mm", left: "5mm", right: "5mm" },
+    });
+    return pdf;
+  } finally {
+    await browser.close();
+  }
+};
+
+/* ================================================= */
+/* ================= GENERATE PDF ================= */
+/* ================================================= */
+export const generateEstimatePdf = async (req, res) => {
+  try {
+    const q = await Quotation.findById(req.params.id).lean();
+    if (!q) return res.status(404).json({ success: false, error: "Quotation not found" });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const pdf = await generatePdfBuffer(q, baseUrl);
+    const safeNo = (q.quotationNo || String(q._id)).replace(/[\/\\:*?"<>|]/g, "-");
+    const filename = `Estimate-${safeNo}.pdf`;
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": pdf.length,
+    });
+    return res.send(pdf);
+  } catch (err) {
+    console.error("❌ generateEstimatePdf error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/* ================================================= */
+/* =========== SEND ESTIMATE VIA WHATSAPP ========== */
+/* ================================================= */
+export const sendEstimateWhatsApp = async (req, res) => {
+  try {
+    const q = await Quotation.findById(req.params.id).lean();
+    if (!q) return res.status(404).json({ success: false, error: "Quotation not found" });
+
+    const mobile = (q.mobile || "").replace(/\D/g, "");
+    if (!mobile || mobile.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: "No valid mobile number on this estimate. Please add a phone number to the customer details first.",
+      });
+    }
+
+    const baseUrl =
+      process.env.BASE_URL ||
+      `${req.protocol}://${req.get("host")}`;
+
+    // 1. Generate PDF buffer
+    console.log(`📄 Generating PDF for estimate ${q.quotationNo}…`);
+    const pdfBuffer = await generatePdfBuffer(q, baseUrl);
+
+    // 2. Save to public temp folder and get URL
+    const safeNo = (q.quotationNo || String(q._id)).replace(/[/\\:*?"<>|]/g, "-");
+    const filename = `Estimate-${safeNo}-${Date.now()}.pdf`;
+    const { filePath, publicUrl } = saveTempPdf(pdfBuffer, filename, baseUrl);
+
+    // 3. Send via AiSensy
+    console.log(`📲 Sending WhatsApp to ${mobile} → ${publicUrl}`);
+    const waResult = await sendEstimateViaWhatsApp({
+      mobile,
+      customerName: q.customerName || "Customer",
+      pdfUrl: publicUrl,
+      pdfFilename: `Estimate-${safeNo}.pdf`,
+      templateParams: [q.customerName || "Customer", q.quotationNo || ""],
+    });
+
+    // 4. Schedule temp file deletion after 2 minutes
+    scheduleTempDelete(filePath, 2 * 60 * 1000);
+
+    if (!waResult.success) {
+      console.warn("⚠️ AiSensy failed, signalling fallback to client:", waResult.error);
+      // Return 200 so the frontend can gracefully fall back to PDF download
+      return res.json({
+        success: false,
+        canFallback: true,
+        error: waResult.error || "Failed to send via AiSensy",
+        mobile: mobile.length === 10 ? `91${mobile}` : mobile,
+        customerName: q.customerName,
+        quotationNo: q.quotationNo,
+        grandTotal: q.grandTotal,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Estimate PDF sent to WhatsApp (+${mobile.length === 10 ? "91" : ""}${mobile})`,
+      data: waResult.data,
+    });
+
+  } catch (err) {
+    console.error("❌ sendEstimateWhatsApp error:", err.message);
+    console.error(err.stack);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      detail: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    });
+  }
+};

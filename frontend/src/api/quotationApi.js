@@ -26,3 +26,11 @@ export const markEstimateSent = (id) =>
 
 export const convertEstimateToOrder = (id) =>
   API.post(`/quotation/${id}/convert`);
+
+// PDF generation – returns a Blob
+export const getEstimatePdfBlob = (id) =>
+  API.get(`/quotation/${id}/pdf`, { responseType: "blob" });
+
+// Automatically send estimate PDF to customer's WhatsApp via AiSensy
+export const sendEstimateWhatsAppAuto = (id) =>
+  API.post(`/quotation/${id}/whatsapp`);

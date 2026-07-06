@@ -1,6 +1,6 @@
 export const getImageUrl = (img) => {
   if (!img) {
-    return "/placeholder.png";
+    return "/placeholder.svg";
   }
 
   // 1. Handle File objects (blobs) for local previews
@@ -9,17 +9,20 @@ export const getImageUrl = (img) => {
       return URL.createObjectURL(img);
     } catch (e) {
       console.error("Error creating object URL:", e);
-      return "/placeholder.png";
+      return "/placeholder.svg";
     }
   }
 
   if (typeof img !== "string") {
-    return "/placeholder.png";
+    return "/placeholder.svg";
   }
 
   let normalized = img.replace(/\\/g, "/");
 
-  // 2. Strip any domain prefix for uploaded files to ensure we use our configured base URL
+  // 2. Strip accidentally stored local/staging domains or IP addresses
+  normalized = normalized.replace(/^https?:\/\/(localhost|127\.0\.0\.1|122\.176\.216\.225|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(:[0-9]+)?/, "");
+
+  // 2.5 Strip any domain prefix for uploaded files to ensure we use our configured base URL
   if (normalized.includes("/uploads/") || normalized.includes("uploads/")) {
     normalized = normalized.replace(/^https?:\/\/[^/]+/, "");
   }

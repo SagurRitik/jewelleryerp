@@ -30,7 +30,6 @@ const diamondStockSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-diamondStockSchema.index({ sku: 1 });
 diamondStockSchema.index({ certificateNo: 1 });
 diamondStockSchema.index({ status: 1 });
 

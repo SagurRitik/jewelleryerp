@@ -20,7 +20,7 @@ export default function DeadStockReportPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://localhost:5000/api/reports/dead-stock", { withCredentials: true });
+      const res = await axios.get("/api/reports/dead-stock", { withCredentials: true });
       if (res.data.success) {
         setData(res.data.data);
       }
@@ -65,7 +65,7 @@ export default function DeadStockReportPage() {
   return (
     <div className={`min-h-screen p-4 md:p-8 transition-colors duration-500 flex flex-col font-sans ${isDark ? "bg-[#0b0b0b] text-[#eaeaea]" : "bg-[#FDFDFD] text-slate-800"}`}>
       <div className="w-full max-w-7xl mx-auto space-y-8 animate-in fade-in zoom-in duration-500">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
@@ -79,7 +79,7 @@ export default function DeadStockReportPage() {
             {totalCatalogSize > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-4 text-xs font-bold uppercase tracking-wider">
                 <span className={`px-4 py-1.5 rounded-xl border ${isDark ? "bg-white/5 border-white/10 text-white" : "bg-white border-slate-200 text-slate-600"}`}>
-                  <Package className="inline mr-2" size={14} /> 
+                  <Package className="inline mr-2" size={14} />
                   Tracking {inStockSize} In-Stock items
                 </span>
                 {outOfStockSize > 0 && (
@@ -91,8 +91,8 @@ export default function DeadStockReportPage() {
               </div>
             )}
           </div>
-          
-          <button 
+
+          <button
             onClick={fetchData}
             className="px-6 py-3 flex items-center gap-3 rounded-2xl bg-[#7E4C69] hover:bg-[#683e56] text-white font-bold transition-all duration-300 shadow-lg shadow-[#7E4C69]/20 active:scale-95 group"
           >
@@ -116,7 +116,7 @@ export default function DeadStockReportPage() {
               <p className="text-xs font-medium text-slate-400">Aging 6+ months</p>
             </div>
           </div>
-          
+
           <div className={`p-8 rounded-2xl border transition-all duration-300 relative overflow-hidden ${isDark ? "bg-[#181818] border-white/5" : "bg-white border-slate-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)]"}`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-bl-[100px] -z-0" />
             <div className="relative z-10">
@@ -133,7 +133,7 @@ export default function DeadStockReportPage() {
 
           <div className={`p-8 rounded-2xl transition-all duration-300 shadow-lg shadow-[#7E4C69]/20 flex flex-col justify-between relative overflow-hidden ${isDark ? "bg-[#7E4C69]/20 border border-[#7E4C69]/30" : "bg-[#7E4C69] text-white"}`}>
             <div className="absolute right-0 top-0 opacity-10 transform translate-x-4 -translate-y-4">
-               <Package size={128} className="text-white" />
+              <Package size={128} className="text-white" />
             </div>
             <div className="relative z-10 h-full flex flex-col justify-between">
               <div className="flex justify-between items-start mb-6">
@@ -152,42 +152,41 @@ export default function DeadStockReportPage() {
 
         {/* Tab Navigation */}
         <div className="flex flex-col space-y-6">
-           <div className={`flex flex-wrap p-2 rounded-2xl shadow-sm ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
-             {tabs.map((tab) => {
-               const active = activeTab === tab;
-               const count = data[tab]?.items?.length || 0;
-               return (
-                 <button
-                   key={tab}
-                   onClick={() => setActiveTab(tab)}
-                   className={`flex-1 min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${
-                     active 
-                       ? "bg-white text-[#7E4C69] shadow-md shadow-black/5" 
-                       : `text-slate-500 hover:bg-white/50 hover:text-slate-800`
-                   }`}
-                 >
-                   <Clock size={18} className={active ? "text-[#7E4C69]" : "text-slate-400"} />
-                   {tab} 
-                   <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${active ? "bg-[#7E4C69] text-white" : "bg-slate-200 text-slate-500 uppercase"}`}>
-                     {count}
-                   </span>
-                 </button>
-               );
-             })}
-           </div>
+          <div className={`flex flex-wrap p-2 rounded-2xl shadow-sm ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
+            {tabs.map((tab) => {
+              const active = activeTab === tab;
+              const count = data[tab]?.items?.length || 0;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 min-w-[140px] py-4 px-6 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${active
+                    ? "bg-white text-[#7E4C69] shadow-md shadow-black/5"
+                    : `text-slate-500 hover:bg-white/50 hover:text-slate-800`
+                    }`}
+                >
+                  <Clock size={18} className={active ? "text-[#7E4C69]" : "text-slate-400"} />
+                  {tab}
+                  <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${active ? "bg-[#7E4C69] text-white" : "bg-slate-200 text-slate-500 uppercase"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Data Table */}
         <div className={`rounded-2xl border overflow-hidden transition-all duration-500 ${isDark ? "bg-[#161616] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-[0_2px_20px_rgb(0,0,0,0.03)]"}`}>
           {loading ? (
-             <div className="py-32 flex flex-col items-center gap-6 text-[#7E4C69]">
-               <RefreshCw size={48} className="animate-spin opacity-40" />
-               <p className="font-bold tracking-widest uppercase text-xs">Synchronizing Aging Computation...</p>
-             </div>
+            <div className="py-32 flex flex-col items-center gap-6 text-[#7E4C69]">
+              <RefreshCw size={48} className="animate-spin opacity-40" />
+              <p className="font-bold tracking-widest uppercase text-xs">Synchronizing Aging Computation...</p>
+            </div>
           ) : data[activeTab]?.items?.length === 0 ? (
             <div className="py-32 flex flex-col items-center gap-6 opacity-30">
-               <PackageX size={72} className="text-slate-400" />
-               <p className="text-xl font-black tracking-tight text-slate-500">No Inventory Found in this Bracket</p>
+              <PackageX size={72} className="text-slate-400" />
+              <p className="text-xl font-black tracking-tight text-slate-500">No Inventory Found in this Bracket</p>
             </div>
           ) : (
             <div className="overflow-x-auto custom-scrollbar">
@@ -217,27 +216,26 @@ export default function DeadStockReportPage() {
                       </td>
                       <td className="px-8 py-6">
                         <div className="font-bold text-sm">{new Date(item.createdAt).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                        <div className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">{new Date(item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</div>
+                        <div className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                       </td>
                       <td className="px-8 py-6">
                         <div className="font-bold text-sm flex items-center gap-2">
-                           <span className={`w-2 h-2 rounded-full ${item.metalType === "Gold" ? "bg-yellow-400" : item.metalType === "Silver" ? "bg-slate-300" : "bg-indigo-300"}`} />
-                           {item.metalType} <span className="opacity-30">•</span> {item.metalPurity}
+                          <span className={`w-2 h-2 rounded-full ${item.metalType === "Gold" ? "bg-yellow-400" : item.metalType === "Silver" ? "bg-slate-300" : "bg-indigo-300"}`} />
+                          {item.metalType} <span className="opacity-30">•</span> {item.metalPurity}
                         </div>
                         <div className="text-xs mt-1.5 font-medium text-slate-400">
                           {item.netWeight}g Net <span className="mx-1 opacity-50">/</span> {item.grossWeight}g Gross
                         </div>
                       </td>
                       <td className="px-8 py-6 text-center">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                          activeTab.includes("12") 
-                            ? "bg-rose-100 text-rose-700" 
-                            : activeTab.includes("9")
+                        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider ${activeTab.includes("12")
+                          ? "bg-rose-100 text-rose-700"
+                          : activeTab.includes("9")
                             ? "bg-orange-100 text-orange-700"
                             : activeTab.includes("6")
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}>
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}>
                           <Clock size={12} />
                           {item.monthsStagnant} Months
                         </div>
@@ -245,15 +243,15 @@ export default function DeadStockReportPage() {
                       <td className="px-8 py-6 text-right">
                         {activeTab.includes("12") || activeTab.includes("9") ? (
                           <button className="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">
-                             Melt Design
+                            Melt Design
                           </button>
                         ) : activeTab.includes("6") ? (
                           <button className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">
-                             Liquidation Discount
+                            Liquidation Discount
                           </button>
                         ) : (
                           <span className="text-emerald-600/70 text-[11px] font-black uppercase tracking-widest">
-                             Optimal Velocity
+                            Optimal Velocity
                           </span>
                         )}
                       </td>
@@ -261,7 +259,7 @@ export default function DeadStockReportPage() {
                   ))}
                 </tbody>
               </table>
-              
+
               {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className={`p-6 flex items-center justify-between border-t transition-colors ${isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-100"}`}>
@@ -269,28 +267,26 @@ export default function DeadStockReportPage() {
                     Showing {Math.min(itemsPerPage, currentItems.length - (currentPage - 1) * itemsPerPage)} of {currentItems.length} items
                   </span>
                   <div className="flex items-center gap-4">
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className={`p-2 rounded-lg border transition-all ${
-                        currentPage === 1 
-                        ? "opacity-30 cursor-not-allowed" 
+                      className={`p-2 rounded-lg border transition-all ${currentPage === 1
+                        ? "opacity-30 cursor-not-allowed"
                         : "hover:bg-white border-slate-200 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <ChevronsLeft size={16} />
                     </button>
                     <span className="text-sm font-black text-[#7E4C69]">
                       Page {currentPage} / {totalPages}
                     </span>
-                    <button 
+                    <button
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className={`p-2 rounded-lg border transition-all ${
-                        currentPage === totalPages 
-                        ? "opacity-30 cursor-not-allowed" 
+                      className={`p-2 rounded-lg border transition-all ${currentPage === totalPages
+                        ? "opacity-30 cursor-not-allowed"
                         : "hover:bg-white border-slate-200 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <ChevronsRight size={16} />
                     </button>

@@ -117,11 +117,9 @@ export default function Sidebar({ isOpen, onClose }) {
       />
 
       <div
-        className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } ${
-          isDark ? "bg-[#1a1a1a] border-r border-[#333333]" : "bg-[#5A374F]"
-        } text-white`}
+        className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? "translate-x-0" : "-translate-x-full"
+          } ${isDark ? "bg-[#1a1a1a] border-r border-[#333333]" : "bg-[#5A374F]"
+          } text-white`}
       >
         <div className="flex items-center justify-between p-6 shrink-0 relative">
           <div className="flex flex-col">

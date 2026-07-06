@@ -56,6 +56,8 @@ export default function BarcodeTagPrinter() {
       { stoneType: "Diamond", stoneWeight: 0.50 },
       { stoneType: "Stone", stoneWeight: 0.20 }
     ],
+    diamondGW: 0.50,
+    stoneGW: 0.20,
     fine: 9.160,
     huid: "HUID12345",
     custom: "LIMITED EDITION",
@@ -432,7 +434,7 @@ export default function BarcodeTagPrinter() {
                     <input
                       type="number" step="0.001" value={manualData.fine}
                       onChange={(e) => handleManualChange("fine", parseFloat(e.target.value))}
-                      className="w-full bg-slate-50 border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
                     />
                   </div>
                   <div className="space-y-1">
@@ -441,6 +443,24 @@ export default function BarcodeTagPrinter() {
                       type="text" value={manualData.huid}
                       onChange={(e) => handleManualChange("huid", e.target.value)}
                       className="w-full bg-slate-50 border-slate-100 rounded-xl px-3 py-2 text-[11px] font-bold"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Diamond GW</label>
+                    <input
+                      type="number" step="0.01" value={manualData.diamondGW !== undefined ? manualData.diamondGW : ""}
+                      onChange={(e) => handleManualChange("diamondGW", e.target.value === "" ? "" : parseFloat(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Stone GW</label>
+                    <input
+                      type="number" step="0.01" value={manualData.stoneGW !== undefined ? manualData.stoneGW : ""}
+                      onChange={(e) => handleManualChange("stoneGW", e.target.value === "" ? "" : parseFloat(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-mono font-bold"
                     />
                   </div>
                 </div>
@@ -723,15 +743,10 @@ export default function BarcodeTagPrinter() {
               let diamondGW = 0;
               let stoneGW = 0;
               
-              if (p.jewelleryStones && Array.isArray(p.jewelleryStones)) {
-                // Manual / Quick Mode fallback structure
-                diamondGW = p.jewelleryStones
-                  .filter(s => s.stoneType?.toUpperCase() === "DIAMOND")
-                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
-                stoneGW = p.jewelleryStones
-                  .filter(s => s.stoneType?.toUpperCase() !== "DIAMOND")
-                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
-              } else if (p.components && Array.isArray(p.components)) {
+              if (p.diamondGW !== undefined || p.stoneGW !== undefined) {
+                diamondGW = Number(p.diamondGW || 0);
+                stoneGW = Number(p.stoneGW || 0);
+              } else if (p.components && Array.isArray(p.components) && p.components.length > 0) {
                 // DB Product Mode (using components)
                 diamondGW = p.components
                   .filter(c => {
@@ -741,7 +756,7 @@ export default function BarcodeTagPrinter() {
                   .reduce((acc, c) => {
                     const gw = c.grossWeight != null && c.grossWeight > 0
                       ? Number(c.grossWeight)
-                      : Number(c.weight || 0) * Number(c.count || 1); // default count to 1 to avoid zeroing out
+                      : Number(c.weight || 0) * Number(c.count || 1);
                     return acc + gw;
                   }, 0);
                 stoneGW = p.components
@@ -755,6 +770,14 @@ export default function BarcodeTagPrinter() {
                       : Number(c.weight || 0) * Number(c.count || 1);
                     return acc + gw;
                   }, 0);
+              } else if (p.jewelleryStones && Array.isArray(p.jewelleryStones) && p.jewelleryStones.length > 0) {
+                // Manual / Quick Mode fallback structure
+                diamondGW = p.jewelleryStones
+                  .filter(s => s.stoneType?.toUpperCase() === "DIAMOND")
+                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
+                stoneGW = p.jewelleryStones
+                  .filter(s => s.stoneType?.toUpperCase() !== "DIAMOND")
+                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
               }
 
               let fineGoldWeight = p.fine !== undefined ? Number(p.fine) : (p.fineGold !== undefined ? Number(p.fineGold) : 0);
@@ -906,7 +929,7 @@ export default function BarcodeTagPrinter() {
                       className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none"
                       style={{ gap: `${elements.dgw.gap}mm` }}
                     >
-                      <span className="text-slate-400">D.GW:</span><span className="text-black">{diamondGW.toFixed(2)}g</span>
+                      <span className="text-slate-400">D.GW:</span><span className="text-black">{diamondGW.toFixed(2)}ct</span>
                     </div>
                   </div>
 
@@ -925,7 +948,7 @@ export default function BarcodeTagPrinter() {
                       className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none"
                       style={{ gap: `${elements.sgw.gap}mm` }}
                     >
-                      <span className="text-slate-400">S.GW:</span><span className="text-black">{stoneGW.toFixed(2)}g</span>
+                      <span className="text-slate-400">S.GW:</span><span className="text-black">{stoneGW.toFixed(2)}ct</span>
                     </div>
                   </div>
 
