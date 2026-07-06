@@ -1,19 +1,17 @@
-
 import { useEffect, useState } from "react";
-import { createOrder, updateOrderById } from "../api/orderApi";
+import { createOrder, updateOrderById, getOrdersByCustomerMobile } from "../api/orderApi";
 import { updateEstimate } from "../api/quotationApi";
 import { useLocation } from "react-router-dom";
 import { getImageUrl } from "../utils/getImageUrl";
 import { useRates } from "../context/RatesContext";
 import { useModal } from "../context/ModalContext";
-import { Camera, ToggleLeft, ToggleRight } from "lucide-react";
+import { Camera, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import Webcam from "react-webcam";
 import { useRef } from "react";
 import { getDiamondRates } from "../api/diamondRateApi";
 import { getStoneRates } from "../api/stoneRateApi";
 import { findMatchingDiamondRate, findMatchingStoneRate } from "../utils/rateMatchUtils";
 
-// Stone options - keeping only for reference if needed
 const STONE_OPTIONS = [
   "ruby", "pearl", "red-coral", "emerald", "yellow-sapphire",
   "diamond", "blue-sapphire", "hessonite", "cats-eye", "gemstone"
@@ -26,7 +24,6 @@ const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
 const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];
 const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 
-
 export default function OrderForm({ onSuccess, initialProduct: propInitialProduct, initialOrder }) {
   const [form, setForm] = useState({
     customer: {
@@ -36,33 +33,34 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       address: "",
       city: "",
     },
-    productSnapshot: {
-      title: "",
-      jewelleryCategory: "",
-      description: "",
-      size: "",
-      metalType: "Gold",
-      metalPurity: "22KT",
-      metalColor: "yellow-gold",
-      netWeight: 0,
-      grossWeight: 0,
-      diamonds: [],
-      gemstones: [],
-      belts: [],
-      hsnCode: "",
-      // productImage: null,
-      productImages: [],
-    },
-    advancePayment: {
-      amount: 0,
-      mode: "CASH",
-      transactionId: "",
-    },
-    metalPayment: null,
+    productSnapshots: [
+      {
+        title: "",
+        jewelleryCategory: "",
+        description: "",
+        size: "",
+        metalType: "Gold",
+        metalPurity: "22KT",
+        metalColor: "yellow-gold",
+        netWeight: 0,
+        grossWeight: 0,
+        diamonds: [],
+        gemstones: [],
+        belts: [],
+        productImages: [],
+        advancePayment: {
+          amount: 0,
+          mode: "CASH",
+          transactionId: "",
+        },
+        metalPayment: null,
+      }
+    ],
     status: "Placed",
     expectedDeliveryDate: "",
   });
 
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
 
   const { rates } = useRates();
   const { showAlert, showConfirm } = useModal();
@@ -71,8 +69,17 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
   const [showCamera, setShowCamera] = useState(false);
   const webcamRef = useRef(null);
 
+  // Customer lookup state
+  const [customerLookup, setCustomerLookup] = useState({
+    loading: false,
+    orders: [],
+    found: false,
+  });
+
   const [adminDiamondRates, setAdminDiamondRates] = useState([]);
   const [adminStoneRates, setAdminStoneRates] = useState([]);
+
+  const currentSnapshot = form.productSnapshots[activeItemIndex] || {};
 
   useEffect(() => {
     getDiamondRates()
@@ -83,8 +90,51 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       .catch((err) => console.error("Failed to load stone rates", err));
   }, []);
 
+  // Auto-lookup customer by mobile number
+  useEffect(() => {
+    const mobile = form.customer.mobile?.trim();
+    if (!mobile || mobile.length < 10) {
+      setCustomerLookup({ loading: false, orders: [], found: false });
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setCustomerLookup(prev => ({ ...prev, loading: true }));
+      try {
+        const res = await getOrdersByCustomerMobile(mobile);
+        if (cancelled) return;
+
+        const { orders, customer } = res.data;
+        setCustomerLookup({ loading: false, orders: orders || [], found: !!customer });
+
+        // Auto-fill customer details if not editing (fresh form) and customer found
+        if (!initialOrder?._id && customer && orders.length > 0) {
+          setForm(prev => ({
+            ...prev,
+            customer: {
+              ...prev.customer,
+              name: prev.customer.name || customer.name || "",
+              email: prev.customer.email || customer.email || "",
+              city: prev.customer.city || customer.city || "",
+              address: prev.customer.address || customer.address || "",
+            }
+          }));
+        }
+      } catch {
+        if (!cancelled) setCustomerLookup({ loading: false, orders: [], found: false });
+      }
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.customer.mobile]);
+
   const location = useLocation();
   const initialProduct = propInitialProduct || location.state?.initialProduct || location.state?.product || null;
+  const initialProducts = location.state?.initialProducts || null;
   const initialCustomer = location.state?.customer || null;
   const convertedFromEstimateId = location.state?.convertedFromEstimateId || null;
   const METAL_OPTIONS = {
@@ -102,74 +152,140 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     },
   };
 
-
-
-
-
   /* ================= PREFILL FROM CUSTOM PRODUCT ================= */
-
-
   useEffect(() => {
-    if (!initialProduct) return;
+    if (initialProducts && Array.isArray(initialProducts) && initialProducts.length > 0) {
+      const snapshots = initialProducts.map(item => {
+        const diamonds = [];
+        const gemstones = [];
+        const belts = [];
 
-    const diamonds = [];
-    const gemstones = [];
-    const belts = [];
+        (item.components || []).forEach(c => {
+          if (c.pricingRef === "DIAMOND") {
+            diamonds.push({
+              shape: c.shape || "",
+              weight: Number(c.weight) || 0,
+              grossWeight: Number(c.grossWeight) || 0,
+              size: c.size ?? "",
+              count: Number(c.count) || 1,
+              clarity: c.clarity || "VVS",
+              color: c.color || "D-F",
+              rateOverride: c.rateOverride ?? null,
+            });
+          } else if (c.pricingRef === "BELT") {
+            belts.push({
+              material: c.category || "",
+              color: c.shape || "",
+              size: c.size || "",
+              count: Number(c.count) || 1,
+              rateOverride: c.rateOverride ?? null,
+              rateLocked: !!c.rateOverride
+            });
+          } else {
+            gemstones.push({
+              name: c.type || "Ruby",
+              shape: c.shape || "",
+              weight: Number(c.weight) || 0,
+              count: Number(c.count) || 1,
+              grossWeight: Number(c.grossWeight) || 0,
+              rateOverride: c.rateOverride ?? null,
+            });
+          }
+        });
 
-    (initialProduct.components || []).forEach(c => {
-      if (c.pricingRef === "DIAMOND") {
-        diamonds.push({
-          shape: c.shape || "",
-          weight: Number(c.weight) || 0,
-          grossWeight: Number(c.grossWeight) || 0,
-          size: c.size ?? "",
-          count: Number(c.count) || 1,
-          clarity: c.clarity || "VVS",
-          color: c.color || "D-F",
-          rateOverride: c.rateOverride ?? null,
-        });
-      } else if (c.pricingRef === "BELT") {
-        belts.push({
-          material: c.category || "",
-          color: c.shape || "",
-          size: c.size || "",
-          count: Number(c.count) || 1,
-          rateOverride: c.rateOverride ?? null,
-          rateLocked: !!c.rateOverride
-        });
-      } else {
-        gemstones.push({
-          name: c.type || "Ruby",
-          shape: c.shape || "",
-          weight: Number(c.weight) || 0,
-          count: Number(c.count) || 1,
-          grossWeight: Number(c.grossWeight) || 0,
-          rateOverride: c.rateOverride ?? null,
-        });
-      }
-    });
+        return {
+          title: item.title || "",
+          jewelleryCategory: item.jewelleryCategory || "",
+          description: item.description || "",
+          metalType: item.metalType || "Gold",
+          metalPurity: item.metalPurity || "22KT",
+          metalColor: item.metalColor || "yellow-gold",
+          netWeight: Number(item.netWeight) || 0,
+          grossWeight: Number(item.grossWeight) || 0,
+          diamonds,
+          gemstones,
+          belts,
+          productImages: (item.images || []).map(img => getImageUrl(img)),
+          advancePayment: {
+            amount: 0,
+            mode: "CASH",
+            transactionId: "",
+          },
+          metalPayment: null,
+        };
+      });
 
-    setForm(prev => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
-        title: initialProduct.title || "",
-        jewelleryCategory: initialProduct.jewelleryCategory || "",
-        description: initialProduct.description || "",
-        metalType: initialProduct.metalType || "Gold",
-        metalPurity: initialProduct.metalPurity || "22KT",
-        metalColor: initialProduct.metalColor || "yellow-gold",
-        netWeight: Number(initialProduct.netWeight) || 0,
-        grossWeight: Number(initialProduct.grossWeight) || 0,
-        diamonds,
-        gemstones,
-        belts,
-        productImages: (initialProduct.images || []).map(img =>
-          getImageUrl(img)
-        ),
-      },
-    }));
-  }, [initialProduct]);
+      setForm(prev => ({
+        ...prev,
+        productSnapshots: snapshots,
+      }));
+      setActiveItemIndex(0);
+    } else if (initialProduct) {
+      const diamonds = [];
+      const gemstones = [];
+      const belts = [];
+
+      (initialProduct.components || []).forEach(c => {
+        if (c.pricingRef === "DIAMOND") {
+          diamonds.push({
+            shape: c.shape || "",
+            weight: Number(c.weight) || 0,
+            grossWeight: Number(c.grossWeight) || 0,
+            size: c.size ?? "",
+            count: Number(c.count) || 1,
+            clarity: c.clarity || "VVS",
+            color: c.color || "D-F",
+            rateOverride: c.rateOverride ?? null,
+          });
+        } else if (c.pricingRef === "BELT") {
+          belts.push({
+            material: c.category || "",
+            color: c.shape || "",
+            size: c.size || "",
+            count: Number(c.count) || 1,
+            rateOverride: c.rateOverride ?? null,
+            rateLocked: !!c.rateOverride
+          });
+        } else {
+          gemstones.push({
+            name: c.type || "Ruby",
+            shape: c.shape || "",
+            weight: Number(c.weight) || 0,
+            count: Number(c.count) || 1,
+            grossWeight: Number(c.grossWeight) || 0,
+            rateOverride: c.rateOverride ?? null,
+          });
+        }
+      });
+
+      setForm(prev => ({
+        ...prev,
+        productSnapshots: [
+          {
+            title: initialProduct.title || "",
+            jewelleryCategory: initialProduct.jewelleryCategory || "",
+            description: initialProduct.description || "",
+            metalType: initialProduct.metalType || "Gold",
+            metalPurity: initialProduct.metalPurity || "22KT",
+            metalColor: initialProduct.metalColor || "yellow-gold",
+            netWeight: Number(initialProduct.netWeight) || 0,
+            grossWeight: Number(initialProduct.grossWeight) || 0,
+            diamonds,
+            gemstones,
+            belts,
+            productImages: (initialProduct.images || []).map(img => getImageUrl(img)),
+            advancePayment: {
+              amount: 0,
+              mode: "CASH",
+              transactionId: "",
+            },
+            metalPayment: null,
+          }
+        ],
+      }));
+      setActiveItemIndex(0);
+    }
+  }, [initialProduct, initialProducts]);
 
   useEffect(() => {
     if (!initialCustomer) return;
@@ -191,30 +307,32 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
 
     setForm({
       customer: { ...initialOrder.customer },
-      productSnapshot: {
-        ...initialOrder.productSnapshot,
-        diamonds: (initialOrder.productSnapshot?.components || [])
-          .filter(c => c.pricingRef === "DIAMOND")
-          .map(d => ({ ...d, rateLocked: !!d.rateOverride })),
-        gemstones: (initialOrder.productSnapshot?.components || [])
-          .filter(c => c.pricingRef === "STONE")
-          .map(g => ({ ...g, name: g.type, rateLocked: !!g.rateOverride })),
-        belts: (initialOrder.productSnapshot?.components || [])
-          .filter(c => c.pricingRef === "BELT")
-          .map(b => ({ ...b, material: b.category, color: b.shape, rateLocked: !!b.rateOverride })),
-        productImages: initialOrder.productSnapshot?.productImages || [],
-      },
-      advancePayment: {
-        amount: initialOrder.advancePayment?.amount || 0,
-        mode: initialOrder.advancePayment?.mode || "CASH",
-        transactionId: initialOrder.advancePayment?.transactionId || "",
-      },
-      metalPayment: initialOrder.metalPayment ? { ...initialOrder.metalPayment } : null,
+      productSnapshots: [
+        {
+          ...initialOrder.productSnapshot,
+          diamonds: (initialOrder.productSnapshot?.components || [])
+            .filter(c => c.pricingRef === "DIAMOND")
+            .map(d => ({ ...d, rateLocked: !!d.rateOverride })),
+          gemstones: (initialOrder.productSnapshot?.components || [])
+            .filter(c => c.pricingRef === "STONE")
+            .map(g => ({ ...g, name: g.type, rateLocked: !!g.rateOverride })),
+          belts: (initialOrder.productSnapshot?.components || [])
+            .filter(c => c.pricingRef === "BELT")
+            .map(b => ({ ...b, material: b.category, color: b.shape, rateLocked: !!b.rateOverride })),
+          productImages: initialOrder.productSnapshot?.productImages || [],
+          advancePayment: {
+            amount: initialOrder.advancePayment?.amount || 0,
+            mode: initialOrder.advancePayment?.mode || "CASH",
+            transactionId: initialOrder.advancePayment?.transactionId || "",
+          },
+          metalPayment: initialOrder.metalPayment ? { ...initialOrder.metalPayment } : null,
+        }
+      ],
       status: initialOrder.status || "Placed",
       expectedDeliveryDate: initialOrder.expectedDeliveryDate ? new Date(initialOrder.expectedDeliveryDate).toISOString().split('T')[0] : "",
     });
+    setActiveItemIndex(0);
   }, [initialOrder]);
-
 
   const captureFromCamera = () => {
     const imageSrc = webcamRef.current.getScreenshot();
@@ -224,97 +342,70 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       .then(blob => {
         const file = new File([blob], "camera.jpg", { type: "image/jpeg" });
 
-        setForm(prev => ({
-          ...prev,
-          productSnapshot: {
-            ...prev.productSnapshot,
+        setForm(prev => {
+          const updated = [...prev.productSnapshots];
+          updated[activeItemIndex] = {
+            ...updated[activeItemIndex],
             productImages: [
-              ...prev.productSnapshot.productImages,
+              ...(updated[activeItemIndex].productImages || []),
               file
             ]
-          }
-        }));
+          };
+          return { ...prev, productSnapshots: updated };
+        });
       });
 
     setShowCamera(false);
   };
 
-
-  /* ================= IMAGE HELPERS ================= */
-  // const getImageSrc = (img) => {
-  //   if (!img) return "";
-  //   if (img instanceof File) return URL.createObjectURL(img);
-  //   if (typeof img === "string" && img.startsWith("http")) return img;
-  //   return `/${img}`;
-  // };
-  // const getImageSrc = (img) => {
-  //   if (!img) return "";
-  //   if (img instanceof File) return URL.createObjectURL(img);
-  //   return getImageUrl(img);
-  // };
-
-
-
-
-  console.log("Rates from backend:", rates?.base);
-  console.log("RATES FULL:", rates);
-  console.log("COMPONENT RATES:", rates?.components);
-  console.log("BASE RATES:", rates?.base);
-
-  console.log("Diamonds:", form.productSnapshot.diamonds);
-  console.log("Diamond Rate:", rates?.components?.diamond);
-  //   const handleImageUpload = (e) => {
-  //   const files = Array.from(e.target.files);
-  //   if (!files.length) return;
-
-  //   setForm((prev) => ({
-  //     ...prev,
-  //     productSnapshot: {
-  //       ...prev.productSnapshot,
-  //       productImages: [
-  //         ...prev.productSnapshot.productImages,
-  //         ...files,
-  //       ],
-  //     },
-  //   }));
-  // };
-
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files || []);
 
-    setForm(prev => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+    setForm(prev => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
         productImages: [
-          ...prev.productSnapshot.productImages,
+          ...(updated[activeItemIndex].productImages || []),
           ...files
         ]
-      }
-    }));
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
   const removeImage = (indexToRemove) => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
-        productImages: prev.productSnapshot.productImages.filter(
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
+        productImages: (updated[activeItemIndex].productImages || []).filter(
           (_, index) => index !== indexToRemove
         ),
-      },
-    }));
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
+  const updateSnapshotField = (field, value) => {
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
+        [field]: value
+      };
+      return { ...prev, productSnapshots: updated };
+    });
+  };
 
   /* ================= DIAMOND HANDLERS ================= */
   const addDiamond = () => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
         diamonds: [
-          ...prev.productSnapshot.diamonds,
+          ...(updated[activeItemIndex].diamonds || []),
           {
             shape: "",
             weight: 0,
@@ -327,60 +418,56 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
             rateLocked: false
           }
         ],
-      },
-    }));
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
-  // const updateDiamond = (index, field, value) => {
-  //   const updatedDiamonds = [...form.productSnapshot.diamonds];
-  //   updatedDiamonds[index] = {
-  //     ...updatedDiamonds[index],
-  //     [field]: value,
-  //   };
-
   const updateDiamond = (index, field, value) => {
-    const updatedDiamonds = [...form.productSnapshot.diamonds];
+    setForm((prev) => {
+      const updatedSnapshots = [...prev.productSnapshots];
+      const updatedDiamonds = [...(updatedSnapshots[activeItemIndex].diamonds || [])];
 
-    updatedDiamonds[index] = {
-      ...updatedDiamonds[index],
-      [field]: value,
-    };
+      updatedDiamonds[index] = {
+        ...updatedDiamonds[index],
+        [field]: value,
+      };
 
-    // auto calculate net weight from grossWeight / count
-    const grossWeight = parseFloat(updatedDiamonds[index].grossWeight) || 0;
-    const count = parseFloat(updatedDiamonds[index].count) || 0;
+      const grossWeight = parseFloat(updatedDiamonds[index].grossWeight) || 0;
+      const count = parseFloat(updatedDiamonds[index].count) || 0;
 
-    if (count > 0) {
-      updatedDiamonds[index].weight = (grossWeight / count).toFixed(3);
-    }
+      if (count > 0) {
+        updatedDiamonds[index].weight = (grossWeight / count).toFixed(3);
+      }
 
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+      updatedSnapshots[activeItemIndex] = {
+        ...updatedSnapshots[activeItemIndex],
         diamonds: updatedDiamonds,
-      },
-    }));
+      };
+
+      return { ...prev, productSnapshots: updatedSnapshots };
+    });
   };
 
   const removeDiamond = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
-        diamonds: prev.productSnapshot.diamonds.filter((_, i) => i !== index),
-      },
-    }));
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
+        diamonds: (updated[activeItemIndex].diamonds || []).filter((_, i) => i !== index),
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
   /* ================= GEMSTONE HANDLERS ================= */
   const addGemstone = () => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
         gemstones: [
-          ...prev.productSnapshot.gemstones,
+          ...(updated[activeItemIndex].gemstones || []),
           {
             name: "Ruby",
             shape: "",
@@ -391,73 +478,58 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
             rateLocked: false,
           }
         ],
-      },
-    }));
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
-
-  // const updateGemstone = (index, field, value) => {
-  //   const updatedGemstones = [...form.productSnapshot.gemstones];
-  //   updatedGemstones[index] = {
-  //     ...updatedGemstones[index],
-  //     [field]: value,
-  //   };
 
   const updateGemstone = (index, field, value) => {
-    const updatedGemstones = [...form.productSnapshot.gemstones];
+    setForm((prev) => {
+      const updatedSnapshots = [...prev.productSnapshots];
+      const updatedGemstones = [...(updatedSnapshots[activeItemIndex].gemstones || [])];
 
-    updatedGemstones[index] = {
-      ...updatedGemstones[index],
-      [field]:
-        field === "grossWeight" || field === "count"
+      updatedGemstones[index] = {
+        ...updatedGemstones[index],
+        [field]: field === "grossWeight" || field === "count"
           ? (value === "" ? "" : Number(value))
           : value,
-    };
+      };
 
-    // 🔥 SAME LOGIC AS PRODUCT FORM
-    if (field === "grossWeight" || field === "count") {
-      const grossWeight = Number(updatedGemstones[index].grossWeight) || 0;
-      const count = Number(updatedGemstones[index].count) || 0;
+      if (field === "grossWeight" || field === "count") {
+        const grossWeight = Number(updatedGemstones[index].grossWeight) || 0;
+        const count = Number(updatedGemstones[index].count) || 0;
 
-      updatedGemstones[index].weight =
-        count > 0 ? grossWeight / count : 0;
-    }
+        updatedGemstones[index].weight = count > 0 ? grossWeight / count : 0;
+      }
 
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+      updatedSnapshots[activeItemIndex] = {
+        ...updatedSnapshots[activeItemIndex],
         gemstones: updatedGemstones,
-      },
-    }));
+      };
+
+      return { ...prev, productSnapshots: updatedSnapshots };
+    });
   };
 
-  //   setForm((prev) => ({
-  //     ...prev,
-  //     productSnapshot: {
-  //       ...prev.productSnapshot,
-  //       gemstones: updatedGemstones,
-  //     },
-  //   }));
-  // };
-
   const removeGemstone = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
-        gemstones: prev.productSnapshot.gemstones.filter((_, i) => i !== index),
-      },
-    }));
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
+        gemstones: (updated[activeItemIndex].gemstones || []).filter((_, i) => i !== index),
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
   /* ================= BELT HANDLERS ================= */
   const addBelt = () => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
         belts: [
-          ...(prev.productSnapshot.belts || []),
+          ...(updated[activeItemIndex].belts || []),
           {
             category: "Belt",
             material: "",
@@ -468,104 +540,93 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
             rateLocked: false,
           }
         ],
-      },
-    }));
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
   const updateBelt = (index, field, value) => {
-    const updatedBelts = [...form.productSnapshot.belts];
-    updatedBelts[index] = {
-      ...updatedBelts[index],
-      [field]: field === "count" || field === "rateOverride"
-        ? (value === "" ? "" : Number(value))
-        : value,
-    };
+    setForm((prev) => {
+      const updatedSnapshots = [...prev.productSnapshots];
+      const updatedBelts = [...(updatedSnapshots[activeItemIndex].belts || [])];
+      
+      updatedBelts[index] = {
+        ...updatedBelts[index],
+        [field]: field === "count" || field === "rateOverride"
+          ? (value === "" ? "" : Number(value))
+          : value,
+      };
 
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
+      updatedSnapshots[activeItemIndex] = {
+        ...updatedSnapshots[activeItemIndex],
         belts: updatedBelts,
-      },
-    }));
+      };
+
+      return { ...prev, productSnapshots: updatedSnapshots };
+    });
   };
 
   const removeBelt = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      productSnapshot: {
-        ...prev.productSnapshot,
-        belts: prev.productSnapshot.belts.filter((_, i) => i !== index),
-      },
-    }));
+    setForm((prev) => {
+      const updated = [...prev.productSnapshots];
+      updated[activeItemIndex] = {
+        ...updated[activeItemIndex],
+        belts: (updated[activeItemIndex].belts || []).filter((_, i) => i !== index),
+      };
+      return { ...prev, productSnapshots: updated };
+    });
   };
 
-
   /* ================= METAL PAYMENT HANDLERS ================= */
-  // const handleMetalPaymentChange = (field, value) => {
-  //   setForm((prev) => ({
-  //     ...prev,
-  //     metalPayment: prev.metalPayment ? {
-  //       ...prev.metalPayment,
-  //       [field]: value
-  //     } : {
-  //       metalType: form.productSnapshot.metalType,
-  //       purity: form.productSnapshot.metalPurity,
-  //       weight: 0,
-  //       baseRate: 0,
-  //       purityFactor: PURITY_MAP[form.productSnapshot.metalPurity] || 1,
-  //       ratePerGram: 0,
-  //       totalValue: 0,
-  //       receivedAt: new Date(),
-  //     }
-  //   }));
-  // };
-
-
   const handleMetalPaymentChange = (field, value) => {
     setForm((prev) => {
-      const current = prev.metalPayment || {
-        metalType: form.productSnapshot.metalType,
-        purity: form.productSnapshot.metalPurity,
+      const updatedSnapshots = [...prev.productSnapshots];
+      const current = updatedSnapshots[activeItemIndex].metalPayment || {
+        metalType: updatedSnapshots[activeItemIndex].metalType || "Gold",
+        purity: updatedSnapshots[activeItemIndex].metalPurity || "22KT",
         weight: 0,
         receivedAt: new Date(),
       };
 
-      const updated = {
+      const updatedPayment = {
         ...current,
         [field]: value,
       };
 
       if (rates) {
         const ratePerGram = rates.helpers.getMetalRate(
-          updated.metalType,
-          updated.purity
+          updatedPayment.metalType,
+          updatedPayment.purity
         );
 
         const purityFactor = rates.helpers.getPurityFactor(
-          updated.metalType,
-          updated.purity
+          updatedPayment.metalType,
+          updatedPayment.purity
         );
 
-        const totalValue =
-          (ratePerGram || 0) * (updated.weight || 0);
+        const totalValue = (ratePerGram || 0) * (updatedPayment.weight || 0);
 
-        updated.ratePerGram = ratePerGram;
-        updated.purityFactor = purityFactor;
-        updated.totalValue = Number(totalValue.toFixed(2));
+        updatedPayment.ratePerGram = ratePerGram;
+        updatedPayment.purityFactor = purityFactor;
+        updatedPayment.totalValue = Number(totalValue.toFixed(2));
       }
+
+      updatedSnapshots[activeItemIndex] = {
+        ...updatedSnapshots[activeItemIndex],
+        metalPayment: updatedPayment,
+      };
 
       return {
         ...prev,
-        metalPayment: updated,
+        productSnapshots: updatedSnapshots,
       };
     });
   };
 
-  const calculateDiamondValue = () => {
-    if (!rates) return "0.00";
+  const calculateDiamondValue = (snapshot = currentSnapshot) => {
+    if (!rates || !snapshot) return "0.00";
 
-    const total = form.productSnapshot.diamonds.reduce((sum, d) => {
+    const total = (snapshot.diamonds || []).reduce((sum, d) => {
       if (!d.weight || !d.count) return sum;
 
       const overrideVal = parseFloat(d.rateOverride);
@@ -581,16 +642,15 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     return total.toFixed(2);
   };
 
-  const calculateStoneValue = () => {
-    if (!rates) return "0.00";
+  const calculateStoneValue = (snapshot = currentSnapshot) => {
+    if (!rates || !snapshot) return "0.00";
 
-    const total = form.productSnapshot.gemstones.reduce((sum, g) => {
+    const total = (snapshot.gemstones || []).reduce((sum, g) => {
       if (!g.weight || !g.count) return sum;
 
       const overrideVal = parseFloat(g.rateOverride);
       let rate = overrideVal;
       if (isNaN(rate)) {
-        // Map gemstone name to type since findMatchingStoneRate expects type
         const matchedRate = findMatchingStoneRate({ ...g, type: g.name }, adminStoneRates);
         rate = matchedRate !== null ? matchedRate : parseFloat(rates?.components?.stone || 0);
       }
@@ -601,14 +661,14 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     return total.toFixed(2);
   };
 
-  const calculateBeltValue = () => {
-    if (!rates) return "0.00";
+  const calculateBeltValue = (snapshot = currentSnapshot) => {
+    if (!rates || !snapshot) return "0.00";
 
-    const total = (form.productSnapshot.belts || []).reduce((sum, b) => {
+    const total = (snapshot.belts || []).reduce((sum, b) => {
       if (!b.count) return sum;
 
       const overrideVal = parseFloat(b.rateOverride);
-      let rate = overrideVal || 0; // Default to 0 for belts if no override, as they are custom accessories
+      let rate = overrideVal || 0;
 
       return sum + (rate * parseFloat(b.count));
     }, 0);
@@ -616,19 +676,33 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     return total.toFixed(2);
   };
 
-  const calculateTotalComponents = () => {
+  const calculateTotalComponents = (snapshot = currentSnapshot) => {
     return (
-      Number(calculateDiamondValue()) +
-      Number(calculateStoneValue()) +
-      Number(calculateBeltValue())
+      Number(calculateDiamondValue(snapshot)) +
+      Number(calculateStoneValue(snapshot)) +
+      Number(calculateBeltValue(snapshot))
     ).toFixed(2);
   };
 
+  const calculateMetalValue = (snapshot = currentSnapshot) => {
+    if (!rates || !snapshot) return "0.00";
 
-  const buildComponents = () => {
+    const { metalType, metalPurity, netWeight } = snapshot;
+
+    if (!metalType || !metalPurity || !netWeight) return "0.00";
+
+    const ratePerGram = rates.helpers.getMetalRate(
+      metalType,
+      metalPurity
+    );
+
+    return (ratePerGram * netWeight).toFixed(2);
+  };
+
+  const buildComponents = (snapshot = currentSnapshot) => {
     const components = [];
 
-    form.productSnapshot.diamonds.forEach((d) => {
+    (snapshot.diamonds || []).forEach((d) => {
       if (!d.weight || !d.count) return;
 
       components.push({
@@ -646,7 +720,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       });
     });
 
-    form.productSnapshot.gemstones.forEach((g) => {
+    (snapshot.gemstones || []).forEach((g) => {
       if (!g.weight || !g.count) return;
 
       components.push({
@@ -661,7 +735,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
       });
     });
 
-    (form.productSnapshot.belts || []).forEach((b) => {
+    (snapshot.belts || []).forEach((b) => {
       if (!b.count) return;
 
       components.push({
@@ -669,7 +743,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         componentRole: "SIDE",
         shape: b.color || "", 
         category: b.category || "Belt", 
-        description: b.material || "", // Store material in description or keep as is
+        description: b.material || "", 
         size: b.size || "",
         count: b.count,
         pricingRef: "BELT",
@@ -680,151 +754,264 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
     return components;
   };
 
+  /* ================= MULTI-ITEM STATE MANAGERS ================= */
+  const addItem = () => {
+    setForm(prev => ({
+      ...prev,
+      productSnapshots: [
+        ...prev.productSnapshots,
+        {
+          title: "",
+          jewelleryCategory: "",
+          description: "",
+          size: "",
+          metalType: "Gold",
+          metalPurity: "22KT",
+          metalColor: "yellow-gold",
+          netWeight: 0,
+          grossWeight: 0,
+          diamonds: [],
+          gemstones: [],
+          belts: [],
+          productImages: [],
+          advancePayment: {
+            amount: 0,
+            mode: "CASH",
+            transactionId: "",
+          },
+          metalPayment: null,
+        }
+      ]
+    }));
+    setActiveItemIndex(form.productSnapshots.length);
+  };
+
+  const removeItem = (indexToRemove) => {
+    if (form.productSnapshots.length <= 1) return;
+    setForm(prev => {
+      const updated = prev.productSnapshots.filter((_, idx) => idx !== indexToRemove);
+      return { ...prev, productSnapshots: updated };
+    });
+    if (activeItemIndex >= indexToRemove && activeItemIndex > 0) {
+      setActiveItemIndex(prev => prev - 1);
+    }
+  };
+
   /* ================= SUBMIT ================= */
   const submit = async () => {
     try {
-      if (!form.productSnapshot.netWeight) {
-        //   alert("Net metal weight is required");
-        showAlert("Net metal weight is required");
+      if (!form.customer.name || !form.customer.mobile) {
+        showAlert("Customer Name and Mobile are required");
         return;
       }
 
-      const fd = new FormData();
-
-      fd.append("customer[name]", form.customer.name);
-      fd.append("customer[mobile]", form.customer.mobile);
-      if (form.customer.email) fd.append("customer[email]", form.customer.email);
-      if (form.customer.address) fd.append("customer[address]", form.customer.address);
-      if (form.customer.city) fd.append("customer[city]", form.customer.city);
-
-      fd.append("productSnapshot[title]", form.productSnapshot.title || "Custom Order");
-      fd.append("productSnapshot[jewelleryCategory]", form.productSnapshot.jewelleryCategory || "");
-      fd.append("productSnapshot[description]", form.productSnapshot.description || "");
-      fd.append("productSnapshot[size]", form.productSnapshot.size || "");
-      fd.append("productSnapshot[metalType]", form.productSnapshot.metalType);
-      fd.append("productSnapshot[metalPurity]", form.productSnapshot.metalPurity);
-      fd.append("productSnapshot[metalColor]", form.productSnapshot.metalColor);
-      fd.append("productSnapshot[netWeight]", form.productSnapshot.netWeight);
-      fd.append("productSnapshot[grossWeight]", form.productSnapshot.grossWeight);
-
-      // IMAGES (MULTIPLE)
-      // form.productSnapshot.productImages?.forEach((img) => {
-      //   if (img instanceof File) {
-      //     fd.append("productImages", img);
-      //   } else if (typeof img === "string") {
-      //     // agar existing image URL/path ho
-      //     fd.append("productSnapshot[productImages][]", img);
-      //   }
-      // });
-
-      form.productSnapshot.productImages.forEach((img) => {
-        if (img instanceof File) {
-          fd.append("productImages", img); // multer field
-        } else {
-          fd.append("productSnapshot[productImages][]", img); // existing image
-        }
-      });
-
-      if (form.metalPayment) {
-        fd.append("metalPayment[metalType]", form.metalPayment.metalType);
-        fd.append("metalPayment[purity]", form.metalPayment.purity);
-        fd.append("metalPayment[weight]", form.metalPayment.weight);
-        fd.append("metalPayment[baseRate]", form.metalPayment.baseRate || 0);
-        fd.append("metalPayment[purityFactor]", form.metalPayment.purityFactor || 1);
-        fd.append("metalPayment[ratePerGram]", form.metalPayment.ratePerGram || 0);
-        fd.append("metalPayment[totalValue]", form.metalPayment.totalValue || 0);
-        fd.append("metalPayment[receivedAt]", form.metalPayment.receivedAt);
-      }
-
-      const components = buildComponents();
-      components.forEach((c, index) => {
-        fd.append(`productSnapshot[components][${index}][type]`, c.type);
-        fd.append(`productSnapshot[components][${index}][componentRole]`, c.componentRole);
-        fd.append(`productSnapshot[components][${index}][shape]`, c.shape || "");
-        if (c.clarity) {
-          fd.append(`productSnapshot[components][${index}][clarity]`, c.clarity);
-        }
-        if (c.color) {
-          fd.append(`productSnapshot[components][${index}][color]`, c.color);
-        }
-        fd.append(`productSnapshot[components][${index}][grossWeight]`, c.grossWeight || 0);
-        // fd.append(`productSnapshot[components][${index}][size]`, c.size || 0);
-
-        if (c.size !== undefined && c.size !== null && c.size !== "") {
-          fd.append(`productSnapshot[components][${index}][size]`, c.size);
-        } else {
-          fd.append(`productSnapshot[components][${index}][size]`, "");
-        }
-
-
-        fd.append(`productSnapshot[components][${index}][weight]`, c.weight || 0);
-        fd.append(`productSnapshot[components][${index}][count]`, c.count);
-        fd.append(`productSnapshot[components][${index}][pricingRef]`, c.pricingRef);
-        if (c.category) {
-          fd.append(`productSnapshot[components][${index}][category]`, c.category);
-        }
-        if (c.rateOverride !== undefined) {
-          fd.append(`productSnapshot[components][${index}][rateOverride]`, c.rateOverride);
-        }
-      });
-
-      if (form.advancePayment.amount > 0) {
-        fd.append("advancePayment[amount]", form.advancePayment.amount);
-        fd.append("advancePayment[mode]", form.advancePayment.mode);
-        if (form.advancePayment.transactionId) {
-          fd.append("advancePayment[transactionId]", form.advancePayment.transactionId);
-        }
-      }
-
-      if (form.expectedDeliveryDate) {
-        fd.append("expectedDeliveryDate", form.expectedDeliveryDate);
-      }
-      fd.append("status", form.status);
-
-      let res;
       if (initialOrder?._id) {
-        res = await updateOrderById(initialOrder._id, fd);
-        await showAlert("Order updated successfully!");
-      } else {
-        res = await createOrder(fd);
-        await showAlert("Order created successfully!");
-      }
-
-      // If converted from estimate, mark estimate as converted
-      if (convertedFromEstimateId) {
-        try {
-          await updateEstimate(convertedFromEstimateId, { status: "CONVERTED" });
-        } catch (estErr) {
-          console.error("Failed to mark estimate as converted", estErr);
-          // Don't fail the whole process if only estimate update fails
+        // --- EDIT MODE (Single order update) ---
+        const snap = form.productSnapshots[0];
+        if (!snap.netWeight) {
+          showAlert("Net metal weight is required");
+          return;
         }
-      }
 
-      onSuccess?.(res.data.order._id);
+        const fd = new FormData();
+        fd.append("customer[name]", form.customer.name);
+        fd.append("customer[mobile]", form.customer.mobile);
+        if (form.customer.email) fd.append("customer[email]", form.customer.email);
+        if (form.customer.address) fd.append("customer[address]", form.customer.address);
+        if (form.customer.city) fd.append("customer[city]", form.customer.city);
+
+        fd.append("productSnapshot[title]", snap.title || "Custom Order");
+        fd.append("productSnapshot[jewelleryCategory]", snap.jewelleryCategory || "");
+        fd.append("productSnapshot[description]", snap.description || "");
+        fd.append("productSnapshot[size]", snap.size || "");
+        fd.append("productSnapshot[metalType]", snap.metalType);
+        fd.append("productSnapshot[metalPurity]", snap.metalPurity);
+        fd.append("productSnapshot[metalColor]", snap.metalColor);
+        fd.append("productSnapshot[netWeight]", snap.netWeight);
+        fd.append("productSnapshot[grossWeight]", snap.grossWeight || 0);
+
+        (snap.productImages || []).forEach((img) => {
+          if (img instanceof File) {
+            fd.append("productImages", img);
+          } else {
+            fd.append("productSnapshot[productImages][]", img);
+          }
+        });
+
+        if (snap.metalPayment) {
+          fd.append("metalPayment[metalType]", snap.metalPayment.metalType);
+          fd.append("metalPayment[purity]", snap.metalPayment.purity);
+          fd.append("metalPayment[weight]", snap.metalPayment.weight);
+          fd.append("metalPayment[baseRate]", snap.metalPayment.baseRate || 0);
+          fd.append("metalPayment[purityFactor]", snap.metalPayment.purityFactor || 1);
+          fd.append("metalPayment[ratePerGram]", snap.metalPayment.ratePerGram || 0);
+          fd.append("metalPayment[totalValue]", snap.metalPayment.totalValue || 0);
+          fd.append("metalPayment[receivedAt]", snap.metalPayment.receivedAt);
+        }
+
+        const components = buildComponents(snap);
+        components.forEach((c, index) => {
+          fd.append(`productSnapshot[components][${index}][type]`, c.type);
+          fd.append(`productSnapshot[components][${index}][componentRole]`, c.componentRole);
+          fd.append(`productSnapshot[components][${index}][shape]`, c.shape || "");
+          if (c.clarity) fd.append(`productSnapshot[components][${index}][clarity]`, c.clarity);
+          if (c.color) fd.append(`productSnapshot[components][${index}][color]`, c.color);
+          fd.append(`productSnapshot[components][${index}][grossWeight]`, c.grossWeight || 0);
+          if (c.size !== undefined && c.size !== null && c.size !== "") {
+            fd.append(`productSnapshot[components][${index}][size]`, c.size);
+          } else {
+            fd.append(`productSnapshot[components][${index}][size]`, "");
+          }
+          fd.append(`productSnapshot[components][${index}][weight]`, c.weight || 0);
+          fd.append(`productSnapshot[components][${index}][count]`, c.count);
+          fd.append(`productSnapshot[components][${index}][pricingRef]`, c.pricingRef);
+          if (c.category) fd.append(`productSnapshot[components][${index}][category]`, c.category);
+          if (c.rateOverride !== undefined) {
+            fd.append(`productSnapshot[components][${index}][rateOverride]`, c.rateOverride);
+          }
+        });
+
+        if (snap.advancePayment && snap.advancePayment.amount > 0) {
+          fd.append("advancePayment[amount]", snap.advancePayment.amount);
+          fd.append("advancePayment[mode]", snap.advancePayment.mode);
+          if (snap.advancePayment.transactionId) {
+            fd.append("advancePayment[transactionId]", snap.advancePayment.transactionId);
+          }
+        }
+
+        if (form.expectedDeliveryDate) {
+          fd.append("expectedDeliveryDate", form.expectedDeliveryDate);
+        }
+        fd.append("status", form.status);
+
+        const res = await updateOrderById(initialOrder._id, fd);
+        await showAlert("Order updated successfully!");
+        onSuccess?.(res.data.order._id);
+      } else {
+        // --- CREATE MODE (Sequential Multi-Item submission) ---
+        for (let i = 0; i < form.productSnapshots.length; i++) {
+          const snap = form.productSnapshots[i];
+          if (!snap.netWeight) {
+            showAlert(`Item ${i + 1} (${snap.title || 'Untitled'}): Net metal weight is required`);
+            return;
+          }
+        }
+
+        const confirmMsg = form.productSnapshots.length > 1 
+          ? `Are you sure you want to book these ${form.productSnapshots.length} custom orders?`
+          : "Are you sure you want to create this order?";
+
+        const proceed = await showConfirm(confirmMsg);
+        if (!proceed) return;
+
+        let firstOrderId = null;
+        let firstOrderNo = null;
+
+        // Sequential Submit to handle sequential order number generation safely
+        for (let i = 0; i < form.productSnapshots.length; i++) {
+          const snap = form.productSnapshots[i];
+          const fd = new FormData();
+
+          fd.append("customer[name]", form.customer.name);
+          fd.append("customer[mobile]", form.customer.mobile);
+          if (form.customer.email) fd.append("customer[email]", form.customer.email);
+          if (form.customer.address) fd.append("customer[address]", form.customer.address);
+          if (form.customer.city) fd.append("customer[city]", form.customer.city);
+
+          fd.append("productSnapshot[title]", snap.title || `Custom Item ${i + 1}`);
+          fd.append("productSnapshot[jewelleryCategory]", snap.jewelleryCategory || "");
+          fd.append("productSnapshot[description]", snap.description || "");
+          fd.append("productSnapshot[size]", snap.size || "");
+          fd.append("productSnapshot[metalType]", snap.metalType);
+          fd.append("productSnapshot[metalPurity]", snap.metalPurity);
+          fd.append("productSnapshot[metalColor]", snap.metalColor);
+          fd.append("productSnapshot[netWeight]", snap.netWeight);
+          fd.append("productSnapshot[grossWeight]", snap.grossWeight || 0);
+
+          (snap.productImages || []).forEach((img) => {
+            if (img instanceof File) {
+              fd.append("productImages", img);
+            } else {
+              fd.append("productSnapshot[productImages][]", img);
+            }
+          });
+
+          const metalPay = snap.metalPayment;
+          if (metalPay && metalPay.weight > 0) {
+            fd.append("metalPayment[metalType]", metalPay.metalType);
+            fd.append("metalPayment[purity]", metalPay.purity);
+            fd.append("metalPayment[weight]", metalPay.weight);
+            fd.append("metalPayment[baseRate]", metalPay.baseRate || 0);
+            fd.append("metalPayment[purityFactor]", metalPay.purityFactor || 1);
+            fd.append("metalPayment[ratePerGram]", metalPay.ratePerGram || 0);
+            fd.append("metalPayment[totalValue]", metalPay.totalValue || 0);
+            fd.append("metalPayment[receivedAt]", metalPay.receivedAt);
+          }
+
+          const components = buildComponents(snap);
+          components.forEach((c, index) => {
+            fd.append(`productSnapshot[components][${index}][type]`, c.type);
+            fd.append(`productSnapshot[components][${index}][componentRole]`, c.componentRole);
+            fd.append(`productSnapshot[components][${index}][shape]`, c.shape || "");
+            if (c.clarity) fd.append(`productSnapshot[components][${index}][clarity]`, c.clarity);
+            if (c.color) fd.append(`productSnapshot[components][${index}][color]`, c.color);
+            fd.append(`productSnapshot[components][${index}][grossWeight]`, c.grossWeight || 0);
+            if (c.size !== undefined && c.size !== null && c.size !== "") {
+              fd.append(`productSnapshot[components][${index}][size]`, c.size);
+            } else {
+              fd.append(`productSnapshot[components][${index}][size]`, "");
+            }
+            fd.append(`productSnapshot[components][${index}][weight]`, c.weight || 0);
+            fd.append(`productSnapshot[components][${index}][count]`, c.count);
+            fd.append(`productSnapshot[components][${index}][pricingRef]`, c.pricingRef);
+            if (c.category) fd.append(`productSnapshot[components][${index}][category]`, c.category);
+            if (c.rateOverride !== undefined) {
+              fd.append(`productSnapshot[components][${index}][rateOverride]`, c.rateOverride);
+            }
+          });
+
+          const advPay = snap.advancePayment;
+          if (advPay && advPay.amount > 0) {
+            fd.append("advancePayment[amount]", advPay.amount);
+            fd.append("advancePayment[mode]", advPay.mode);
+            if (advPay.transactionId) {
+              fd.append("advancePayment[transactionId]", advPay.transactionId);
+            }
+          }
+
+          if (form.expectedDeliveryDate) {
+            fd.append("expectedDeliveryDate", form.expectedDeliveryDate);
+          }
+          fd.append("status", form.status);
+
+          if (i > 0 && firstOrderNo) {
+            fd.append("groupOrderNo", firstOrderNo);
+          }
+
+          const res = await createOrder(fd);
+          if (i === 0) {
+            firstOrderId = res.data.order._id;
+            firstOrderNo = res.data.order.groupOrderNo;
+          }
+        }
+
+        if (convertedFromEstimateId) {
+          try {
+            await updateEstimate(convertedFromEstimateId, { status: "CONVERTED" });
+          } catch (estErr) {
+            console.error("Failed to mark estimate as converted", estErr);
+          }
+        }
+
+        await showAlert(form.productSnapshots.length > 1 ? "All orders created successfully!" : "Order created successfully!");
+        onSuccess?.(firstOrderId);
+      }
     } catch (err) {
       console.error("Order Submit Error Detail:", err.response?.data);
       const serverError = err.response?.data?.error || err.response?.data?.message;
       const errorMsg = serverError || (initialOrder?._id ? "Failed to update order" : "Failed to create order");
-
       await showAlert(errorMsg);
     }
-  };
-
-  /* ================= CALCULATE TOTAL METAL VALUE ================= */
-
-  const calculateMetalValue = () => {
-    if (!rates) return 0;
-
-    const { metalType, metalPurity, netWeight } = form.productSnapshot;
-
-    if (!metalType || !metalPurity || !netWeight) return 0;
-
-    const ratePerGram = rates.helpers.getMetalRate(
-      metalType,
-      metalPurity
-    );
-
-    return (ratePerGram * netWeight).toFixed(2);
   };
 
   return (
@@ -846,16 +1033,63 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
         <div className="bg-white shadow-sm">
           <div className="grid lg:grid-cols-3 gap-6 p-6">
 
-            {/* LEFT COLUMN - Product Reference & Customer */}
+            {/* LEFT COLUMN - Product Reference & Specifications */}
             <div className="lg:col-span-2 space-y-6">
+
+              {/* Items Tab Bar (Only during creation mode) */}
+              {!initialOrder?._id && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {form.productSnapshots.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveItemIndex(idx)}
+                        className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 ${
+                          activeItemIndex === idx
+                            ? "bg-[#6B2E4A] text-white shadow"
+                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="opacity-80">Item {idx + 1}</span>
+                        {item.title ? (
+                          <span className="font-bold border-l pl-1.5 border-current max-w-[100px] truncate">{item.title}</span>
+                        ) : null}
+                        {form.productSnapshots.length > 1 && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeItem(idx);
+                            }}
+                            className="text-[10px] font-black hover:text-red-500 rounded-full px-1 py-0.2 hover:bg-white/20 transition-colors ml-1"
+                          >
+                            ✕
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="px-3.5 py-1.5 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700 transition active:scale-95 shadow"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+              )}
 
               {/* Product Reference */}
               <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
-                  <h2 className="text-base font-semibold text-gray-800">Product Reference</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
+                    <h2 className="text-base font-semibold text-gray-800">
+                      Product Reference {form.productSnapshots.length > 1 ? `(Item ${activeItemIndex + 1})` : ""}
+                    </h2>
+                  </div>
                 </div>
-
 
                 <div className="mb-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -864,60 +1098,19 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
                     <button
                       type="button"
                       onClick={() => setShowOptions(true)}
-                      className="group relative h-24 rounded-xl 
-             
-             /* GLASS BASE */
-             bg-white/30 backdrop-blur-md
-             border border-white/40
-
-             /* LAYOUT */
-             flex flex-col items-center justify-center gap-1
-             text-[#6B2E4A] text-xs font-semibold
-
-             /* NEUMORPHISM */
-             shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.9)]
-
-             /* TRANSITION */
-             transition-all duration-300 ease-out
-
-             /* DESKTOP */
-             hover:shadow-[inset_4px_4px_10px_rgba(0,0,0,0.08),inset_-4px_-4px_10px_rgba(255,255,255,0.9)]
-             hover:scale-[1.02]
-
-             /* 📱 MOBILE / TABLET */
-             active:scale-95 active:shadow-inner"
+                      className="group relative h-24 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 flex flex-col items-center justify-center gap-1 text-[#6B2E4A] text-xs font-semibold shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.9)] transition-all duration-300 ease-out hover:shadow-[inset_4px_4px_10px_rgba(0,0,0,0.08),inset_-4px_-4px_10px_rgba(255,255,255,0.9)] hover:scale-[1.02] active:scale-95 active:shadow-inner"
                     >
-
-                      {/* ✨ GLASS SHINE */}
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br 
-                  from-white/40 via-transparent to-white/10 
-                  opacity-60 pointer-events-none" />
-
-                      {/* ICON */}
-                      <Camera
-                        className="relative z-10 transition-transform duration-300 
-               group-hover:scale-110 group-active:scale-95"
-                      />
-
-                      {/* TEXT */}
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-60 pointer-events-none" />
+                      <Camera className="relative z-10 transition-transform duration-300 group-hover:scale-110 group-active:scale-95" />
                       <span className="relative z-10">Add Image</span>
-
-                      {/* 🔥 UNDERLINE (ALL DEVICES) */}
-                      <div
-                        className="absolute bottom-0 left-0 h-[2px] w-0 
-               bg-gradient-to-r from-[#6B2E4A] via-[#a46a86] to-[#6B2E4A]
-               transition-all duration-500 ease-out
-               group-hover:w-full group-active:w-full"
-                      />
-
+                      <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-[#6B2E4A] via-[#a46a86] to-[#6B2E4A] transition-all duration-500 ease-out group-hover:w-full group-active:w-full" />
                     </button>
 
                     {/* IMAGES */}
-                    {form.productSnapshot.productImages.map((img, i) => (
+                    {(currentSnapshot.productImages || []).map((img, i) => (
                       <div
                         key={i}
-                        className="relative group rounded-lg overflow-hidden 
-                   border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
+                        className="relative group rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
                       >
                         <img
                           src={getImageUrl(img)}
@@ -930,8 +1123,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
                         <button
                           type="button"
                           onClick={() => removeImage(i)}
-                          className="absolute top-2 right-2 bg-[#632947] text-white 
-w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden active:scale-90"
+                          className="absolute top-2 right-2 bg-[#632947] text-white w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden active:scale-90"
                         >
                           ✕
                         </button>
@@ -943,42 +1135,28 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
 
                 {previewImage && (
                   <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center">
-
-                    {/* CLOSE BUTTON */}
                     <button
                       onClick={() => setPreviewImage(null)}
-                      className="absolute top-6 right-6 text-white text-xl 
-                 bg-white/10 rounded-full w-10 h-10 
-                 flex items-center justify-center hover:bg-white/20"
+                      className="absolute top-6 right-6 text-white text-xl bg-white/10 rounded-full w-10 h-10 flex items-center justify-center hover:bg-white/20"
                     >
                       ✕
                     </button>
-
-                    {/* IMAGE */}
                     <img
                       src={previewImage}
                       alt="Full Preview"
                       className="max-w-[90%] max-h-[80%] object-contain rounded-lg shadow-2xl"
                     />
-
-                    {/* OPTIONAL TITLE */}
                     <p className="text-white/70 mt-4 text-sm italic">
                       Product Image Preview
                     </p>
-
                   </div>
                 )}
 
                 {showCamera && (
                   <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
-
-                    {/* HEADER */}
                     <div className="flex justify-between items-center p-4 text-white">
                       <span>Camera</span>
-
                     </div>
-
-                    {/* CAMERA */}
                     <div className="flex-1 flex items-center justify-center">
                       <Webcam
                         ref={webcamRef}
@@ -987,30 +1165,20 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         videoConstraints={{ facingMode: "environment" }}
                       />
                     </div>
-
-
-                    {/* BUTTON */}
                     <div className="p-6 flex justify-center">
                       <button className="bg-red text-white p-6" onClick={() => setShowCamera(false)}>Close</button>
                       <button
                         onClick={captureFromCamera}
-                        className="w-16 h-16 bg-white rounded-full"
+                        className="w-16 h-16 bg-white rounded-full ml-4"
                       />
                     </div>
-
-
                   </div>
                 )}
 
-
                 {showOptions && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-
                     <div className="bg-white rounded-xl p-6 w-72 space-y-4">
-
                       <h3 className="text-sm font-semibold text-center">Select Option</h3>
-
-                      {/* CAMERA */}
                       <button
                         onClick={() => {
                           setShowOptions(false);
@@ -1020,8 +1188,6 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       >
                         Open Camera
                       </button>
-
-                      {/* UPLOAD */}
                       <label className="block w-full text-center py-2 border rounded cursor-pointer">
                         Upload Image
                         <input
@@ -1034,15 +1200,12 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           }}
                         />
                       </label>
-
-                      {/* CANCEL */}
                       <button
                         onClick={() => setShowOptions(false)}
                         className="w-full py-2 text-red-500"
                       >
                         Cancel
                       </button>
-
                     </div>
                   </div>
                 )}
@@ -1053,13 +1216,8 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <input
                       placeholder="Floral Diamond Bracelet"
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.productSnapshot.title}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          productSnapshot: { ...form.productSnapshot, title: e.target.value },
-                        })
-                      }
+                      value={currentSnapshot.title || ""}
+                      onChange={(e) => updateSnapshotField("title", e.target.value)}
                     />
                   </div>
 
@@ -1069,13 +1227,8 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       <input
                         placeholder="Bracelet"
                         className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                        value={form.productSnapshot.jewelleryCategory}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            productSnapshot: { ...form.productSnapshot, jewelleryCategory: e.target.value },
-                          })
-                        }
+                        value={currentSnapshot.jewelleryCategory || ""}
+                        onChange={(e) => updateSnapshotField("jewelleryCategory", e.target.value)}
                       />
                     </div>
                     <div>
@@ -1083,13 +1236,8 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       <input
                         placeholder="6.5 inches"
                         className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                        value={form.productSnapshot.size}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            productSnapshot: { ...form.productSnapshot, size: e.target.value },
-                          })
-                        }
+                        value={currentSnapshot.size || ""}
+                        onChange={(e) => updateSnapshotField("size", e.target.value)}
                       />
                     </div>
                   </div>
@@ -1100,13 +1248,8 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       placeholder="Product description..."
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm resize-none"
                       rows={2}
-                      value={form.productSnapshot.description || ""}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          productSnapshot: { ...form.productSnapshot, description: e.target.value },
-                        })
-                      }
+                      value={currentSnapshot.description || ""}
+                      onChange={(e) => updateSnapshotField("description", e.target.value)}
                     />
                   </div>
                 </div>
@@ -1124,17 +1267,18 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Metal</label>
                     <select
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.productSnapshot.metalType}
+                      value={currentSnapshot.metalType || "Gold"}
                       onChange={(e) => {
                         const metalType = e.target.value;
-                        setForm({
-                          ...form,
-                          productSnapshot: {
-                            ...form.productSnapshot,
+                        setForm(prev => {
+                          const updated = [...prev.productSnapshots];
+                          updated[activeItemIndex] = {
+                            ...updated[activeItemIndex],
                             metalType,
                             metalPurity: "",
                             metalColor: "",
-                          },
+                          };
+                          return { ...prev, productSnapshots: updated };
                         });
                       }}
                     >
@@ -1148,17 +1292,11 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Purity</label>
                     <select
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.productSnapshot.metalPurity}
-                      onChange={(e) => {
-                        const purity = e.target.value;
-                        setForm({
-                          ...form,
-                          productSnapshot: { ...form.productSnapshot, metalPurity: purity },
-                        });
-                      }}
+                      value={currentSnapshot.metalPurity || ""}
+                      onChange={(e) => updateSnapshotField("metalPurity", e.target.value)}
                     >
                       <option value="">Select</option>
-                      {(METAL_OPTIONS[form.productSnapshot.metalType]?.purities || []).map((p) => (
+                      {(METAL_OPTIONS[currentSnapshot.metalType || "Gold"]?.purities || []).map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
@@ -1168,16 +1306,11 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Color</label>
                     <select
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.productSnapshot.metalColor}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          productSnapshot: { ...form.productSnapshot, metalColor: e.target.value },
-                        })
-                      }
+                      value={currentSnapshot.metalColor || ""}
+                      onChange={(e) => updateSnapshotField("metalColor", e.target.value)}
                     >
                       <option value="">Select</option>
-                      {(METAL_OPTIONS[form.productSnapshot.metalType]?.colors || []).map((c) => (
+                      {(METAL_OPTIONS[currentSnapshot.metalType || "Gold"]?.colors || []).map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -1192,23 +1325,13 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       step="0.01"
                       min="0"
                       placeholder="0.00"
-                      value={form.productSnapshot.netWeight || ""}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          productSnapshot: {
-                            ...form.productSnapshot,
-                            netWeight: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
+                      value={currentSnapshot.netWeight || ""}
+                      onChange={(e) => updateSnapshotField("netWeight", parseFloat(e.target.value) || 0)}
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
                     />
                   </div>
-
                 </div>
               </div>
-
 
               {/* Diamonds */}
               <div className="border border-gray-200 rounded-lg p-5">
@@ -1217,25 +1340,22 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
                     <h2 className="text-base font-semibold text-gray-800">Diamonds</h2>
                   </div>
-
                 </div>
 
-                {form.productSnapshot.diamonds.map((diamond, index) => (
+                {(currentSnapshot.diamonds || []).map((diamond, index) => (
                   <div key={index} className="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-sm font-medium text-gray-700">Diamond {index + 1}</span>
                       <button
                         type="button"
                         onClick={() => removeDiamond(index)}
-                        className="text-xs text-red-600 hover:text-red-800"
+                        className="text-xs text-red-600 hover:text-red-800 animate-pulse"
                       >
                         Remove
                       </button>
                     </div>
 
                     <div className="grid grid-cols-4 gap-3 items-end">
-
-                      {/* Shape */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Shape</label>
                         <select
@@ -1250,7 +1370,6 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         </select>
                       </div>
 
-                      {/* Clarity */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Clarity</label>
                         <select
@@ -1265,7 +1384,6 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         </select>
                       </div>
 
-                      {/* Color */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Color</label>
                         <select
@@ -1280,7 +1398,6 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         </select>
                       </div>
 
-                      {/* Size */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Size</label>
                         <input
@@ -1291,7 +1408,6 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         />
                       </div>
 
-                      {/* Gross Weight */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Est. Total (ct)</label>
                         <input
@@ -1304,61 +1420,48 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         />
                       </div>
 
-                      {/* Count */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Count / Pcs</label>
                         <input
                           type="number"
                           min="0"
                           className="h-9 px-2 border border-gray-300 rounded text-xs"
-                          //value={diamond.count}
                           value={diamond.count === 0 ? "" : diamond.count}
                           onChange={(e) => updateDiamond(index, "count", parseInt(e.target.value) || 0)}
                         />
                       </div>
 
-
-                      {/* Net Weight */}
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Est. Net (ct)</label>
                         <input
                           type="number"
                           readOnly
                           className="h-9 px-2 border border-gray-300 rounded text-xs bg-gray-100"
-                          value={diamond.weight}
+                          value={diamond.weight || 0}
                         />
                       </div>
 
-
-                      {/* Rate Override */}
                       <div className="flex flex-col">
                         <div className="flex justify-between items-center mb-1">
                           <label className="text-[11px] text-gray-600">Rate Override</label>
-
                           <button
                             type="button"
-                            className={`text-[10px] px-1 ${diamond.rateLocked ? "text-green-600" : "text-gray-500"
-                              }`}
+                            className={`text-[10px] px-1 ${diamond.rateLocked ? "text-green-600" : "text-gray-500"}`}
                             onClick={() => updateDiamond(index, "rateLocked", !diamond.rateLocked)}
                           >
                             {diamond.rateLocked ? "🔓" : "🔒"}
                           </button>
                         </div>
-
                         <input
                           type="number"
                           step="0.01"
                           disabled={!diamond.rateLocked}
-                          className={`h-9 px-2 border rounded text-xs ${diamond.rateLocked
-                            ? "border-gray-300 bg-white"
-                            : "border-gray-200 bg-gray-100"
-                            }`}
+                          className={`h-9 px-2 border rounded text-xs ${diamond.rateLocked ? "border-gray-300 bg-white" : "border-gray-200 bg-gray-100"}`}
                           value={diamond.rateOverride || ""}
                           min="0"
                           onChange={(e) => updateDiamond(index, "rateOverride", parseFloat(e.target.value) || null)}
                         />
                       </div>
-
                     </div>
                   </div>
                 ))}
@@ -1367,9 +1470,8 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                   onClick={addDiamond}
                   className="px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors"
                 >
-                  + Add
+                  + Add Diamond
                 </button>
-
               </div>
 
               {/* Precious Gemstones */}
@@ -1379,16 +1481,9 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
                     <h2 className="text-base font-semibold text-gray-800">Precious Gemstones</h2>
                   </div>
-                  {/* <button
-                    type="button"
-                    onClick={addGemstone}
-                    className="px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors"
-                  >
-                    + Add
-                  </button> */}
                 </div>
 
-                {form.productSnapshot.gemstones.map((gemstone, index) => (
+                {(currentSnapshot.gemstones || []).map((gemstone, index) => (
                   <div key={index} className="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-sm font-medium text-gray-700">Gemstone {index + 1}</span>
@@ -1431,41 +1526,20 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                         </select>
                       </div>
 
-                      {/* <div>
-                        <label className="block text-xs text-gray-600 mb-1">Est. weight (ct)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"
-                          
-                          value={gemstone.weight === 0 ? "" : gemstone.weight}
-                          onChange={(e) => updateGemstone(index, "weight", parseFloat(e.target.value) || 0)}
-                        />
-                      </div> */}
-
-                      {/* Gross Weight */}
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          Est. Total (ct)
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">Est. Total (ct)</label>
                         <input
                           type="number"
                           step="0.01"
                           min="0"
                           className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"
                           value={gemstone.grossWeight || ""}
-                          onChange={(e) =>
-                            updateGemstone(index, "grossWeight", e.target.value)
-                          }
+                          onChange={(e) => updateGemstone(index, "grossWeight", e.target.value)}
                         />
                       </div>
 
-                      {/* Net Weight (Auto) */}
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">
-                          Est. Net (ct)
-                        </label>
+                        <label className="block text-xs text-gray-600 mb-1">Est. Net (ct)</label>
                         <input
                           type="number"
                           readOnly
@@ -1490,28 +1564,23 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           Rate Override
                           <button
                             type="button"
-                            className="text-xs text-blue-600"
+                            className="text-xs text-blue-600 font-bold"
                             onClick={() => updateGemstone(index, "rateLocked", !gemstone.rateLocked)}
                           >
-                            {gemstone.rateLocked ? "🔓 Unlock" : "🔒 Lock"}
+                            {gemstone.rateLocked ? "🔓" : "🔒"}
                           </button>
                         </label>
-
                         <input
                           type="number"
                           step="0.01"
                           min="0"
                           disabled={!gemstone.rateLocked}
-                          className={`w-full px-2 py-1.5 border rounded text-xs ${gemstone.rateLocked ? "border-gray-300 bg-white" : "border-gray-200 bg-gray-100"
-                            }`}
+                          className={`w-full px-2 py-1.5 border rounded text-xs ${gemstone.rateLocked ? "border-gray-300 bg-white" : "border-gray-200 bg-gray-100"}`}
                           placeholder="Optional"
                           value={gemstone.rateOverride || ""}
-                          onChange={(e) =>
-                            updateGemstone(index, "rateOverride", parseFloat(e.target.value) || null)
-                          }
+                          onChange={(e) => updateGemstone(index, "rateOverride", parseFloat(e.target.value) || null)}
                         />
                       </div>
-
                     </div>
                   </div>
                 ))}
@@ -1521,11 +1590,11 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                   onClick={addGemstone}
                   className="px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors"
                 >
-                  + Add
+                  + Add Gemstone
                 </button>
               </div>
 
-              {/* Belts */}
+              {/* Accessories */}
               <div className="border border-gray-200 rounded-lg p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -1534,7 +1603,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                   </div>
                 </div>
 
-                {(form.productSnapshot.belts || []).map((belt, index) => (
+                {(currentSnapshot.belts || []).map((belt, index) => (
                   <div key={index} className="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-sm font-medium text-gray-700">Accessory {index + 1}</span>
@@ -1568,7 +1637,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
                           value={belt.material}
                           onChange={(e) => updateBelt(index, "material", e.target.value)}
-                          placeholder="e.g. Leather"
+                          placeholder="Leather"
                         />
                       </div>
 
@@ -1579,7 +1648,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
                           value={belt.color}
                           onChange={(e) => updateBelt(index, "color", e.target.value)}
-                          placeholder="e.g. Black"
+                          placeholder="Black"
                         />
                       </div>
 
@@ -1590,7 +1659,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white"
                           value={belt.size}
                           onChange={(e) => updateBelt(index, "size", e.target.value)}
-                          placeholder="e.g. 42mm"
+                          placeholder="42mm"
                         />
                       </div>
 
@@ -1655,14 +1724,11 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
                       placeholder="0.00"
                       min="0"
-                      value={form.advancePayment.amount || ""}
+                      value={currentSnapshot.advancePayment?.amount || ""}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
-                          advancePayment: {
-                            ...form.advancePayment,
-                            amount: parseFloat(e.target.value) || 0
-                          },
+                        updateSnapshotField("advancePayment", {
+                          ...(currentSnapshot.advancePayment || { mode: "CASH", transactionId: "" }),
+                          amount: parseFloat(e.target.value) || 0
                         })
                       }
                     />
@@ -1672,14 +1738,11 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Payment Mode</label>
                     <select
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.advancePayment.mode}
+                      value={currentSnapshot.advancePayment?.mode || "CASH"}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
-                          advancePayment: {
-                            ...form.advancePayment,
-                            mode: e.target.value
-                          },
+                        updateSnapshotField("advancePayment", {
+                          ...(currentSnapshot.advancePayment || { amount: 0, transactionId: "" }),
+                          mode: e.target.value
                         })
                       }
                     >
@@ -1690,19 +1753,16 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Refrence No</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Reference No</label>
                     <input
                       type="text"
                       className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
                       placeholder="Optional"
-                      value={form.advancePayment.transactionId}
+                      value={currentSnapshot.advancePayment?.transactionId || ""}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
-                          advancePayment: {
-                            ...form.advancePayment,
-                            transactionId: e.target.value
-                          },
+                        updateSnapshotField("advancePayment", {
+                          ...(currentSnapshot.advancePayment || { amount: 0, mode: "CASH" }),
+                          transactionId: e.target.value
                         })
                       }
                     />
@@ -1713,61 +1773,34 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={!!form.metalPayment}
-                      // onChange={(e) => {
-                      //   if (e.target.checked) {
-                      //     setForm({
-                      //       ...form,
-                      //       metalPayment: {
-                      //         metalType: form.productSnapshot.metalType,
-                      //         purity: form.productSnapshot.metalPurity,
-                      //         weight: 0,
-                      //         baseRate: 0,
-                      //         purityFactor: PURITY_MAP[form.productSnapshot.metalPurity] || 1,
-                      //         ratePerGram: 0,
-                      //         totalValue: 0,
-                      //         receivedAt: new Date(),
-                      //       }
-                      //     });
-                      //   } else {
-                      //     setForm({ ...form, metalPayment: null });
-                      //   }
-
-
+                      checked={!!currentSnapshot.metalPayment}
                       onChange={(e) => {
                         if (e.target.checked) {
-
-                          const metalType = form.productSnapshot.metalType;
-                          const purity = form.productSnapshot.metalPurity;
-
+                          const metalType = currentSnapshot.metalType || "Gold";
+                          const purity = currentSnapshot.metalPurity || "22KT";
                           const ratePerGram = rates?.helpers.getMetalRate(metalType, purity) || 0;
                           const purityFactor = rates?.helpers.getPurityFactor(metalType, purity) || 1;
 
-                          setForm({
-                            ...form,
-                            metalPayment: {
-                              metalType,
-                              purity,
-                              weight: 0,
-                              baseRate: ratePerGram,
-                              purityFactor,
-                              ratePerGram,
-                              totalValue: 0,
-                              receivedAt: new Date(),
-                            }
+                          updateSnapshotField("metalPayment", {
+                            metalType,
+                            purity,
+                            weight: 0,
+                            baseRate: ratePerGram,
+                            purityFactor,
+                            ratePerGram,
+                            totalValue: 0,
+                            receivedAt: new Date(),
                           });
-
                         } else {
-                          setForm({ ...form, metalPayment: null });
+                          updateSnapshotField("metalPayment", null);
                         }
-
                       }}
                       className="w-4 h-4 text-[#6B2E4A]"
                     />
-                    <span className="text-sm text-gray-700">Customer providing metal</span>
+                    <span className="text-sm text-gray-700 font-medium">Customer providing metal</span>
                   </label>
 
-                  {form.metalPayment && (
+                  {currentSnapshot.metalPayment && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200">
                       <div className="grid grid-cols-3 gap-3">
                         <div>
@@ -1778,7 +1811,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                             min="0"
                             placeholder="0.00"
                             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                            value={form.metalPayment.weight || ""}
+                            value={currentSnapshot.metalPayment.weight || ""}
                             onChange={(e) => handleMetalPaymentChange("weight", parseFloat(e.target.value) || 0)}
                           />
                         </div>
@@ -1786,7 +1819,7 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           <label className="block text-xs text-gray-600 mb-1">Metal Type</label>
                           <select
                             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
-                            value={form.metalPayment.metalType}
+                            value={currentSnapshot.metalPayment.metalType}
                             onChange={(e) => handleMetalPaymentChange("metalType", e.target.value)}
                           >
                             <option value="Gold">Gold</option>
@@ -1798,10 +1831,10 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                           <label className="block text-xs text-gray-600 mb-1">Purity</label>
                           <select
                             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
-                            value={form.metalPayment.purity}
+                            value={currentSnapshot.metalPayment.purity}
                             onChange={(e) => handleMetalPaymentChange("purity", e.target.value)}
                           >
-                            {METAL_OPTIONS[form.metalPayment.metalType]?.purities.map(p => (
+                            {(METAL_OPTIONS[currentSnapshot.metalPayment.metalType]?.purities || []).map(p => (
                               <option key={p} value={p}>{p}</option>
                             ))}
                           </select>
@@ -1812,55 +1845,9 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                 </div>
               </div>
 
-              {/* Handling & Status */}
-              {/* <div className="border border-gray-200 rounded-lg p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-5 bg-[#6B2E4A] rounded"></div>
-                  <h2 className="text-base font-semibold text-gray-800">Handling & Status</h2>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Expected Delivery Date</label>
-                    <input
-                      type="date"
-                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.expectedDeliveryDate}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          expectedDeliveryDate: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Order Status</label>
-                    <select
-                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.status}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          status: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="Placed">Placed</option>
-                      <option value="Received">Received</option>
-                      <option value="In-Process">In-Process</option>
-                      <option value="Ready">Ready</option>
-                      <option value="Delivered">Delivered</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-              </div> */}
-
             </div>
 
-            {/* RIGHT COLUMN - Customer Profile */}
+            {/* RIGHT COLUMN - Customer Profile & Summary */}
             <div className="space-y-6">
 
               {/* Customer Profile */}
@@ -1888,17 +1875,65 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
 
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Mobile Number</label>
-                    <input
-                      placeholder="+91 98xxxxxxxx"
-                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
-                      value={form.customer.mobile}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          customer: { ...form.customer, mobile: e.target.value },
-                        })
-                      }
-                    />
+                    <div className="relative">
+                      <input
+                        placeholder="+91 98xxxxxxxx"
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
+                        value={form.customer.mobile}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            customer: { ...form.customer, mobile: e.target.value },
+                          })
+                        }
+                      />
+                      {customerLookup.loading && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs animate-pulse">Looking up…</span>
+                      )}
+                    </div>
+
+                    {!customerLookup.loading && customerLookup.orders.length > 0 && (
+                      <div className="mt-2 flex items-center gap-2 p-2.5 bg-[#6B2E4A]/5 border border-[#6B2E4A]/20 rounded-md">
+                        <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                        <span className="text-xs text-[#6B2E4A] font-medium">
+                          Returning customer — {customerLookup.orders.length} previous order{customerLookup.orders.length !== 1 ? "s" : ""}
+                        </span>
+                        <a
+                          href={`/orders?search=${encodeURIComponent(form.customer.mobile)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-auto text-[10px] text-[#6B2E4A] underline font-semibold hover:text-[#4a1e33]"
+                        >
+                          View All →
+                        </a>
+                      </div>
+                    )}
+
+                    {!customerLookup.loading && customerLookup.orders.length > 0 && (
+                      <div className="mt-2 max-h-28 overflow-y-auto space-y-1.5">
+                        {customerLookup.orders.slice(0, 4).map(o => (
+                          <a
+                            key={o._id}
+                            href={`/orders/${o._id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex justify-between items-center px-2.5 py-1.5 text-xs rounded bg-white border border-gray-200 hover:border-[#6B2E4A]/30 hover:bg-[#6B2E4A]/5 transition"
+                          >
+                            <span className="font-mono font-medium text-gray-700">{o.orderNo}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                              o.status === "Delivered" ? "bg-green-100 text-green-700" :
+                              o.status === "Cancelled" ? "bg-red-100 text-red-600" :
+                              o.status === "Ready" ? "bg-blue-100 text-blue-700" :
+                              o.status === "In-Process" ? "bg-amber-100 text-amber-700" :
+                              "bg-purple-100 text-purple-700"
+                            }`}>{o.status}</span>
+                          </a>
+                        ))}
+                        {customerLookup.orders.length > 4 && (
+                          <p className="text-center text-[10px] text-gray-400 py-1">+{customerLookup.orders.length - 4} more</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1949,55 +1984,106 @@ w-7 h-7 rounded-full text-xs flex items-center justify-center print:hidden activ
                 </div>
               </div>
 
-              {/* Order Summary */}
+              {/* Order Summary Card */}
               <div className="bg-[#6B2E4A] text-white rounded-lg p-5 sticky top-6">
-                <h3 className="text-base font-semibold mb-4">Order Summary</h3>
+                <h3 className="text-base font-semibold mb-4 border-b border-white/20 pb-2">Order Summary</h3>
 
-                <div className="space-y-2 text-sm mb-4 pb-4 border-b border-white/20">
-                  <div className="flex justify-between">
-                    <span className="text-white/80">Metal Value:</span>
-                    <span className="font-medium">₹ {calculateMetalValue()}</span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-white/80">Diamond Value:</span>
-                    <span className="font-medium">₹ {calculateDiamondValue()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-white/80">Stone Value:</span>
-                    <span className="font-medium">₹ {calculateStoneValue()}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-white/20 pt-2 mt-2">
-                    <span className="text-white font-semibold">Components Total:</span>
-                    <span className="font-semibold">₹ {calculateTotalComponents()}</span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-white/80">Advance Received:</span>
-                    <span className="font-medium">₹ {form.advancePayment.amount.toFixed(2)}</span>
+                {/* Active Item Details */}
+                <div className="mb-4 pb-4 border-b border-white/20">
+                  <p className="text-xs uppercase tracking-widest text-[#C5A859] font-bold mb-2.5">
+                    Active Item {form.productSnapshots.length > 1 ? `(${activeItemIndex + 1} of ${form.productSnapshots.length})` : ""}
+                  </p>
+                  <div className="space-y-2 text-sm text-white/80">
+                    <div className="flex justify-between">
+                      <span>Metal Value:</span>
+                      <span className="font-medium">₹ {calculateMetalValue(currentSnapshot)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Diamond Value:</span>
+                      <span className="font-medium">₹ {calculateDiamondValue(currentSnapshot)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Stone Value:</span>
+                      <span className="font-medium">₹ {calculateStoneValue(currentSnapshot)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Accessory Value:</span>
+                      <span className="font-medium">₹ {calculateBeltValue(currentSnapshot)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-white/10 pt-2 mt-2 font-medium">
+                      <span>Item Estimate:</span>
+                      <span className="font-semibold text-white">
+                        ₹ {(Number(calculateMetalValue(currentSnapshot)) + Number(calculateTotalComponents(currentSnapshot))).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2 text-xs mb-4">
-                  <div className="flex justify-between text-white/70">
-                    <span>Metal Type:</span>
-                    <span>{form.productSnapshot.metalType}</span>
+                {/* Batch Summary (rendered only if there are multiple items) */}
+                {form.productSnapshots.length > 1 && (
+                  <div className="mb-4 pb-4 border-b border-white/20 space-y-2.5">
+                    <p className="text-xs uppercase tracking-widest text-[#C5A859] font-bold">
+                      Batch Summary ({form.productSnapshots.length} Items)
+                    </p>
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                      {form.productSnapshots.map((snap, idx) => {
+                        const itemEst = (Number(calculateMetalValue(snap)) + Number(calculateTotalComponents(snap))).toFixed(2);
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => setActiveItemIndex(idx)}
+                            className={`flex justify-between py-1.5 px-2 rounded cursor-pointer transition ${
+                              idx === activeItemIndex
+                                ? "bg-white/20 border-l-2 border-[#C5A859] pl-1.5"
+                                : "hover:bg-white/10"
+                            }`}
+                          >
+                            <span className="truncate max-w-[150px] font-medium">
+                              {idx + 1}. {snap.title || `Custom Item ${idx + 1}`}
+                            </span>
+                            <span>₹ {itemEst}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between border-t border-white/25 pt-2 font-semibold text-sm">
+                      <span>Total Batch Estimate:</span>
+                      <span className="text-[#C5A859]">
+                        ₹ {form.productSnapshots.reduce((sum, snap) => sum + Number(calculateMetalValue(snap)) + Number(calculateTotalComponents(snap)), 0).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-white/70">
-                    <span>Purity:</span>
-                    <span>{form.productSnapshot.metalPurity}</span>
+                )}
+
+                {/* Advance Details */}
+                <div className="space-y-2 text-xs mb-6 text-white/70">
+                  <div className="flex justify-between">
+                    <span>Total Advance Cash/UPI:</span>
+                    <span className="font-semibold text-white text-sm">
+                      ₹ {form.productSnapshots.reduce((sum, snap) => sum + (snap.advancePayment?.amount || 0), 0).toFixed(2)}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-white/70">
-                    <span>Net Weight:</span>
-                    <span>{form.productSnapshot.netWeight}g</span>
-                  </div>
+                  {form.productSnapshots.some(snap => snap.metalPayment && snap.metalPayment.weight > 0) && (
+                    <div className="flex justify-between">
+                      <span>Total Metal Advance:</span>
+                      <span className="font-semibold text-white text-sm text-right">
+                        {Object.entries(form.productSnapshots.reduce((acc, snap) => {
+                          if (snap.metalPayment && snap.metalPayment.weight > 0) {
+                            const key = `${snap.metalPayment.metalType} ${snap.metalPayment.purity}`;
+                            acc[key] = (acc[key] || 0) + snap.metalPayment.weight;
+                          }
+                          return acc;
+                        }, {})).map(([type, weight]) => `${weight.toFixed(3)}g (${type})`).join(', ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <button
                   onClick={submit}
-                  className="w-full bg-[#C5A859] hover:bg-[#C19B2B] text-white font-semibold py-3 rounded-md transition-colors text-sm"
+                  className="w-full bg-[#C5A859] hover:bg-[#C19B2B] text-white font-semibold py-3.5 rounded-md transition-colors text-sm uppercase tracking-wider shadow hover:shadow-lg active:scale-[0.99]"
                 >
-                  CREATE ORDER NOW
+                  {initialOrder?._id ? "UPDATE ORDER" : "CREATE BATCH ORDERS"}
                 </button>
               </div>
 

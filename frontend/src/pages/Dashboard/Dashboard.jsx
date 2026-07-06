@@ -7,17 +7,112 @@ import DashboardCharts from "./DashboardCharts";
 import RecentOrdersTable from "./RecentOrdersTable";
 import TopSellingList from "./TopSellingList";
 import SalesBreakdown from "./SalesBreakdown";
-import { Calendar } from "lucide-react"; // Icon
+import { Calendar, ChevronDown, Download, Printer } from "lucide-react"; // Icon
+import * as XLSX from "xlsx";
 import MetalTrendChart from "./MetalTrendChart";
 
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
   const handlePrint = () => {
-  window.print();
-};
+    setExportDropdownOpen(false);
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    setExportDropdownOpen(false);
+    if (!data) return;
+    try {
+      const { stats, recentOrders, analytics } = data;
+
+      // 1. Prepare Overview Sheet Data
+      const overviewData = [
+        ["DASHBOARD OVERVIEW REPORT"],
+        ["Filter Period:", filterType.toUpperCase()],
+        ...(filterType === "custom" && customRange.start && customRange.end
+          ? [["Date Range:", `${customRange.start} to ${customRange.end}`]]
+          : []),
+        ["Generated On:", new Date().toLocaleString("en-IN")],
+        [],
+        ["KEY PERFORMANCE INDICATORS (KPIs)"],
+        ["Metric", "Value"],
+        ["Total Revenue", stats?.totalRevenue || 0],
+        ["Total Orders", stats?.totalOrders || 0],
+        ["Inventory Items", stats?.inventoryItems || 0],
+        ["Average Order Value", Math.round(stats?.avgOrderValue || 0)],
+        [],
+        ["METAL SALES SUMMARY"],
+        ["Metal", "Weight (g)", "Revenue (₹)"],
+        ...(analytics?.metalSales || []).map(m => [m._id, m.totalWeight || 0, m.totalRevenue || 0]),
+        [],
+        ["DIAMOND ANALYSIS SUMMARY"],
+        ["Total Carats", analytics?.diamondStats?.totalCarats || 0],
+        ["Total Sales (Items)", analytics?.diamondStats?.sales || 0],
+        [],
+        ["STONE SALES SUMMARY"],
+        ["Stone Type", "Weight (cts)"],
+        ...(analytics?.topStones || []).map(s => [s.type || "Unknown", s.weight || 0])
+      ];
+
+      // 2. Prepare Recent Orders Sheet Data
+      const recentOrdersData = [
+        ["RECENT PURCHASE ORDERS"],
+        ["Generated On:", new Date().toLocaleString("en-IN")],
+        [],
+        ["Invoice No", "Customer Name", "Amount (₹)", "Status", "Date"],
+        ...(recentOrders || []).map(o => [
+          o.invoiceNo,
+          o.customer?.name || "N/A",
+          o.totals?.grandTotal || 0,
+          o.payment?.status || "N/A",
+          new Date(o.createdAt).toLocaleDateString("en-IN")
+        ])
+      ];
+
+      // 3. Prepare Top Products Sheet Data
+      const topProductsData = [
+        ["TOP SELLING PRODUCTS"],
+        ["Generated On:", new Date().toLocaleString("en-IN")],
+        [],
+        ["Rank", "Product Name", "Sales (Qty)", "Revenue (₹)"],
+        ...(analytics?.topProducts || []).map((p, idx) => [
+          idx + 1,
+          p._id,
+          p.sales || 0,
+          p.revenue || 0
+        ])
+      ];
+
+      // Create worksheets
+      const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
+      const wsOrders = XLSX.utils.aoa_to_sheet(recentOrdersData);
+      const wsProducts = XLSX.utils.aoa_to_sheet(topProductsData);
+
+      // Adjust column widths for better readability
+      wsOverview["!cols"] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }];
+      wsOrders["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 15 }];
+      wsProducts["!cols"] = [{ wch: 8 }, { wch: 30 }, { wch: 12 }, { wch: 15 }];
+
+      // Create Workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsOverview, "Overview");
+      XLSX.utils.book_append_sheet(wb, wsOrders, "Recent Orders");
+      XLSX.utils.book_append_sheet(wb, wsProducts, "Top Products");
+
+      // Generate filename based on date/filter
+      const dateString = new Date().toISOString().slice(0, 10);
+      const filename = `Dashboard_Report_${filterType}_${dateString}.xlsx`;
+
+      // Trigger download
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Failed to export Excel report:", error);
+      alert("Error exporting report to Excel");
+    }
+  };
   
   // ✅ GLOBAL FILTER STATE
   const [filterType, setFilterType] = useState("monthly"); // daily, weekly, monthly, yearly, custom
@@ -148,13 +243,39 @@ export default function Dashboard() {
              </div>
            )}
 
-           {/* Action Buttons */}
-           <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
-           <button
-           onClick={handlePrint}
-           className="px-4 py-2 bg-[#501b46] text-white text-sm font-medium rounded-lg hover:bg-[#3a1332] transition flex items-center gap-2">
-             <Calendar size={16} /> Export Report
-           </button>
+            {/* Action Buttons */}
+            <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
+            <div className="relative">
+              <button
+                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                className="px-4 py-2 bg-[#501b46] text-white text-sm font-medium rounded-lg hover:bg-[#3a1332] transition flex items-center gap-2"
+              >
+                <Download size={16} /> Export Report <ChevronDown size={14} />
+              </button>
+
+              {exportDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setExportDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-lg shadow-lg py-1 z-20 animate-fadeIn">
+                    <button
+                      onClick={handlePrint}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-[#501b46] flex items-center gap-2 transition"
+                    >
+                      <Printer size={16} /> Print Report
+                    </button>
+                    <button
+                      onClick={handleExportExcel}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-[#501b46] flex items-center gap-2 transition"
+                    >
+                      <Download size={16} /> Export as Excel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
         </div>
       </div>
 

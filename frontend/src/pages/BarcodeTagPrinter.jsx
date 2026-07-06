@@ -720,8 +720,56 @@ export default function BarcodeTagPrinter() {
               }
 
               // Standard Tag Designer Loop
-              const diamondGW = p.jewelleryStones?.filter(s => s.stoneType?.toUpperCase() === "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
-              const stoneGW = p.jewelleryStones?.filter(s => s.stoneType?.toUpperCase() !== "DIAMOND").reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0) || 0;
+              let diamondGW = 0;
+              let stoneGW = 0;
+              
+              if (p.jewelleryStones && Array.isArray(p.jewelleryStones)) {
+                // Manual / Quick Mode fallback structure
+                diamondGW = p.jewelleryStones
+                  .filter(s => s.stoneType?.toUpperCase() === "DIAMOND")
+                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
+                stoneGW = p.jewelleryStones
+                  .filter(s => s.stoneType?.toUpperCase() !== "DIAMOND")
+                  .reduce((acc, s) => acc + (Number(s.stoneWeight) || 0), 0);
+              } else if (p.components && Array.isArray(p.components)) {
+                // DB Product Mode (using components)
+                diamondGW = p.components
+                  .filter(c => {
+                    const t = (c.type || "").toUpperCase();
+                    return ["DIAMOND", "POLKI", "MOISSANITE"].includes(t);
+                  })
+                  .reduce((acc, c) => {
+                    const gw = c.grossWeight != null && c.grossWeight > 0
+                      ? Number(c.grossWeight)
+                      : Number(c.weight || 0) * Number(c.count || 1); // default count to 1 to avoid zeroing out
+                    return acc + gw;
+                  }, 0);
+                stoneGW = p.components
+                  .filter(c => {
+                    const t = (c.type || "").toUpperCase();
+                    return !["DIAMOND", "POLKI", "MOISSANITE", "ACCESSORY", "BELT", ""].includes(t);
+                  })
+                  .reduce((acc, c) => {
+                    const gw = c.grossWeight != null && c.grossWeight > 0
+                      ? Number(c.grossWeight)
+                      : Number(c.weight || 0) * Number(c.count || 1);
+                    return acc + gw;
+                  }, 0);
+              }
+
+              let fineGoldWeight = p.fine !== undefined ? Number(p.fine) : (p.fineGold !== undefined ? Number(p.fineGold) : 0);
+              if (!fineGoldWeight && p.netWeight && p.metalPurity) {
+                const purityStr = String(p.metalPurity).toUpperCase().replace(/\s+/g, "");
+                let purityMultiplier = 0;
+                if (purityStr.includes("24K")) purityMultiplier = 0.995;
+                else if (purityStr.includes("22K")) purityMultiplier = 0.916;
+                else if (purityStr.includes("18K")) purityMultiplier = 0.750;
+                else if (purityStr.includes("14K")) purityMultiplier = 0.585;
+                
+                if (purityMultiplier > 0) {
+                    fineGoldWeight = Number(p.netWeight) * purityMultiplier;
+                }
+              }
 
               return (
                 <div
@@ -894,7 +942,7 @@ export default function BarcodeTagPrinter() {
                     }}
                   >
                     <div className="flex items-center text-[5px] font-black p-0.5 whitespace-nowrap leading-none gap-[0.5mm]">
-                      <span className="text-slate-400">FINE:</span><span className="text-black">{Number(p.fine || 0).toFixed(3)}g</span>
+                      <span className="text-slate-400">FINE:</span><span className="text-black">{Number(fineGoldWeight || 0).toFixed(3)}g</span>
                     </div>
                   </div>
 

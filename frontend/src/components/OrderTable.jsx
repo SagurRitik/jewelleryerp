@@ -312,7 +312,7 @@ export default function OrderTable({ orders, onRefresh }) {
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-16">
 
                 <div>
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex flex-wrap items-center gap-3 mb-4">
                     <h3 className="text-xl font-semibold text-gray-900">
                       {o.orderNo}
                     </h3>
@@ -329,6 +329,17 @@ export default function OrderTable({ orders, onRefresh }) {
                       {theme.icon}
                       {o.status}
                     </span>
+
+                    {o.groupOrderNo && (
+                      <Link
+                        to={`/orders?search=${encodeURIComponent(o.groupOrderNo)}`}
+                        className="text-[10px] bg-[#6B2E4A]/10 text-[#6B2E4A] border border-[#6B2E4A]/20 px-2.5 py-1 rounded-full font-semibold hover:bg-[#6B2E4A]/20 transition flex items-center gap-1"
+                        title="View all items in this order group"
+                      >
+                        <Package className="w-3 h-3" />
+                        Batch Order: {o.groupOrderNo}
+                      </Link>
+                    )}
                   </div>
 
                   <p className="text-sm text-gray-500 mb-1">Customer</p>
@@ -339,9 +350,19 @@ export default function OrderTable({ orders, onRefresh }) {
                   <p className="text-sm text-gray-500 mt-3 mb-1">
                     Contact Number
                   </p>
-                  <p className="font-medium text-gray-800">
-                    {contact}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-gray-800">
+                      {contact}
+                    </p>
+                    {o.customer?.mobile && (
+                      <a
+                        href={`/orders?search=${encodeURIComponent(o.customer.mobile)}`}
+                        className="text-[10px] px-2 py-0.5 rounded-full bg-[#6B2E4A]/10 text-[#6B2E4A] font-semibold hover:bg-[#6B2E4A]/20 transition whitespace-nowrap"
+                      >
+                        All Orders ↗
+                      </a>
+                    )}
+                  </div>
 
                   <p className="text-sm text-gray-500 mt-3 mb-1">
                     Email

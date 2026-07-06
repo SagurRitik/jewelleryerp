@@ -322,8 +322,31 @@ export const createOrder = async (req, res) => {
     const seq = last ? Number(last.orderNo.split("-").pop()) + 1 : 1;
     const orderNo = `${prefix}${String(seq).padStart(4, "0")}`;
 
+    // Generate batch number NZD-BH-YYYY/MM/DD-XXXX
+    let groupOrderNo = cleanData.groupOrderNo;
+    if (!groupOrderNo) {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const todaySlash = todayIso.replace(/-/g, "/");
+      const batchPrefix = `NZD-BH-${todaySlash}-`;
+
+      const lastGroup = await Order.findOne({
+        groupOrderNo: { $regex: `^NZD-BH-${todaySlash}-` },
+      }).sort({ createdAt: -1 });
+
+      let groupSeq = 1;
+      if (lastGroup && lastGroup.groupOrderNo) {
+        const parts = lastGroup.groupOrderNo.split("-");
+        const lastSeqStr = parts[parts.length - 1];
+        if (!isNaN(lastSeqStr)) {
+          groupSeq = Number(lastSeqStr) + 1;
+        }
+      }
+      groupOrderNo = `${batchPrefix}${String(groupSeq).padStart(4, "0")}`;
+    }
+
     const order = await Order.create({
       orderNo,
+      groupOrderNo,
       customer: cleanData.customer,
       productRef: cleanData.productRef || null,
       // productSnapshot: ps,
@@ -409,6 +432,17 @@ export const updateOrderById = async (req, res) => {
       Object.entries(cleanData.customer).forEach(([k, v]) => {
         updateOps.$set[`customer.${k}`] = v;
       });
+      // Synchronize customer details for all orders in the same group
+      if (order.groupOrderNo) {
+        try {
+          await Order.updateMany(
+            { groupOrderNo: order.groupOrderNo },
+            { $set: { customer: cleanData.customer } }
+          );
+        } catch (groupErr) {
+          console.error("Failed to sync customer details to group orders:", groupErr);
+        }
+      }
     }
 
     /* ================= PRODUCT SNAPSHOT ================= */
@@ -752,18 +786,78 @@ export const getOrderByOrderNo = async (req, res) => {
   }
 };
 
+/* ================= GET ORDERS BY CUSTOMER MOBILE ================= */
+export const getOrdersByCustomerMobile = async (req, res) => {
+  try {
+    const { mobile } = req.params;
+
+    const orders = await Order.find({ "customer.mobile": mobile })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!orders.length) {
+      return res.json({ success: true, orders: [], customer: null });
+    }
+
+    // Normalize images for all orders
+    orders.forEach(order => {
+      if (order.productSnapshot?.productImages) {
+        order.productSnapshot.productImages =
+          order.productSnapshot.productImages.map(normalizeImage);
+      }
+    });
+
+    // Extract customer info from the most recent order
+    const customer = orders[0].customer;
+
+    res.json({ success: true, orders, customer });
+  } catch (err) {
+    console.error("GET ORDERS BY CUSTOMER MOBILE ERROR:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/* ================= GET ORDERS BY GROUP ORDER NO ================= */
+export const getOrdersByGroupOrderNo = async (req, res) => {
+  try {
+    const { groupOrderNo } = req.params;
+
+    const orders = await Order.find({ groupOrderNo })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    // Normalize images for all orders
+    orders.forEach(order => {
+      if (order.productSnapshot?.productImages) {
+        order.productSnapshot.productImages =
+          order.productSnapshot.productImages.map(normalizeImage);
+      }
+    });
+
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error("GET ORDERS BY GROUP NO ERROR:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 export const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", status, date, startDate, endDate } = req.query;
+    const { page = 1, limit = 10, search = "", status, date, startDate, endDate, groupOrderNo } = req.query;
 
     const filter = {};
 
     if (status) filter.status = status;
 
+    if (groupOrderNo) {
+      filter.groupOrderNo = { $regex: groupOrderNo, $options: "i" };
+    }
+
     if (search) {
       filter.$or = [
         { orderNo: { $regex: search, $options: "i" } },
+        { groupOrderNo: { $regex: search, $options: "i" } },
         { "customer.name": { $regex: search, $options: "i" } },
         { "customer.mobile": { $regex: search, $options: "i" } },
       ];

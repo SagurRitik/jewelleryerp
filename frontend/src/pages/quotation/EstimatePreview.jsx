@@ -411,21 +411,18 @@ export default function EstimatePreview() {
       return;
     }
 
-    // Prepare data for Order Form
-    const firstItem = q.items[0];
-
-    // Convert estimate item structure to order form structure
-    const initialProduct = {
-      title: firstItem.title,
-      jewelleryCategory: firstItem.jewelleryCategory,
-      description: firstItem.description,
-      metalType: firstItem.metalType,
-      metalPurity: firstItem.metalPurity,
-      netWeight: firstItem.netWeight,
-      grossWeight: firstItem.grossWeight,
-      images: firstItem.images || [],
-      components: firstItem.components || [],
-    };
+    // Convert all estimate items structure to order form structure
+    const initialProducts = q.items.map(item => ({
+      title: item.title,
+      jewelleryCategory: item.jewelleryCategory,
+      description: item.description,
+      metalType: item.metalType,
+      metalPurity: item.metalPurity,
+      netWeight: item.netWeight,
+      grossWeight: item.grossWeight,
+      images: item.images || [],
+      components: item.components || [],
+    }));
 
     const customer = {
       name: q.customerName,
@@ -436,7 +433,7 @@ export default function EstimatePreview() {
 
     navigate("/orders/new", {
       state: {
-        initialProduct,
+        initialProducts,
         customer,
         convertedFromEstimateId: id // Keep track of the source
       }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getOrders } from "../api/orderApi";
 import OrderTable from "../components/OrderTable";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Package,
   Clock,
@@ -27,6 +27,9 @@ function useDebounce(value, delay = 500) {
 }
 
 export default function Orders() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamVal = searchParams.get("search") || "";
+
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -40,12 +43,17 @@ export default function Orders() {
 
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParamVal);
   const debouncedSearch = useDebounce(search);
 
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
+
+  // Synchronize state with URL params
+  useEffect(() => {
+    setSearch(searchParams.get("search") || "");
+  }, [searchParams]);
 
   const fetchOrders = () => {
     setLoading(true);
@@ -85,7 +93,7 @@ export default function Orders() {
       to-[#FDFBF9]
       
     ">
-      <BackButton/>
+      <BackButton />
       <div className="max-w-7xl mx-auto px-6">
 
         {/* ===== HEADER ===== */}
@@ -106,9 +114,9 @@ export default function Orders() {
             Create Manual Order
           </Link> */}
 
-<Link
-  to="/orders/new"
-  className="
+          <Link
+            to="/orders/new"
+            className="
     group relative inline-flex items-center justify-center gap-2
 
     w-full sm:w-auto   /* ✅ full width on mobile */
@@ -134,9 +142,9 @@ export default function Orders() {
 
     overflow-hidden
   "
->
-  {/* ✨ shimmer effect */}
-  <span className="
+          >
+            {/* ✨ shimmer effect */}
+            <span className="
     pointer-events-none absolute inset-0
     bg-gradient-to-r from-transparent via-white/20 to-transparent
     translate-x-[-120%]
@@ -144,21 +152,21 @@ export default function Orders() {
     transition-transform duration-700
   " />
 
-  {/* 🔥 subtle inner glow on tap (mobile friendly) */}
-  <span className="
+            {/* 🔥 subtle inner glow on tap (mobile friendly) */}
+            <span className="
     pointer-events-none absolute inset-0 rounded-xl
     opacity-0 group-active:opacity-100
     bg-white/10 transition
   " />
 
-  {/* 🔤 text */}
-  <span className="relative z-10 whitespace-nowrap">
-    Create Manual Order
-  </span>
+            {/* 🔤 text */}
+            <span className="relative z-10 whitespace-nowrap">
+              Create Manual Order
+            </span>
 
-  {/* ➡️ icon */}
-  <svg
-    className="
+            {/* ➡️ icon */}
+            <svg
+              className="
       w-4 h-4 relative z-10
 
       transition-all duration-300
@@ -166,14 +174,14 @@ export default function Orders() {
 
       group-active:scale-110
     "
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 7l5 5-5 5" />
-  </svg>
-</Link>
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 7l5 5-5 5" />
+            </svg>
+          </Link>
 
 
         </div>
@@ -187,17 +195,22 @@ export default function Orders() {
           <Stat title="Delivered" value={stats.delivered} icon={Check} color="green" />
           <Stat title="Cancelled" value={stats.cancelled} icon={X} color="rose" />
         </div>
-
         {/* ===== FILTER BAR ===== */}
-        <div className="flex gap-4 mb-6 p-4 rounded-xl bg-white/60 backdrop-blur">
+        <div className="flex flex-wrap gap-4 mb-6 p-4 rounded-xl bg-white/60 backdrop-blur">
           <input
             value={search}
             onChange={(e) => {
               setPage(1);
               setSearch(e.target.value);
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                if (e.target.value) next.set("search", e.target.value);
+                else next.delete("search");
+                return next;
+              }, { replace: true });
             }}
             placeholder="Search order / customer / mobile"
-            className="border px-4 py-2 rounded-lg w-64"
+            className="border px-4 py-2 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-[#6B2E4A]/20 focus:border-[#6B2E4A]"
           />
 
           <select
@@ -206,7 +219,7 @@ export default function Orders() {
               setPage(1);
               setStatus(e.target.value);
             }}
-            className="border px-4 py-2 rounded-lg"
+            className="border px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6B2E4A]/20 focus:border-[#6B2E4A]"
           >
             <option value="">All Status</option>
             <option value="Placed">Placed</option>

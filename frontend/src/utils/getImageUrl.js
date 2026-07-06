@@ -36,8 +36,15 @@ export const getImageUrl = (img) => {
     "";
 
   if (typeof window !== "undefined") {
-    // Fallback if empty, or force to current origin if we are in production but env is stuck on localhost
-    if (!IMAGE_BASE || (IMAGE_BASE.includes("localhost") && !window.location.hostname.includes("localhost"))) {
+    // If the configured base URL is HTTP but the site is loaded over HTTPS,
+    // the browser will block or upgrade it and fail. Fallback to current origin.
+    const isHttps = window.location.protocol === "https:";
+    if (
+      !IMAGE_BASE ||
+      (IMAGE_BASE.includes("localhost") && !window.location.hostname.includes("localhost")) ||
+      (isHttps && IMAGE_BASE.startsWith("http://")) ||
+      (IMAGE_BASE.includes("122.176.216.225") && window.location.hostname !== "122.176.216.225")
+    ) {
       IMAGE_BASE = window.location.origin;
     }
   }
