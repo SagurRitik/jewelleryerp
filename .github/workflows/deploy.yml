@@ -4,53 +4,52 @@ on:
   push:
     branches:
       - main
+      # - development   # uncomment to also deploy on pushes to development
+
+# Prevent overlapping deploys; a newer push cancels an in-progress one
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Deploy to server over SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          host: 122.176.216.225
-          username: root
-          port: 22
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          port: ${{ secrets.SSH_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true   # abort the deploy if any command below fails
           script: |
-            echo "Go to project directory"
+            set -e
+            echo "==> Project directory"
             cd /var/www/html/jewelleryerp
 
-            echo "Load Local Node & NVM Environment"
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-            echo "Reset old code"
-            git fetch origin
+            echo "==> Sync code with origin/main (discards local changes to tracked files)"
+            git fetch origin main
             git reset --hard origin/main
 
-            echo "Pull latest code"
-            git pull origin main
-
-            echo "Backend setup"
+            echo "==> Backend dependencies"
             cd backend
-            npm install
+            npm install --omit=dev
 
-            echo "Frontend setup"
+            echo "==> Frontend dependencies + production build"
             cd ../frontend
             npm install
-
-            echo "Build frontend"
             npm run build
 
-            echo "Restart backend with local PM2"
+            echo "==> Restart backend (pm2)"
             cd ../backend
-            
-            # Local PM2 binary ka sahi path use kar rahe hain jo isolated hai
-            ../node_modules/.bin/pm2 restart jewellery-backend || ../node_modules/.bin/pm2 start server.js --name jewellery-backend --update-env
+            pm2 restart jewellery-backend --update-env || pm2 start server.js --name jewellery-backend --update-env
+            pm2 save
 
-            echo "Save PM2 configuration"
-            ../node_modules/.bin/pm2 save
+            echo "==> Reload Nginx (serves the fresh frontend build)"
+            nginx -t && systemctl reload nginx
 
-            echo "PM2 Status"
-            ../node_modules/.bin/pm2 list
+            echo "==> Status"
+            pm2 list
+            echo "Deploy complete."

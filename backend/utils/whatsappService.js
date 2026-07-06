@@ -25,7 +25,7 @@ const AISENSY_ENDPOINT = "https://backend.aisensy.com/campaign/t1/api/v2";
  * Save a PDF buffer to the temp uploads folder and return its public URL.
  * @param {Buffer} pdfBuffer
  * @param {string} filename
- * @param {string} baseUrl  e.g. "https://jewelleryerp.nazaradiamonds.com"
+ * @param {string} baseUrl  e.g. "https://devjewelerp.nazaradiamonds.com"
  */
 export const saveTempPdf = (pdfBuffer, filename, baseUrl) => {
   const tempDir = path.join(__dirname, "..", "uploads", "temp");
