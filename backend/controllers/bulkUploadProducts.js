@@ -165,22 +165,23 @@ export const bulkUploadProducts = async (req, res) => {
       }
 
       // Handle Components (Optional)
-      // Supports TWO formats:
-      // 1. Flat columns: comp1_type, comp1_shape, comp1_count, comp2_type ...  (PREFERRED - easy Excel)
-      // 2. Legacy JSON: components column with JSON array string
+      // Supports THREE formats:
+      // 1. Flat comp columns:  comp1_type, comp1_shape, comp1_count, ...  (standard template)
+      // 2. Diamond shorthand: dia1_shape, dia1_color, dia1_clarity, dia1_total_ct, dia1_qty_pcs, ...
+      // 3. Legacy JSON:       components column with JSON array string
       let components = [];
 
-      // --- Format 1: Flat comp columns (comp1_type, comp1_role, ...) ---
+      // --- Format 1: Standard flat comp columns (comp1_type, comp1_role, ...) ---
       const MAX_COMP = 6;
       for (let ci = 1; ci <= MAX_COMP; ci++) {
         const prefix = `comp${ci}`;
-        const compType = String(row[`${prefix}_type`] || row[`${prefix}type`] || "").trim();
+        const compType = String(row[`${prefix}type`] || "").trim();
         if (!compType) continue; // no type = skip this slot
 
-        // Parse color and clarity from combined "D-F / VVS-VK" or separate fields
-        const colorClarity = String(row[`${prefix}_color_clarity`] || row[`${prefix}_colorclarit`] || row[`${prefix}colorclarit`] || "").trim();
-        let compColor = String(row[`${prefix}_color`] || row[`${prefix}color`] || "").trim();
-        let compClarity = String(row[`${prefix}_clarity`] || row[`${prefix}clarity`] || "").trim();
+        // Parse color and clarity: normalize to UPPERCASE so they match dropdown options
+        const colorClarity = String(row[`${prefix}colorclarity`] || "").trim().toUpperCase();
+        let compColor = String(row[`${prefix}color`] || "").trim().toUpperCase();
+        let compClarity = String(row[`${prefix}clarity`] || "").trim().toUpperCase();
         // If combined field is used, split on "/" if separate ones are empty
         if (colorClarity && !compColor && !compClarity) {
           const parts = colorClarity.split("/").map(s => s.trim());
@@ -188,18 +189,32 @@ export const bulkUploadProducts = async (req, res) => {
           compClarity = parts[1] || "";
         }
 
+        // Auto-detect pricingRef based on component type
+        let pricingRef = "";
+        const typeLower = compType.toLowerCase();
+        if (typeLower.includes("diamond")) {
+          pricingRef = "DIAMOND";
+        } else if (typeLower.includes("polki")) {
+          pricingRef = "POLKI";
+        } else if (typeLower.includes("belt")) {
+          pricingRef = "BELT";
+        } else {
+          pricingRef = "STONE";
+        }
+
         const comp = {
-          type:           compType,
-          componentRole:  String(row[`${prefix}_role`] || row[`${prefix}role`] || "SIDE").trim().toUpperCase(),
-          shape:          String(row[`${prefix}_shape`] || row[`${prefix}shape`] || "").trim(),
-          color:          compColor,
-          clarity:        compClarity,
-          cut:            String(row[`${prefix}_cut`] || row[`${prefix}cut`] || "").trim(),
-          count:          parseNumber(row[`${prefix}_count`] || row[`${prefix}count`] || row[`${prefix}_qty`] || 0),
-          weight:         parseNumber(row[`${prefix}_weight`] || row[`${prefix}weight`] || 0),
-          grossWeight:    parseNumber(row[`${prefix}_grossweight`] || row[`${prefix}grossweight`] || 0),
-          size:           String(row[`${prefix}_size`] || row[`${prefix}size`] || "").trim(),
-          description:    String(row[`${prefix}_description`] || row[`${prefix}description`] || "").trim(),
+          type:          compType,
+          componentRole: String(row[`${prefix}role`] || "SIDE").trim().toUpperCase(),
+          shape:         String(row[`${prefix}shape`] || "").trim(),
+          color:         compColor,
+          clarity:       compClarity,
+          cut:           String(row[`${prefix}cut`] || "").trim(),
+          count:         parseNumber(row[`${prefix}count`] || row[`${prefix}qty`] || 0),
+          weight:        parseNumber(row[`${prefix}weight`] || 0),
+          grossWeight:   parseNumber(row[`${prefix}grossweight`] || 0),
+          size:          String(row[`${prefix}size`] || ""),
+          description:   String(row[`${prefix}description`] || ""),
+          pricingRef,
         };
 
         // Valid componentRole check
@@ -209,9 +224,119 @@ export const bulkUploadProducts = async (req, res) => {
         components.push(comp);
       }
 
-      // --- Format 2: Legacy JSON fallback (only if no flat comp columns found) ---
+      // --- Format 2: dia1_* / dia2_* shorthand columns (user's existing Excel format) ---
+      // Supports: dia1_shape, dia1_color, dia1_clarity, dia1_size, dia1_total_ct, dia1_qty_pcs,
+      //           dia1_weight_ct (per-piece weight), dia2_*, dia3_* up to dia4_*
+      if (components.length === 0) {
+        const MAX_DIA = 4;
+        for (let di = 1; di <= MAX_DIA; di++) {
+          const dp = `dia${di}`;
+
+          // Try all normalized variants for shape field to detect if this slot is populated
+          const diaShape = String(
+            row[`${dp}shape`] || row[`${dp}shape`] || ""
+          ).trim();
+          // Normalize color and clarity to uppercase so they match dropdown options on the Edit form
+          const diaColor = String(row[`${dp}color`] || "").trim().toUpperCase();
+          const diaClarity = String(row[`${dp}clarity`] || "").trim().toUpperCase();
+          const diaTotalCt = parseNumber(
+            row[`${dp}totalct`] || row[`${dp}weighttotalct`] || row[`${dp}totalweight`] || 0
+          );
+          const diaQtyPcs = parseNumber(
+            row[`${dp}qtypcs`] || row[`${dp}qty`] || row[`${dp}count`] || row[`${dp}pcs`] || 0
+          );
+          // per-piece weight (in ct)
+          const diaWeightPPc = parseNumber(
+            row[`${dp}weightct`] || row[`${dp}weightperpcs`] || row[`${dp}perpcweight`] || 0
+          );
+          const diaSize = String(row[`${dp}size`] || "").trim();
+          const diaCut = String(row[`${dp}cut`] || "").trim();
+
+          // Skip this slot if no identifying info
+          if (!diaShape && !diaColor && !diaClarity && diaTotalCt === 0 && diaQtyPcs === 0) continue;
+
+          // Compute weight: prefer per-piece weight × qty, else use total ct
+          const computedWeight = diaWeightPPc > 0 && diaQtyPcs > 0
+            ? diaWeightPPc * diaQtyPcs
+            : diaTotalCt;
+
+          components.push({
+            type:          "Diamond",
+            componentRole: di === 1 ? "CENTER" : "SIDE",
+            shape:         diaShape,
+            color:         diaColor,
+            clarity:       diaClarity,
+            cut:           diaCut,
+            count:         diaQtyPcs,
+            weight:        diaWeightPPc || (diaQtyPcs > 0 ? diaTotalCt / diaQtyPcs : diaTotalCt),
+            grossWeight:   computedWeight,
+            size:          diaSize,
+            description:   "",
+            pricingRef:    "DIAMOND",
+          });
+        }
+
+        // Color Stone / Accessory columns — look for colorstonetype, colorstone, accessories etc.
+        // Supports: Color Stone (col header), colorstone_type, colorstone_shape, colorstone_weight etc.
+        // Also handles user Excel pattern where "Color Stone" is a column header and shape like "Princess" is another col
+        const csType = String(
+          row["colorstonetype"] || row["colorstone"] || row["stonetype"] ||
+          row["accessorytype"] || row["accessory"] || ""
+        ).trim();
+        const csShape = String(
+          row["colorstoneshape"] || row["stoneshape"] || row["accessoryshape"] ||
+          row["princess"] || row["oval"] || row["round"] || ""    // some Excel files use stone shape as col name
+        ).trim();
+        const csColor = String(
+          row["colorstonecolor"] || row["stonecolor"] || ""
+        ).trim();
+        const csClarity = String(
+          row["colorstoneclarity"] || row["stoneclarity"] || ""
+        ).trim();
+        const csCount = parseNumber(
+          row["colorstonecount"] || row["colorstoneqty"] || row["stonecount"] ||
+          row["accessorycount"] || row["accessoryqty"] || 0
+        );
+        const csWeight = parseNumber(
+          row["colorstoneweight"] || row["stoneweight"] || row["accessoryweight"] || 0
+        );
+        const csSize = String(
+          row["colorstonesize"] || row["stonesize"] || row["accessorysize"] || ""
+        ).trim();
+
+        // Only add color stone if there's actually meaningful data (weight or count must be > 0)
+        // Prevents adding empty stones when only the column header value is present
+        if ((csType || csShape) && (csWeight > 0 || csCount > 0)) {
+          components.push({
+            type:          csType || "Color Stone",
+            componentRole: "ACCENT",
+            shape:         csShape,
+            color:         csColor,
+            clarity:       csClarity,
+            cut:           "",
+            count:         csCount,
+            weight:        csWeight,
+            grossWeight:   csWeight,
+            size:          csSize,
+            description:   "",
+            pricingRef:    "STONE",
+          });
+        }
+      }
+
+      // --- Format 3: Legacy JSON fallback (only if no flat comp columns found) ---
       if (components.length === 0 && row.components) {
         components = parseJson(row.components);
+      }
+
+      // --- Parse certificates (certificate1_no, certificate1_lab, certificate2_no, ...) ---
+      const certificates = [];
+      for (let ci = 1; ci <= 4; ci++) {
+        const certNo = String(row[`certificate${ci}no`] || row[`cert${ci}no`] || "").trim();
+        const certLab = String(row[`certificate${ci}lab`] || row[`cert${ci}lab`] || "").trim();
+        if (certNo || certLab) {
+          certificates.push({ certificateNo: certNo, lab: certLab });
+        }
       }
 
       // Handle Image Mapping
@@ -254,6 +379,24 @@ export const bulkUploadProducts = async (req, res) => {
         });
       }
 
+      // --- Normalize targetAudience: support "Female", "Male", "female", etc. ---
+      const rawAudience = String(row.targetaudience || "").trim().toUpperCase();
+      const audienceMap = {
+        "FEMALE": "WOMEN",
+        "WOMAN":  "WOMEN",
+        "MALE":   "MEN",
+        "MAN":    "MEN",
+        "BOY":    "MEN",
+        "GIRL":   "WOMEN",
+        "CHILD":  "KIDS",
+        "KID":    "KIDS",
+      };
+      const validAudiences = ["MEN", "WOMEN", "UNISEX", "KIDS"];
+      let resolvedAudience = audienceMap[rawAudience] || rawAudience;
+      if (!validAudiences.includes(resolvedAudience)) {
+        resolvedAudience = "UNISEX";
+      }
+
       // Construct Payload
       const payload = {
         title,
@@ -264,22 +407,17 @@ export const bulkUploadProducts = async (req, res) => {
         stock: parseNumber(row.stock),
         hsnCode: String(row.hsncode || "7113"),
         huid: String(row.huid || ""),
+        certificates,
         metalType,
         metalPurity,
         metalColor: row.metalcolor || "",
         netWeight,
         grossWeight,
         fineGold: parseNumber(row.finegold),
-        targetAudience: (row.targetaudience || "UNISEX").toUpperCase(),
+        targetAudience: resolvedAudience,
         components,
         images,
       };
-
-      // Ensure targetAudience is valid enum
-      const validAudiences = ["MEN", "WOMEN", "UNISEX", "KIDS"];
-      if (!validAudiences.includes(payload.targetAudience)) {
-        payload.targetAudience = "UNISEX";
-      }
 
       // Upsert
       try {

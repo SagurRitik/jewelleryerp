@@ -33,31 +33,50 @@ const CLARITY_GROUPS = {
   "SI-I": ["SI1", "SI2", "I1", "I2"],
 };
 
-const SelectWithGroups = ({ list, groups, value, onChange, className }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    className={className}
-  >
-    <option value="">Select</option>
+const SelectWithGroups = ({ list, groups, value, onChange, className }) => {
+  // Normalize incoming value: uppercase + find exact match in all options
+  const allOptions = [...Object.keys(groups), ...list];
+  const upper = value ? value.toString().toUpperCase().trim() : "";
+  // Try exact match first (case-insensitive)
+  const matchedOption = upper ? allOptions.find(opt => opt.toUpperCase() === upper) : null;
+  // Use matched option string (preserves case of option), else use original uppercase value
+  const normalizedValue = matchedOption || upper || "";
+  // If value is set but still doesn't match any option, show it as a custom entry
+  const isCustomValue = normalizedValue && !allOptions.some(opt => opt.toUpperCase() === normalizedValue.toUpperCase());
 
-    {/* GROUPS */}
-    {Object.keys(groups).map((g) => (
-      <option key={g} value={g}>
-        {g}
-      </option>
-    ))}
+  return (
+    <select
+      value={normalizedValue}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+    >
+      <option value="">Select</option>
 
-    {/* INDIVIDUAL */}
-    <optgroup label="Individual">
-      {list.map((v) => (
-        <option key={v} value={v}>
-          {v}
+      {/* Custom fallback: render stored value as option if not in predefined list */}
+      {isCustomValue && (
+        <option key="__custom__" value={normalizedValue}>
+          {normalizedValue} (custom)
+        </option>
+      )}
+
+      {/* GROUPS */}
+      {Object.keys(groups).map((g) => (
+        <option key={g} value={g}>
+          {g}
         </option>
       ))}
-    </optgroup>
-  </select>
-);
+
+      {/* INDIVIDUAL */}
+      <optgroup label="Individual">
+        {list.map((v) => (
+          <option key={v} value={v}>
+            {v}
+          </option>
+        ))}
+      </optgroup>
+    </select>
+  );
+};
 
 
 
@@ -188,10 +207,33 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
 
       existingComponents.forEach(component => {
         if (component.type === "Diamond" || component.type === "Polki" || component.type === "Moissanite") {
+
+          // Normalize color: DB may store "e-f" but dropdown needs "D-F"
+          // Step 1: uppercase it
+          const rawColor = (component.color || "").toUpperCase().trim();
+          // Step 2: find exact match in known options (individual or group)
+          const allColorOptions = [...COLORS_DIAMOND];
+          const normalizedColor = allColorOptions.find(
+            opt => opt.toUpperCase() === rawColor
+          ) || rawColor || "";
+
+          // Same for clarity: "vvs-vs" → "VVS-VS"
+          const rawClarity = (component.clarity || "").toUpperCase().trim();
+          const allClarityOptions = [...CLARITIES];
+          const normalizedClarity = allClarityOptions.find(
+            opt => opt.toUpperCase() === rawClarity
+          ) || rawClarity || "";
+
+          // Normalize shape: may be lowercase "round" but dropdown needs "Round"
+          const rawShape = (component.shape || "").trim();
+          const normalizedShape = SHAPES.find(
+            s => s.toLowerCase() === rawShape.toLowerCase()
+          ) || rawShape;
+
           diamonds.push({
-            shape: component.shape || "",
-            color: component.color || "D",
-            clarity: component.clarity || "VS2",
+            shape: normalizedShape,
+            color: normalizedColor,
+            clarity: normalizedClarity,
             count: component.count || 1,
             weight: component.weight ?? "",
             grossWeight: component.grossWeight ?? "",

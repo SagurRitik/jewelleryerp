@@ -130,16 +130,20 @@ export const getDailySalesClosing = async (req, res) => {
   try {
     const { date } = req.query;
 
-    // IST-safe day range
-    const baseDate = date
-      ? new Date(`${date}T00:00:00.000+05:30`)
-      : new Date();
+    // Helper to get current date in IST format (YYYY-MM-DD)
+    const getISTDateString = (d = new Date()) => {
+      const offset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+      const istDate = new Date(d.getTime() + offset);
+      return istDate.toISOString().split("T")[0];
+    };
 
-    const start = new Date(baseDate);
-    start.setHours(0, 0, 0, 0);
+    const targetDateStr = date || getISTDateString();
 
-    const end = new Date(baseDate);
-    end.setHours(23, 59, 59, 999);
+    // Construct the absolute UTC range matching the full 24 hours of targetDateStr in IST (+05:30)
+    const start = new Date(`${targetDateStr}T00:00:00.000+05:30`);
+    const end = new Date(`${targetDateStr}T23:59:59.999+05:30`);
+
+    console.log(`[DAILY CLOSING] Query range (UTC): ${start.toISOString()} to ${end.toISOString()}`);
 
     const invoices = await SalesOrder.find({
       createdAt: { $gte: start, $lte: end },
