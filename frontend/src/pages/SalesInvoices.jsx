@@ -1,11 +1,13 @@
 
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   deleteAllSalesInvoices,
   deleteSalesInvoiceById,
   getSalesInvoices,
+  exportSalesInvoices,
+  importSalesInvoices,
 } from "../api/salesInvoiceApi";
 import BackButton from "../components/BackButton";
 import { useModal } from "../context/ModalContext";
@@ -13,6 +15,58 @@ import { useModal } from "../context/ModalContext";
 export default function SalesInvoices() {
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useModal();
+
+  const fileInputRef = useRef(null);
+
+  const handleExport = async () => {
+    try {
+      const res = await exportSalesInvoices({
+        search,
+        fromDate,
+        toDate,
+      });
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "sales_invoices.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      showAlert("Failed to export invoices");
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("excel", file);
+
+    try {
+      const res = await importSalesInvoices(formData);
+      if (res.data.success) {
+        await showAlert(`Successfully imported ${res.data.count} invoices!`);
+        fetchInvoices();
+      } else {
+        await showAlert(res.data.message || "Failed to import invoices");
+      }
+    } catch (err) {
+      console.error(err);
+      await showAlert(
+        err.response?.data?.message || err.message || "Failed to import invoices"
+      );
+    }
+  };
 
   const [invoices, setInvoices] = useState([]);
   const [page, setPage] = useState(1);
@@ -122,13 +176,37 @@ export default function SalesInvoices() {
           Sales Invoice History
         </h1>
 
-        <button
-          onClick={handleDeleteAll}
-          disabled={loading || deleteBusy}
-          className="rounded border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {deleteBusy ? "Deleting..." : "Delete All Invoices"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            className="rounded border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition hover:bg-slate-100"
+          >
+            Export
+          </button>
+          
+          <button
+            onClick={handleImportClick}
+            className="rounded border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition hover:bg-slate-100"
+          >
+            Import
+          </button>
+          
+          <input
+            type="file"
+            accept=".xlsx, .xls"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+          />
+
+          <button
+            onClick={handleDeleteAll}
+            disabled={loading || deleteBusy}
+            className="rounded border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleteBusy ? "Deleting..." : "Delete All Invoices"}
+          </button>
+        </div>
       </div>
 
       {/* FILTERS */}

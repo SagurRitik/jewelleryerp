@@ -55,7 +55,7 @@ export const normalizeImage = (img) => {
   const BASE_URL =
     process.env.IMAGE_BASE_URL ||
     process.env.BASE_URL ||
-    "https://jewelleryerp.nazaradiamonds.com";
+    "https://devjewelerp.nazaradiamonds.com";
 
   // 🔥 REMOVE DOMAIN ALWAYS (IMPORTANT FIX)
   if (img.startsWith("http")) {

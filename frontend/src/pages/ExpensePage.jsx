@@ -167,7 +167,7 @@
 
 
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 
 
@@ -183,7 +183,7 @@ import {
 
 
 
-  TrendingUp, Plus, Filter, Download, 
+  TrendingUp, Plus, Filter, Download, Upload,
 
 
 
@@ -191,7 +191,7 @@ import {
 
 
 
-  ListOrdered, Trash2
+  ListOrdered, Trash2, ArrowLeft
 
 
 
@@ -709,20 +709,42 @@ export default function ExpensePage() {
 
         alert("Failed to export expenses");
 
-
-
-
-
-
-
       }
 
+    };
 
+    const fileInputRef = useRef(null);
 
+    const handleImportClick = () => {
+      fileInputRef.current?.click();
+    };
 
+    const handleImport = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
+      e.target.value = "";
 
+      const formData = new FormData();
+      formData.append("excel", file);
 
+      try {
+        const res = await API.post("/expenses/import", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        if (res.data.success) {
+          alert(`Successfully imported ${res.data.count} expenses!`);
+          fetchExpenses();
+        } else {
+          alert(res.data.message || "Failed to import expenses");
+        }
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.message || err.message || "Failed to import expenses");
+      }
     };
 
 
@@ -793,9 +815,13 @@ export default function ExpensePage() {
 
     <div className="min-h-screen bg-[#FCFBFA] p-8 flex flex-col font-sans text-slate-800 pb-12">
 
-
-
-
+      {/* BACK BUTTON */}
+      <button
+        onClick={() => navigate("/")}
+        className="flex items-center gap-2 text-slate-500 hover:text-[#6A3D55] font-bold text-sm mb-6 transition-colors self-start"
+      >
+        <ArrowLeft size={18} /> Back to Dashboard
+      </button>
 
 
 
@@ -907,27 +933,13 @@ export default function ExpensePage() {
 
 
 
-          <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider">
+          <div className="flex justify-end text-[10px] font-bold uppercase tracking-wider">
 
 
 
-            <div className="flex items-center text-slate-500">
-
-
-
-              <div className="w-1.5 h-1.5 rounded-full bg-[#6A3D55] mr-2"></div>
-
-
-
-              Current Balance
-
-
-
+            <div className="text-[#6A3D55]">
+              {new Date().toLocaleString("en-US", { month: "long", year: "numeric" }).toUpperCase()}
             </div>
-
-
-
-            <div className="text-[#6A3D55]">MARCH 2026</div>
 
 
 
@@ -1044,6 +1056,21 @@ export default function ExpensePage() {
 
 
                     </button>
+
+          <button
+            onClick={handleImportClick}
+            className="px-4 py-2.5 border border-transparent hover:bg-slate-100 rounded-lg text-sm font-semibold text-slate-700 transition-colors flex items-center"
+          >
+            <Upload className="w-4 h-4 mr-2 text-slate-500" /> Import
+          </button>
+
+          <input
+            type="file"
+            accept=".xlsx, .xls"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+          />
 
 
 
