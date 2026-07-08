@@ -3,8 +3,8 @@
 
 import express from "express";
 
-import { createExpense, getExpenses,  getExpenseById,updateExpense, deleteExpense, getExpenseCategories, exportExpenses} from "../controllers/Expense.js";  
-
+import { createExpense, getExpenses,  getExpenseById,updateExpense, deleteExpense, getExpenseCategories, exportExpenses, importExpenses} from "../controllers/Expense.js";  
+import { uploadExcel } from "../middlewares/excelUpload.js";
 
 
 const router = express.Router();
@@ -23,6 +23,7 @@ router.get("/", getExpenses);
 
 router.get("/categories", getExpenseCategories);
 router.get("/export", exportExpenses);
+router.post("/import", uploadExcel.single("excel"), importExpenses);
 
 router.get("/:id", getExpenseById);
 

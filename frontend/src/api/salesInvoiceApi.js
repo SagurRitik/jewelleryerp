@@ -21,3 +21,14 @@ export const getDailySalesClosing = (date) =>
   axiosInstance.get("/reports/daily-sales-closing", {
     params: { date },
   });
+
+/* EXPORT / IMPORT */
+export const exportSalesInvoices = (params) =>
+  axiosInstance.get("/sales-invoices/export", { params, responseType: "blob" });
+
+export const importSalesInvoices = (formData) =>
+  axiosInstance.post("/sales-invoices/import", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
