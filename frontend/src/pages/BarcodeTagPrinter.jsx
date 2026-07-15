@@ -650,7 +650,12 @@ export default function BarcodeTagPrinter() {
         {/* Designer Top Bar */}
         <div className={`h-16 flex justify-between items-center px-8 border-b z-10 print:hidden ${isDark ? "bg-[#111]/90 backdrop-blur border-white/5" : "bg-white/95 backdrop-blur border-slate-100 shadow-sm"}`}>
           <div className="flex items-center gap-6">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-xl transition-all active:scale-95 text-slate-400 hover:text-[#5A374F]"><ChevronLeft size={20} /></button>
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-200 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <div className="h-4 w-[1px] bg-slate-200" />
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shadow-sm text-[#5A374F]"><FileText size={20} /></div>

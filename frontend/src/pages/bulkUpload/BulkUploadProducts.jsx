@@ -2,6 +2,8 @@
 import { useState, useRef } from "react";
 import axios from "axios";
 import { useProductList } from "../../context/ProductListContext";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 const API = "/api/products";
 
@@ -39,6 +41,7 @@ const FIELD_GUIDE = [
 
 /* ───────────────────────── COMPONENT ───────────────────────── */
 export default function BulkUploadProducts() {
+  const navigate = useNavigate();
   const [excel, setExcel] = useState(null);
   const [zip, setZip] = useState(null);
   const [report, setReport] = useState(null);
@@ -151,13 +154,24 @@ export default function BulkUploadProducts() {
         {/* ── Header ── */}
         <div style={{ background: "linear-gradient(135deg, #3A332C 0%, #6B3151 100%)" }} className="text-white px-8 py-10">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-3xl">📦</span>
-              <h1 className="text-3xl font-bold tracking-tight">Bulk Product Upload</h1>
+            <div className="flex items-center gap-4 mb-4">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 text-white transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-3xl">📦</span>
+                  <h1 className="text-3xl font-bold tracking-tight">Bulk Product Upload</h1>
+                </div>
+                <p className="text-white/70 text-sm mt-1">
+                  Upload an Excel spreadsheet to add or update products in bulk. Images via ZIP are optional.
+                </p>
+              </div>
             </div>
-            <p className="text-white/70 text-sm mt-1">
-              Upload an Excel spreadsheet to add or update products in bulk. Images via ZIP are optional.
-            </p>
           </div>
         </div>
 

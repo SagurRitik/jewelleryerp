@@ -8,7 +8,7 @@ import { useProductList } from "../../context/ProductListContext";
 import { useCart } from "../../context/CartContext";
 import { toast } from "sonner";
 import { fetchLiveRates } from "../../api/liveMarketApi";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ArrowLeft } from "lucide-react";
 
 export default function RatesPage() {
   const navigate = useNavigate();
@@ -96,12 +96,22 @@ export default function RatesPage() {
       <div className="max-w-6xl mx-auto">
         {/* HEADER */}
         <header className="mb-10">
-          <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">
-            Configurations / Global Rates
-          </p>
-          <div className="flex items-center gap-3 flex-wrap mb-2">
-            <h1 className="text-4xl font-bold text-[#5D3354]">Rate Configuration</h1>
+          <div className="flex items-center gap-4 mb-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#7D4A74] hover:border-[#7D4A74]/20 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-0.5">
+                Configurations / Global Rates
+              </p>
+              <h1 className="text-4xl font-bold text-[#5D3354]">Rate Configuration</h1>
+            </div>
+          </div>
 
+          <div className="flex items-center gap-3 flex-wrap mb-2">
             {/* LIVE RATES PILLS */}
             <div className="flex items-center gap-2 flex-wrap">
               {/* Gold Pill */}
@@ -333,7 +343,7 @@ const RateInput = ({ label, value, onChange }) => (
     <div className="flex items-center bg-gray-50 border border-gray-100 rounded-lg overflow-hidden focus-within:border-gray-300 transition">
       <input
         type="number"
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-transparent p-3 text-lg font-semibold text-gray-700 outline-none"
       />
@@ -349,7 +359,7 @@ const Input = ({ label, value, onChange, isCurrency }) => (
       {isCurrency && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 font-medium">₹</span>}
       <input
         type="text"
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className={`w-full bg-[#F4F7F9] border-none rounded-lg p-3 text-gray-800 font-semibold focus:ring-2 focus:ring-[#5D3354]/20 outline-none ${isCurrency ? 'pl-8' : ''}`}
       />
@@ -372,7 +382,7 @@ const DiscountRow = ({ label, type, value, onTypeChange, onValueChange }) => (
       </select>
       <input
         type="number"
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onValueChange(e.target.value)}
         disabled={type === "none"}
         className="w-2/5 bg-white border border-gray-200 rounded-md p-2 text-sm font-bold text-gray-700 outline-none text-center focus:border-gray-400 disabled:opacity-50"

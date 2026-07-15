@@ -15,7 +15,8 @@ import {
   Filter,
   CheckCircle,
   AlertCircle,
-  Eye
+  Eye,
+  ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -138,9 +139,17 @@ const CataloguePage = () => {
     <div className="p-6 min-h-screen bg-[#faf9f6]">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#5A374F] mb-1">Product Catalogues</h1>
-          <p className="text-gray-500">View and manage digital collections</p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-[#5A374F] mb-1">Product Catalogues</h1>
+            <p className="text-gray-500">View and manage digital collections</p>
+          </div>
         </div>
         
         <div className="flex gap-3 w-full md:w-auto">

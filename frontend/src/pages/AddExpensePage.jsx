@@ -93,16 +93,15 @@ export default function AddExpensePage() {
     <div className="min-h-screen bg-[#F5F3F0] py-8 px-4">
       <div className="max-w-xl mx-auto">
 
-        {/* BACK BUTTON */}
-        <button
-          onClick={() => navigate("/expenses")}
-          className="flex items-center gap-2 text-slate-500 hover:text-[#6B2E4A] font-bold text-sm mb-6 transition-colors self-start"
-        >
-          <ArrowLeft size={18} /> Back to Expenses
-        </button>
-
         {/* Header */}
-        <div className="bg-[#6B2E4A] text-white px-6 py-4 rounded-t-lg">
+        <div className="bg-[#6B2E4A] text-white px-6 py-4 rounded-t-lg flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+          >
+            <ArrowLeft size={16} />
+          </button>
           <h1 className="text-lg font-semibold">{id ? "Edit Expense" : "Add Expense"}</h1>
         </div>
 

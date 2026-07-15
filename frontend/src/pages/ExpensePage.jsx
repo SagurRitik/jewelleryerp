@@ -838,49 +838,24 @@ export default function ExpensePage() {
 
 
         {/* Left: Titles */}
-
-
-
-        <div className="max-w-md pt-2">
-
-
-
-          <h3 className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-2">
-
-
-
-            Overview
-
-
-
-          </h3>
-
-
-
-          <h1 className="text-[32px] font-bold text-[#6A3D55] tracking-tight mb-3">
-
-
-
-            Expense Management
-
-
-
-          </h1>
-
-
-
-          <p className="text-sm text-slate-500 leading-relaxed">
-
-
-
-            Real-time tracking and categorization of your organizational expenditures for the current fiscal period.
-
-
-
-          </p>
-
-
-
+        <div className="flex items-start gap-4 pt-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6A3D55] hover:border-[#6A3D55]/20 transition-colors mt-2"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="max-w-md">
+            <h3 className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-2">
+              Overview
+            </h3>
+            <h1 className="text-[32px] font-bold text-[#6A3D55] tracking-tight mb-3">
+              Expense Management
+            </h1>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Real-time tracking and categorization of your organizational expenditures for the current fiscal period.
+            </p>
+          </div>
         </div>
 
 

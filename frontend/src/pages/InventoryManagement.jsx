@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import API from "../api";
-import { Boxes, ChevronLeft, ChevronRight, Gem, Loader2, Search, Sparkles, Trash2, Weight } from "lucide-react";
+import { Boxes, ChevronLeft, ChevronRight, Gem, Loader2, Search, Sparkles, Trash2, Weight, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const formatNumber = (value, digits = 2) =>
   Number(value || 0).toLocaleString("en-IN", {
@@ -10,6 +11,7 @@ const formatNumber = (value, digits = 2) =>
   });
 
 export default function InventoryManagement() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
@@ -165,6 +167,17 @@ export default function InventoryManagement() {
   return (
     <div className="min-h-screen bg-[#fcfaf8] text-[#2f2430]">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* BACK BUTTON */}
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5a374f] hover:border-[#5a374f]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <span className="text-sm font-medium text-gray-500">Back</span>
+        </div>
+
         <div className="overflow-hidden rounded-[28px] border border-[#eadfdf] bg-gradient-to-br from-[#5a374f] via-[#714760] to-[#8c5f5f] p-6 text-white shadow-[0_20px_80px_rgba(90,55,79,0.18)] sm:p-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">

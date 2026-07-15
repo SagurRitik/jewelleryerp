@@ -13,7 +13,8 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -87,6 +88,21 @@ export default function DiamondStockPage() {
   return (
     <div className={`min-h-screen p-6 ${isDark ? "bg-[#121212] text-white" : "bg-[#fcfaf8] text-[#2f2430]"}`}>
       <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* BACK BUTTON */}
+        <div className="flex items-center gap-4 mb-2 print:hidden">
+          <button
+            onClick={() => navigate(-1)}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm border transition-colors ${
+              isDark 
+                ? "bg-[#1a1a1a] border-white/10 text-gray-300 hover:text-white hover:border-white/20" 
+                : "bg-white border-gray-100 text-gray-600 hover:text-[#5a374f] hover:border-[#5a374f]/20"
+            }`}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <span className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-gray-500"}`}>Back</span>
+        </div>
 
         {/* Header Section */}
         <div className={`overflow-hidden rounded-[28px] border p-6 shadow-lg ${isDark

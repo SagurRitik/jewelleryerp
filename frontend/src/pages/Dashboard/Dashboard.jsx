@@ -1,18 +1,20 @@
 
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import API from "../../api";
 import DashboardStats from "./DashboardStats";
 import DashboardCharts from "./DashboardCharts";
 import RecentOrdersTable from "./RecentOrdersTable";
 import TopSellingList from "./TopSellingList";
 import SalesBreakdown from "./SalesBreakdown";
-import { Calendar, ChevronDown, Download, Printer } from "lucide-react"; // Icon
+import { Calendar, ChevronDown, Download, Printer, ArrowLeft } from "lucide-react"; // Icon
 import * as XLSX from "xlsx";
 import MetalTrendChart from "./MetalTrendChart";
 
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
@@ -191,11 +193,19 @@ export default function Dashboard() {
       
       {/* --- HEADER & GLOBAL FILTER UI --- */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1a1a1a]">Dashboard Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Performance summary & analytics
-          </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-200 text-gray-600 hover:text-[#501b46] hover:border-[#501b46]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[#1a1a1a]">Dashboard Overview</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Performance summary & analytics
+            </p>
+          </div>
         </div>
 
         {/* ✅ FILTER CONTROLS */}
