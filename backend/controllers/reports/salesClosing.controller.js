@@ -146,7 +146,7 @@ export const getDailySalesClosing = async (req, res) => {
     console.log(`[DAILY CLOSING] Query range (UTC): ${start.toISOString()} to ${end.toISOString()}`);
 
     const invoices = await SalesOrder.find({
-      createdAt: { $gte: start, $lte: end },
+      date: { $gte: start, $lte: end },
     }).lean();
 
     const summary = {

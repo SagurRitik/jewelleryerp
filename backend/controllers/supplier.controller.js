@@ -151,8 +151,8 @@ export const deleteSupplier = async (req, res) => {
     const hasPurchases = await Purchase.exists({ supplierId: id });
 
     if (hasPayments || hasPurchases) {
-      return res.status(400).json({ 
-        message: "Cannot delete supplier with transaction history. Please deactivate them instead to preserve records." 
+      return res.status(400).json({
+        message: "Cannot delete supplier with transaction history. Please deactivate them instead to preserve records."
       });
     }
 
@@ -192,7 +192,7 @@ export const getSupplierLedger = async (req, res) => {
 
     // Step 2: Fetch all Payments
     const payments = await SupplierPayment.find({ supplierId: id }).sort({ paymentDate: 1 });
-    
+
     // Add payments to ledger (negative amount represents paying off depth)
     payments.forEach(p => {
       ledger.push({
@@ -212,7 +212,7 @@ export const getSupplierLedger = async (req, res) => {
 
     // Step 3: Fetch all Purchases
     const purchases = await Purchase.find({ supplierId: id }).sort({ purchaseDate: 1 });
-    
+
     // Add purchases to ledger (positive amount represents increasing liability/payable)
     purchases.forEach(pur => {
       ledger.push({

@@ -1,17 +1,63 @@
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getDiamondRates,
   deleteDiamondRate,
+  exportDiamondRates,
+  importDiamondRates,
 } from "../../../api/diamondRateApi";
+import { Download, Upload } from "lucide-react";
 import { DIAMOND_COLORS as COLOR_RANK, DIAMOND_CLARITIES as CLARITY_RANK } from "../../../utils/diamondConstants";
 
 export default function DiamondRateList() {
   const [rates, setRates] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+
+  const handleExport = async () => {
+    try {
+      const res = await exportDiamondRates();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "diamond_rates.xlsx");
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export diamond rates");
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("excel", file);
+
+    try {
+      const res = await importDiamondRates(formData);
+      if (res.data.success) {
+        alert(res.data.message || `Successfully imported diamond rates!`);
+        loadRates();
+      } else {
+        alert(res.data.message || "Failed to import diamond rates");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.message || "Failed to import diamond rates");
+    }
+  };
 
 
   const loadRates = async () => {
@@ -53,12 +99,36 @@ export default function DiamondRateList() {
           💎 Diamond Rate Master
         </h1>
 
-        <button
-          onClick={() => navigate("/admin/diamond-rates/new")}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow"
-        >
-          + Add Diamond Rate
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg shadow-sm flex items-center gap-2 text-sm font-semibold transition"
+          >
+            <Download size={16} className="text-gray-500" /> Export
+          </button>
+
+          <button
+            onClick={handleImportClick}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg shadow-sm flex items-center gap-2 text-sm font-semibold transition"
+          >
+            <Upload size={16} className="text-gray-500" /> Import
+          </button>
+
+          <input
+            type="file"
+            accept=".xlsx, .xls"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+          />
+
+          <button
+            onClick={() => navigate("/admin/diamond-rates/new")}
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow font-semibold flex items-center gap-2 text-sm transition"
+          >
+            + Add Diamond Rate
+          </button>
+        </div>
       </div>
 
       {rates.length === 0 ? (

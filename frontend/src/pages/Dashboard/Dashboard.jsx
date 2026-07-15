@@ -68,7 +68,7 @@ export default function Dashboard() {
           o.customer?.name || "N/A",
           o.totals?.grandTotal || 0,
           o.payment?.status || "N/A",
-          new Date(o.createdAt).toLocaleDateString("en-IN")
+          new Date(o.date || o.createdAt).toLocaleDateString("en-IN")
         ])
       ];
 

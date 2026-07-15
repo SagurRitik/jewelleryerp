@@ -283,7 +283,7 @@ export default function SalesInvoices() {
                     {inv.invoiceNo}
                   </td>
                     <td className="text-center">
-                    {new Date(inv.createdAt).toLocaleDateString("en-IN")}
+                    {new Date(inv.date || inv.createdAt).toLocaleDateString("en-IN")}
                   </td>
                   <td className="text-center font-medium">
                     {inv.customer?.name || "Cash Customer"}

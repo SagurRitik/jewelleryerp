@@ -378,9 +378,13 @@ const buildInvoiceQuery = ({ search = "", fromDate, toDate }) => {
   }
 
   if (fromDate || toDate) {
-    query.createdAt = {};
-    if (fromDate) query.createdAt.$gte = new Date(fromDate);
-    if (toDate) query.createdAt.$lte = new Date(toDate);
+    query.date = {};
+    if (fromDate) query.date.$gte = new Date(fromDate);
+    if (toDate) {
+      const toDateEnd = new Date(toDate);
+      toDateEnd.setHours(23, 59, 59, 999);
+      query.date.$lte = toDateEnd;
+    }
   }
 
   return query;
@@ -401,8 +405,8 @@ export const getAllSalesInvoices = async (req, res) => {
     const query = buildInvoiceQuery({ search, fromDate, toDate });
 
     const sortMap = {
-      "date-desc": { createdAt: -1 },
-      "date-asc": { createdAt: 1 },
+      "date-desc": { date: -1 },
+      "date-asc": { date: 1 },
       "amount-desc": { "totals.grandTotal": -1 },
       "amount-asc": { "totals.grandTotal": 1 },
     };
@@ -609,7 +613,7 @@ export const exportSalesInvoices = async (req, res) => {
     const { search = "", fromDate, toDate } = req.query;
     const query = buildInvoiceQuery({ search, fromDate, toDate });
 
-    const invoices = await SalesOrder.find(query).sort({ createdAt: -1 }).lean();
+    const invoices = await SalesOrder.find(query).sort({ date: -1 }).lean();
 
     const formattedInvoices = invoices.map((inv) => ({
       "Invoice No": inv.invoiceNo,
