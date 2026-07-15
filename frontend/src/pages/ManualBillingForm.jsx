@@ -14,11 +14,13 @@ import { createManualInvoice } from "../api/invoiceApi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
+import { useModal } from "../context/ModalContext";
 
 export default function ManualBillingForm() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showConfirm } = useModal();
 
   const [credits, setCredits] = useState([]);
   const [selectedCreditIds, setSelectedCreditIds] = useState([]);
@@ -186,6 +188,7 @@ export default function ManualBillingForm() {
     const savedGST = localStorage.getItem("billing_gst");
 
     return {
+      date: new Date().toISOString().split("T")[0],
       baseRates: savedRates
         ? JSON.parse(savedRates)
         : {
@@ -267,6 +270,7 @@ export default function ManualBillingForm() {
     }
 
     return {
+      date: new Date().toISOString().split("T")[0],
       baseRates: savedRates
         ? JSON.parse(savedRates)
         : {
@@ -586,6 +590,7 @@ export default function ManualBillingForm() {
       salesperson: form.salesperson,
       creditNoteIds: selectedCreditIds,
       appliedCredit,
+      date: form.date,
       totals: {
         discount: itemsPayload.reduce(
           (sum, i) => sum + (i.breakup.discount || 0),
@@ -770,9 +775,40 @@ export default function ManualBillingForm() {
             <h1 className="text-2xl font-bold text-[#5c2b41] leading-none mb-1">Manual Billing</h1>
             <p className="text-xs text-gray-400">Create client invoices manually</p>
           </div>
-          <div className="ml-auto flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-xs font-semibold shadow-sm border border-green-100">
-            <div className="w-2 h-2 bg-[#4caf50] rounded-full"></div>
-            System Online
+          <div className="ml-auto flex items-center gap-3">
+            {/* Invoice Date Field */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date:</label>
+              <input
+                type="date"
+                required
+                className="text-xs font-bold text-gray-700 focus:outline-none cursor-pointer border-none p-0 bg-transparent"
+                value={form.date}
+                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+              />
+            </div>
+            
+            {/* Reset Form Button */}
+            <button
+              type="button"
+              title="Clear Billing Form"
+              onClick={async () => {
+                const confirmed = await showConfirm("Are you sure you want to clear the entire billing form?");
+                if (confirmed) {
+                  setForm(getInitialForm());
+                  localStorage.removeItem("billing_items");
+                  toast.success("Billing form cleared!");
+                }
+              }}
+              className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 transition-colors"
+            >
+              <RotateCcw size={16} />
+            </button>
+
+            <div className="flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-green-100">
+              <div className="w-2 h-2 bg-[#4caf50] rounded-full"></div>
+              System Online
+            </div>
           </div>
         </div>
 
@@ -1693,18 +1729,18 @@ export default function ManualBillingForm() {
             </div>
 
             {/* Action Buttons */}
-            <div>
+            <div className="space-y-3 mb-4">
               <button
                 type="submit"
-                className="w-full bg-[#cda44b] hover:bg-[#b08b3c] text-white py-4 rounded-xl font-bold text-base shadow-sm transition-colors mb-4"
+                className="w-full bg-[#cda44b] hover:bg-[#b08b3c] text-white py-4 rounded-xl font-bold text-base shadow-sm transition-colors"
               >
                 Generate Final Invoice
               </button>
-
-              {/* <p className="text-center text-[11px] text-[#a68e9b] font-medium">
-                Draft autosaved at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-              </p> */}
             </div>
+
+            {/* <p className="text-center text-[11px] text-[#a68e9b] font-medium">
+              Draft autosaved at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+            </p> */}
           </div>
         </form>
       </div>

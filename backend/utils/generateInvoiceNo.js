@@ -29,7 +29,6 @@
 // };
 
 
-// utils/generateInvoiceNo.js
 import SalesOrder from "../models/SalesOrder.js";
 
 export const generateInvoiceNo = async (date = new Date()) => {
@@ -41,18 +40,22 @@ export const generateInvoiceNo = async (date = new Date()) => {
 
   const prefix = `NZD-${year}/${month}/${day}`;
 
-  // 🔥 last invoice (global, not date-wise)
-  const lastInvoice = await SalesOrder.findOne({})
-    .sort({ createdAt: -1 })
-    .lean();
-
-  let nextNumber = 1;
-
-  if (lastInvoice?.invoiceNo) {
-    const lastSeq = lastInvoice.invoiceNo.split("-").pop();
-    nextNumber = Number(lastSeq) + 1;
+  // Find all invoices to find the absolute maximum sequence suffix globally
+  const allInvoices = await SalesOrder.find({}, { invoiceNo: 1 }).lean();
+  
+  let maxSeq = 0;
+  for (const inv of allInvoices) {
+    if (inv.invoiceNo) {
+      const parts = inv.invoiceNo.split("-");
+      const lastPart = parts[parts.length - 1];
+      const seq = parseInt(lastPart, 10);
+      if (!isNaN(seq) && seq > maxSeq) {
+        maxSeq = seq;
+      }
+    }
   }
 
+  const nextNumber = maxSeq + 1;
   const sequence = String(nextNumber).padStart(5, "0");
 
   return `${prefix}-${sequence}`;

@@ -826,6 +826,7 @@ import React, { useState, useEffect } from "react";
 import API from "../../api";
 import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
+import { useProductList } from "../../context/ProductListContext";
 import {
   User, Mail, MapPin, Building, CreditCard,
   FileText, CheckCircle2, Loader2, Banknote, Landmark,
@@ -860,6 +861,7 @@ const purityOptions = {
 export default function InvoiceConfirmPanel() {
   const { cart, sessionId, clearCart, fetchCartSummary } = useCart();
   const navigate = useNavigate();
+  const { invalidateCache } = useProductList();
 
   // --- STATE ---
   const [isMinimized, setIsMinimized] = useState(false);
@@ -1071,6 +1073,8 @@ export default function InvoiceConfirmPanel() {
 
       await fetchCartSummary();
       await clearCart();
+      // 🧹 Bust frontend product list cache so stock updates are reflected immediately
+      invalidateCache();
 
       // Navigate to the invoice preview as requested.
       // WhatsApp and PDF options will now be available on the preview page.

@@ -163,7 +163,13 @@ export const createManualInvoice = async (req, res) => {
 
   try {
 
-    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit } = req.body
+    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date } = req.body
+
+    if (customer) {
+      if (customer.panNumber === "") delete customer.panNumber;
+      if (customer.gstin === "") delete customer.gstin;
+      if (customer.email === "") delete customer.email;
+    }
 
     let subtotal = 0
     let gst = 0
@@ -175,11 +181,25 @@ export const createManualInvoice = async (req, res) => {
       grandTotal += Number(i.breakup?.grandTotal || 0)
     })
 
+    /* ================= ✅ PAN VALIDATION ================= */
+    if (Number(subtotal) >= 200000 && (!customer || !customer.panNumber)) {
+      return res.status(400).json({
+        success: false,
+        error: "PAN number is required for bills above ₹2,00,000 (before GST)",
+      });
+    }
+
+    if (customer && customer.panNumber) {
+      customer.panNumber = customer.panNumber.toUpperCase().trim();
+    }
+
     const invoiceData = {
       invoiceNo: await generateInvoiceNo(),
       customer,
       items,
       salesperson,
+      date: date ? new Date(date) : new Date(),
+      createdAt: date ? new Date(date) : new Date(),
       totals: {
         subtotal,
         gst,

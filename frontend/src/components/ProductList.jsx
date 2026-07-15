@@ -165,7 +165,7 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
                 console.error("Cart error:", err);
               }
             }}
-            className={`w-full py-2 text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70 pointer-events-none"}`}
+            className={`w-full py-2 text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70"}`}
           >
             {Number(p?.stock || 0) > 0 ? "Add To Cart" : "Out of Stock"}
           </button>

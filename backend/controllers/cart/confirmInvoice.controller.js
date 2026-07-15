@@ -10,6 +10,7 @@ import Product from "../../models/Product.js";
 import calculateItem from "../../utils/calculateItem.js";
 import { generateInvoiceNo } from "../../utils/generateInvoiceNo.js";
 import MetalLedger from "../../models/MetalLedger.js";
+import { clearProductCache } from "../../utils/productCache.js";
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
@@ -38,6 +39,12 @@ export const confirmInvoice = async (req, res) => {
     /* ================= BASIC VALIDATION ================= */
     if (!sessionId) {
       return res.status(400).json({ success: false, error: "Session ID missing" });
+    }
+
+    if (customer) {
+      if (customer.panNumber === "") delete customer.panNumber;
+      if (customer.gstin === "") delete customer.gstin;
+      if (customer.email === "") delete customer.email;
     }
 
     if (!customer.name || !customer.mobile) {
@@ -244,6 +251,8 @@ export const confirmInvoice = async (req, res) => {
         }
       }
     }
+    // 🧹 Clear product cache so product list reflects updated stock immediately
+    clearProductCache();
 
     /* ================= 7️⃣ UPDATE ORIGINAL ORDER STATUS ================= */
     for (const item of cart.items) {
