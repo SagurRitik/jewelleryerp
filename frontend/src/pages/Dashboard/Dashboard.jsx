@@ -1,6 +1,6 @@
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api";
 import DashboardStats from "./DashboardStats";
@@ -8,18 +8,185 @@ import DashboardCharts from "./DashboardCharts";
 import RecentOrdersTable from "./RecentOrdersTable";
 import TopSellingList from "./TopSellingList";
 import SalesBreakdown from "./SalesBreakdown";
-import { Calendar, ArrowLeft } from "lucide-react"; // Icon
+import { Calendar, ArrowLeft, ChevronDown, Download, Printer } from "lucide-react"; // Icon
 import MetalTrendChart from "./MetalTrendChart";
+import * as XLSX from "xlsx";
 
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const handlePrint = () => {
-  window.print();
-};
+    setExportDropdownOpen(false);
+    window.print();
+  };
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setExportDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleExportExcel = () => {
+    setExportDropdownOpen(false);
+    if (!data) return;
+    try {
+      const { stats, recentOrders, analytics } = data;
+
+      // 1. Prepare Overview Sheet Data
+      const overviewData = [
+        ["DASHBOARD SUMMARY REPORT"],
+        ["Filter Period:", filterType.toUpperCase()],
+        ...(filterType === "custom" && customRange.start && customRange.end
+          ? [["Date Range:", `${customRange.start} to ${customRange.end}`]]
+          : []),
+        ["Generated On:", new Date().toLocaleString("en-IN")],
+        [],
+        ["1. KEY PERFORMANCE INDICATORS (KPIs)"],
+        ["Metric", "Value"],
+        ["Total Revenue", stats?.totalRevenue || 0],
+        ["Total Orders", stats?.totalOrders || 0],
+        ["Inventory Items", stats?.inventoryItems || 0],
+        ["Avg. Order Value", stats?.avgOrderValue || 0],
+        [],
+        ["2. METAL SALES SUMMARY"],
+        ["Metal", "Weight (g)", "Revenue Generated"],
+        ...(analytics?.metalSales?.map(m => [m._id || "—", m.totalWeight || 0, m.totalRevenue || 0]) || []),
+        [],
+        ["3. CATEGORY SALES SUMMARY"],
+        ["Category", "Sales Qty", "Subtotal Revenue"],
+        ...(analytics?.categorySales?.map(c => [c._id || "—", c.sales || 0, c.revenue || 0]) || []),
+        [],
+        ["4. DIAMOND & STONE OVERALL STATS"],
+        ["Component", "Total Weight/Carats", "Quantity", "Total Amount"],
+        ["Diamonds", analytics?.diamondStats?.totalCarats || 0, analytics?.diamondStats?.sales || 0, analytics?.diamondStats?.totalAmount || 0],
+        ["Stones", analytics?.stoneStats?.totalWeight || 0, analytics?.stoneStats?.totalQty || 0, analytics?.stoneStats?.totalAmount || 0]
+      ];
+
+      // 2. Prepare Detailed Metal Sales Data
+      const metalDetailsData = [
+        ["DETAILED METAL SALES BY PURITY & RATE"],
+        [],
+        ["Metal Type", "Purity", "Rate (₹/g)", "Total Weight (g)", "Metal Value (₹)", "Sales Qty"],
+        ...(analytics?.metalPuritySales?.map(m => [
+          m.metal || "—",
+          m.purity || "—",
+          m.rate || 0,
+          m.weight || 0,
+          m.metalValue || 0,
+          m.quantity || 0
+        ]) || [])
+      ];
+
+      // 3. Prepare Detailed Diamond Sales Data
+      const diamondDetailsData = [
+        ["DIAMOND SALES BY TYPE & SHAPE"],
+        [],
+        ["Type / Shape", "Total Carats", "Pieces Qty", "Total Value (₹)", "Avg Rate (₹/ct)"],
+        ...(analytics?.diamondDetails?.map(d => [
+          d.type || "—",
+          d.carats || 0,
+          d.quantity || 0,
+          d.amount || 0,
+          d.avgRate || 0
+        ]) || []),
+        [],
+        ["DIAMOND SIZE ANALYSIS (CARAT RANGES)"],
+        [],
+        ["Size Range", "Total Carats", "Pieces Qty", "Total Value (₹)", "Avg Rate (₹/ct)"],
+        ...(analytics?.diamondSizeAnalysis?.map(s => [
+          s.range || "—",
+          s.weight || 0,
+          s.quantity || 0,
+          s.amount || 0,
+          s.avgRate || 0
+        ]) || [])
+      ];
+
+      // 4. Prepare Detailed Stone Sales Data
+      const stoneDetailsData = [
+        ["STONE SALES BY TYPE & COLOR"],
+        [],
+        ["Stone Type", "Total Weight (ct)", "Pieces Qty", "Total Value (₹)"],
+        ...(analytics?.topStones?.map(s => [
+          s.type || "—",
+          s.weight || 0,
+          s.quantity || 0,
+          s.amount || 0
+        ]) || [])
+      ];
+
+      // 5. Prepare Recent Orders Sheet Data
+      const recentOrdersData = [
+        ["RECENT ORDERS"],
+        [],
+        ["Invoice # / Order ID", "Customer Name", "Payment Status", "Grand Total (₹)", "Order Date"],
+        ...(recentOrders?.map(o => [
+          o.invoiceNo || o._id || "—",
+          o.customer?.name || "—",
+          o.payment?.status || "—",
+          o.totals?.grandTotal || 0,
+          o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-IN") : "—"
+        ]) || [])
+      ];
+
+      // 6. Prepare Top Selling Products Sheet Data
+      const topProductsData = [
+        ["TOP SELLING PRODUCTS"],
+        [],
+        ["Product Title", "Quantity Sold", "Revenue Generated (₹)"],
+        ...(analytics?.topProducts?.map(p => [
+          p._id || "—",
+          p.sales || 0,
+          p.revenue || 0
+        ]) || [])
+      ];
+
+      // Create worksheets
+      const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
+      const wsMetal = XLSX.utils.aoa_to_sheet(metalDetailsData);
+      const wsDiamond = XLSX.utils.aoa_to_sheet(diamondDetailsData);
+      const wsStone = XLSX.utils.aoa_to_sheet(stoneDetailsData);
+      const wsOrders = XLSX.utils.aoa_to_sheet(recentOrdersData);
+      const wsProducts = XLSX.utils.aoa_to_sheet(topProductsData);
+
+      // Adjust column widths for better readability
+      wsOverview["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 25 }];
+      wsMetal["!cols"] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 12 }];
+      wsDiamond["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }];
+      wsStone["!cols"] = [{ wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 18 }];
+      wsOrders["!cols"] = [{ wch: 20 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 15 }];
+      wsProducts["!cols"] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }];
+
+      // Create Workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsOverview, "Summary & KPIs");
+      XLSX.utils.book_append_sheet(wb, wsMetal, "Metal Sales");
+      XLSX.utils.book_append_sheet(wb, wsDiamond, "Diamond Sales");
+      XLSX.utils.book_append_sheet(wb, wsStone, "Stone Sales");
+      XLSX.utils.book_append_sheet(wb, wsOrders, "Recent Orders");
+      XLSX.utils.book_append_sheet(wb, wsProducts, "Top Products");
+
+      // Generate filename based on date/filter
+      const dateString = new Date().toISOString().slice(0, 10);
+      const filename = `Dashboard_Report_${filterType}_${dateString}.xlsx`;
+
+      // Trigger download
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Failed to export Excel report:", error);
+      alert("Error exporting report to Excel");
+    }
+  };
   
   // ✅ GLOBAL FILTER STATE
   const [filterType, setFilterType] = useState("monthly"); // daily, weekly, monthly, yearly, custom
@@ -158,13 +325,36 @@ export default function Dashboard() {
              </div>
            )}
 
-           {/* Action Buttons */}
-           <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
-           <button
-           onClick={handlePrint}
-           className="px-4 py-2 bg-[#501b46] text-white text-sm font-medium rounded-lg hover:bg-[#3a1332] transition flex items-center gap-2">
-             <Calendar size={16} /> Export Report
-           </button>
+            {/* Action Buttons */}
+            <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                className="px-4 py-2 bg-[#501b46] text-white text-sm font-medium rounded-lg hover:bg-[#3a1332] transition flex items-center gap-2"
+              >
+                <Calendar size={16} /> Export Report <ChevronDown size={14} />
+              </button>
+              
+              {exportDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-150 rounded-lg shadow-lg z-50 overflow-hidden py-1">
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Printer size={14} className="text-gray-400" /> Print / Save PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors border-t border-gray-50"
+                  >
+                    <Download size={14} className="text-gray-400" /> Download Excel (.xlsx)
+                  </button>
+                </div>
+              )}
+            </div>
         </div>
       </div>
 
