@@ -35,12 +35,15 @@ import React from "react";
 import { 
   Calendar, CreditCard, Landmark, Banknote, 
   QrCode, PieChart, TrendingUp, Printer, Info,
-  ChevronRight, ArrowUpRight, Receipt, Wallet, FileSpreadsheet
+  ChevronRight, ArrowUpRight, Receipt, Wallet, FileSpreadsheet,
+  ArrowLeft
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 
 export default function DailySalesClosing({ data, date, onDateChange }) {
+  const navigate = useNavigate();
   const { isDark } = useTheme();
 
   if (!data) return (
@@ -140,13 +143,21 @@ export default function DailySalesClosing({ data, date, onDateChange }) {
         
         {/* ================= HEADER ================= */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 print:mb-4 print:gap-2">
-          <div>
-            <h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight mb-2 ${theme.text} print:text-xl`}>
-              Daily Sales <span className="text-[#5A374F]">Closing</span>
-            </h1>
-            <p className={`text-sm font-medium ${theme.muted} print:text-[10px]`}>
-              Overview of transactions and revenue for the selected period
-            </p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors print:hidden"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight mb-2 ${theme.text} print:text-xl`}>
+                Daily Sales <span className="text-[#5A374F]">Closing</span>
+              </h1>
+              <p className={`text-sm font-medium ${theme.muted} print:text-[10px]`}>
+                Overview of transactions and revenue for the selected period
+              </p>
+            </div>
           </div>
           
           <div className="flex items-center gap-3 print:hidden">

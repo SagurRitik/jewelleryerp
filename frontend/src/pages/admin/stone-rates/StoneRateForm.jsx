@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
   createStoneRate,
   updateStoneRate,
@@ -157,18 +158,17 @@ export default function StoneRateForm() {
 
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg border border-gray-200 p-8 space-y-6">
 
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
+         {/* HEADER */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 hover:border-blue-100 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <h1 className="text-xl font-bold text-gray-800">
             🪨 {isEdit ? "Edit Stone Rate" : "Add Stone Rate"}
           </h1>
-
-          <button
-            onClick={() => navigate("/admin/stone-rates")}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            ← Back
-          </button>
         </div>
 
         {/* STONE TYPE */}

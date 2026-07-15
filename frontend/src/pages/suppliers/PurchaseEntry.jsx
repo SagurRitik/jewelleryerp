@@ -12,9 +12,11 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import ProductForm from "../../components/ProductForm";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const PurchaseEntry = () => {
+  const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
@@ -150,9 +152,18 @@ const PurchaseEntry = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">New Purchase</h1>
-        <p className="text-gray-500">Record a simplified purchase entry with slip upload</p>
+      <div className="mb-8 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6B3654] hover:border-[#6B3654]/20 transition-colors"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 leading-none mb-1">New Purchase</h1>
+          <p className="text-gray-500 text-sm">Record a simplified purchase entry with slip upload</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

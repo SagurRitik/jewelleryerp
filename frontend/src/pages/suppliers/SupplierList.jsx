@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Search, Plus, Edit, Power, PowerOff, DollarSign, FileText, X, Trash2 } from "lucide-react";
+import { Search, Plus, Edit, Power, PowerOff, DollarSign, FileText, X, Trash2, ArrowLeft } from "lucide-react";
 
 export default function SupplierList() {
   const [suppliers, setSuppliers] = useState([]);
@@ -122,9 +122,17 @@ export default function SupplierList() {
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-[32px] font-bold text-[#1A1A1A] tracking-tight mb-1">Supplier Master</h1>
-            <p className="text-[#8B8286] text-sm font-medium">Manage and monitor all material and service providers.</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-indigo-600 hover:border-indigo-600/20 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-[32px] font-bold text-[#1A1A1A] tracking-tight mb-1">Supplier Master</h1>
+              <p className="text-[#8B8286] text-sm font-medium">Manage and monitor all material and service providers.</p>
+            </div>
           </div>
           <button 
             onClick={() => navigate("/suppliers/new")}

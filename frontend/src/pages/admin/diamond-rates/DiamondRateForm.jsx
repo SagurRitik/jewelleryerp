@@ -716,6 +716,7 @@ import {
   DIAMOND_SHAPES as SHAPES,
 } from "../../../utils/diamondConstants";
 import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 /* ================= GROUP MAPS ================= */
 const COLOR_GROUPS = {
@@ -903,17 +904,16 @@ export default function DiamondRateForm() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg border p-8 space-y-6">
 
-        <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 hover:border-blue-100 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <h2 className="text-xl font-bold">
             {isEdit ? "✏️ Edit Diamond Rate" : "➕ Add Diamond Rate"}
           </h2>
-
-          <button
-            onClick={() => navigate("/admin/diamond-rates")}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            ← Back
-          </button>
         </div>
 
         {/* Shape */}

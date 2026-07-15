@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, Download, CreditCard, Activity, CheckCircle } from "lucide-react";
+import { Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, Download, CreditCard, Activity, CheckCircle, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function CreditNoteList() {
+  const navigate = useNavigate();
   const [notes, setNotes] = useState([]);
   const [stats, setStats] = useState({
     totalAmount: 0,
@@ -87,11 +89,19 @@ export default function CreditNoteList() {
 
         {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Credit Notes</h1>
-            <p className="text-gray-500 mt-2 text-sm max-w-md leading-relaxed">
-              Manage institutional credit adjustments, reversals, and customer account balances.
-            </p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6B3654] hover:border-[#6B3654]/20 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Credit Notes</h1>
+              <p className="text-gray-500 mt-1 text-sm max-w-md leading-relaxed">
+                Manage institutional credit adjustments, reversals, and customer account balances.
+              </p>
+            </div>
           </div>
           <button className="bg-[#6B3654] hover:bg-[#582A44] transition-colors text-white px-5 py-2.5 rounded-md text-sm font-medium shadow-sm flex items-center gap-2">
             <Download size={16} /> Export Records

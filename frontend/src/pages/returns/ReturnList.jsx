@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -6,7 +6,7 @@ import {
   Search, Filter, RefreshCw, CreditCard, Eye,
   Gem, Layers, Wrench, Percent, TrendingDown,
   ChevronDown, ChevronUp, Package, BadgeCheck,
-  PlusCircle, BarChart3, Download, ChevronLeft, ChevronRight
+  PlusCircle, BarChart3, Download, ChevronLeft, ChevronRight, ArrowLeft
 } from "lucide-react";
 import toast from "react-hot-toast";
 import "./ReturnList.css";
@@ -201,9 +201,18 @@ export default function ReturnList() {
 
         {/* ── Header ── */}
         <div className="rl-header">
-          <div>
-            <h1 className="rl-title">Return Orders</h1>
-            <p className="rl-subtitle">{returns.length} total returns · Refunds & Exchanges</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors"
+              style={{ flexShrink: 0 }}
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="rl-title" style={{ margin: 0 }}>Return Orders</h1>
+              <p className="rl-subtitle" style={{ margin: 0 }}>{returns.length} total returns · Refunds & Exchanges</p>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="rl-btn-outline" onClick={exportToCSV}>
@@ -305,7 +314,7 @@ export default function ReturnList() {
                     const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
                     return (
-                      <>
+                      <Fragment key={r._id}>
                         <motion.tr
                           key={r._id}
                           className={`rl-row ${isExpanded ? "expanded" : ""}`}
@@ -426,7 +435,7 @@ export default function ReturnList() {
                             </motion.tr>
                           )}
                         </AnimatePresence>
-                      </>
+                      </Fragment>
                     );
                   })}
                 </AnimatePresence>

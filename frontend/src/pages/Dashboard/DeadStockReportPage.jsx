@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Package, Clock, AlertTriangle, TrendingDown, PackageX, History, Flame, Tag, RefreshCw, ChevronsLeft, ChevronsRight, Landmark } from "lucide-react";
+import { Package, Clock, AlertTriangle, TrendingDown, PackageX, History, Flame, Tag, RefreshCw, ChevronsLeft, ChevronsRight, Landmark, ArrowLeft } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function DeadStockReportPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState({
     "0-6 Months": { items: [], totalValue: 0 },
     "6-9 Months": { items: [], totalValue: 0 },
@@ -69,10 +71,22 @@ export default function DeadStockReportPage() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h1 className={`text-4xl md:text-[32px] font-bold tracking-tight flex items-center gap-4 ${isDark ? "text-white" : "text-[#4c2344]"}`}>
-              <PackageX size={36} className={`${isDark ? "text-pink-500" : "text-[#7E4C69]"}`} />
-              Dead Stock & Inventory Aging
-            </h1>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate(-1)}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl shadow-sm border transition-colors ${
+                  isDark 
+                    ? "bg-white/5 border-white/10 text-gray-300 hover:text-white hover:border-white/20" 
+                    : "bg-white border-gray-200 text-gray-600 hover:text-[#7E4C69] hover:border-[#7E4C69]/20"
+                }`}
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <h1 className={`text-4xl md:text-[32px] font-bold tracking-tight flex items-center gap-4 ${isDark ? "text-white" : "text-[#4c2344]"}`}>
+                <PackageX size={36} className={`${isDark ? "text-pink-500" : "text-[#7E4C69]"}`} />
+                Dead Stock & Inventory Aging
+              </h1>
+            </div>
             <p className={`text-base mt-2 font-medium tracking-wide ${isDark ? "text-gray-400" : "text-slate-500"}`}>
               Identify unsellable inventory, reallocate capital, and optimize stock health.
             </p>

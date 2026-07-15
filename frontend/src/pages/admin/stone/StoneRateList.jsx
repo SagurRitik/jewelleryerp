@@ -120,6 +120,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
   getStoneRates,
   deleteStoneRate,
@@ -166,9 +167,17 @@ export default function StoneRateList() {
 
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          🪨 Stone Rate Master
-        </h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 hover:border-blue-100 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-800">
+            🪨 Stone Rate Master
+          </h1>
+        </div>
 
         <button
           onClick={() => navigate("/admin/stone-rates/new")}

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
-import { Shield, Trash2, RefreshCcw } from "lucide-react";
+import { Shield, Trash2, RefreshCcw, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function UserManagement() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +62,17 @@ export default function UserManagement() {
       <div className="bg-white shadow-xl rounded-2xl p-6">
 
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-800">
-            User Management
-          </h2>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-gray-800 hover:border-gray-200 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <h2 className="text-2xl font-semibold text-gray-800">
+              User Management
+            </h2>
+          </div>
 
           <button
             onClick={fetchUsers}

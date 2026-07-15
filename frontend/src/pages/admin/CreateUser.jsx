@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import api from "../../api/axios";
-import { UserPlus } from "lucide-react";
+import { UserPlus, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateUser() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -53,13 +55,22 @@ export default function CreateUser() {
       <div className="bg-white shadow-xl rounded-2xl w-full max-w-md p-8 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="bg-[#5A374F] p-3 rounded-xl">
-            <UserPlus className="text-white" />
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className="bg-[#5A374F] p-3 rounded-xl">
+              <UserPlus className="text-white" />
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-800">
+              Create User
+            </h2>
           </div>
-          <h2 className="text-2xl font-semibold text-gray-800">
-            Create New User
-          </h2>
         </div>
 
         {/* Success / Error */}

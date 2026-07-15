@@ -14,6 +14,7 @@ import { createManualInvoice } from "../api/invoiceApi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 
 export default function ManualBillingForm() {
   const navigate = useNavigate();
@@ -757,9 +758,19 @@ export default function ManualBillingForm() {
 
       <div className="max-w-[1400px] mx-auto">
         {/* Header Section */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-[#5c2b41]">Manual Billing</h1>
-          <div className="flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-xs font-semibold shadow-sm border border-green-100">
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5c2b41] hover:border-[#5c2b41]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[#5c2b41] leading-none mb-1">Manual Billing</h1>
+            <p className="text-xs text-gray-400">Create client invoices manually</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-xs font-semibold shadow-sm border border-green-100">
             <div className="w-2 h-2 bg-[#4caf50] rounded-full"></div>
             System Online
           </div>
