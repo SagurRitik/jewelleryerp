@@ -22,6 +22,14 @@ export default function ManualBillingForm() {
   const location = useLocation();
   const { showConfirm } = useModal();
 
+  const getFormattedInvoiceNo = (datePart, seqVal) => {
+    if (!seqVal?.trim()) return "";
+    const seq = seqVal.trim();
+    const paddedSeq = /^\d+$/.test(seq) ? seq.padStart(5, "0") : seq;
+    const cleanDatePart = datePart ? datePart.trim() : "";
+    return `NZD-${cleanDatePart}-${paddedSeq}`;
+  };
+
   const [credits, setCredits] = useState([]);
   const [selectedCreditIds, setSelectedCreditIds] = useState([]);
   const [appliedCredit, setAppliedCredit] = useState(0);
@@ -189,6 +197,8 @@ export default function ManualBillingForm() {
 
     return {
       date: new Date().toISOString().split("T")[0],
+      invoiceDatePart: new Date().toISOString().split("T")[0].replace(/-/g, "/"),
+      invoiceSeq: "",
       baseRates: savedRates
         ? JSON.parse(savedRates)
         : {
@@ -271,6 +281,8 @@ export default function ManualBillingForm() {
 
     return {
       date: new Date().toISOString().split("T")[0],
+      invoiceDatePart: new Date().toISOString().split("T")[0].replace(/-/g, "/"),
+      invoiceSeq: "",
       baseRates: savedRates
         ? JSON.parse(savedRates)
         : {
@@ -591,6 +603,7 @@ export default function ManualBillingForm() {
       creditNoteIds: selectedCreditIds,
       appliedCredit,
       date: form.date,
+      invoiceNo: getFormattedInvoiceNo(form.invoiceDatePart, form.invoiceSeq),
       totals: {
         discount: itemsPayload.reduce(
           (sum, i) => sum + (i.breakup.discount || 0),
@@ -784,8 +797,38 @@ export default function ManualBillingForm() {
                 required
                 className="text-xs font-bold text-gray-700 focus:outline-none cursor-pointer border-none p-0 bg-transparent"
                 value={form.date}
-                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    date: newDate,
+                    invoiceDatePart: newDate.replace(/-/g, "/")
+                  }));
+                }}
               />
+            </div>
+
+            {/* Invoice No Field */}
+            <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Invoice No:</label>
+              <div className="flex items-center text-xs font-bold text-gray-700 gap-0.5">
+                <span className="text-gray-400 select-none">NZD-</span>
+                <input
+                  type="text"
+                  placeholder="YYYY/MM/DD"
+                  className="w-[84px] focus:outline-none border-none p-0 bg-transparent text-xs font-bold text-gray-700 placeholder-gray-300"
+                  value={form.invoiceDatePart || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, invoiceDatePart: e.target.value }))}
+                />
+                <span className="text-gray-400 select-none">-</span>
+                <input
+                  type="text"
+                  placeholder="Auto"
+                  className="w-10 focus:outline-none border-none p-0 bg-transparent text-xs font-bold text-gray-700 placeholder-gray-300"
+                  value={form.invoiceSeq || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, invoiceSeq: e.target.value.replace(/\D/g, "") }))}
+                />
+              </div>
             </div>
             
             {/* Reset Form Button */}

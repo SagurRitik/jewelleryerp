@@ -163,12 +163,23 @@ export const createManualInvoice = async (req, res) => {
 
   try {
 
-    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date } = req.body
+    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date, invoiceNo } = req.body
 
     if (customer) {
       if (customer.panNumber === "") delete customer.panNumber;
       if (customer.gstin === "") delete customer.gstin;
       if (customer.email === "") delete customer.email;
+    }
+
+    const trimmedInvoiceNo = invoiceNo?.trim();
+    if (trimmedInvoiceNo) {
+      const existing = await SalesOrder.findOne({ invoiceNo: trimmedInvoiceNo });
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: `Invoice number ${trimmedInvoiceNo} already exists.`
+        });
+      }
     }
 
     let subtotal = 0
@@ -194,7 +205,7 @@ export const createManualInvoice = async (req, res) => {
     }
 
     const invoiceData = {
-      invoiceNo: await generateInvoiceNo(),
+      invoiceNo: trimmedInvoiceNo || await generateInvoiceNo(),
       customer,
       items,
       salesperson,

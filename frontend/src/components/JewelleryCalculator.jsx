@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Lock, Unlock, Sparkles, Sigma, Plus, X, ChevronDown, Settings } from "lucide-react";
 import BackButton from "./BackButton";
 
@@ -91,6 +91,24 @@ export default function JewelleryCalculator() {
   });
 
   const update = (u) => setState((p) => ({ ...p, ...u }));
+
+  const [calcPurity, setCalcPurity] = useState("18KT");
+  const [calcRate, setCalcRate] = useState("");
+  const [showRateCalc, setShowRateCalc] = useState(false);
+
+  const calculated24KRate = useMemo(() => {
+    const rateVal = parseFloat(calcRate);
+    if (!rateVal || isNaN(rateVal)) return 0;
+    const factor = state.goldPurityFactors[calcPurity] || 1;
+    return rateVal / factor;
+  }, [calcPurity, calcRate, state.goldPurityFactors]);
+
+  const applyCalculatedRate = () => {
+    if (calculated24KRate > 0) {
+      update({ gold24kRate: String(Math.round(calculated24KRate)) });
+      setShowRateCalc(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -375,13 +393,67 @@ export default function JewelleryCalculator() {
               <span className={labelClass}>Gold Configuration</span>
               <div className="grid md:grid-cols-2 gap-4 mt-2">
                 <div className="space-y-4">
-                  <label className="text-xs font-semibold text-[#8B8579]">24K Gold Rate (₹/gm)</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-[#8B8579]">24K Gold Rate (₹/gm)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRateCalc(!showRateCalc)}
+                      className="text-[10px] font-bold text-[#C5A059] hover:underline"
+                    >
+                      Check 24KT Rate
+                    </button>
+                  </div>
                   <input
                     disabled={state.ratesLocked}
                     className={inputStyle}
                     value={state.gold24kRate}
                     onChange={(e) => update({ gold24kRate: e.target.value })}
                   />
+
+                  {showRateCalc && (
+                    <div className="bg-[#FAF9F6] border border-[#E5E1DA] rounded-lg p-3 space-y-3 transition-all">
+                      <span className="text-[9px] font-bold text-[#A8A294] uppercase tracking-wider block">Check 24KT Rate</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] font-bold text-[#A8A294] mb-1 block uppercase">Purity</label>
+                          <select
+                            value={calcPurity}
+                            onChange={(e) => setCalcPurity(e.target.value)}
+                            className="w-full bg-white border border-[#E5E1DA] rounded p-1.5 text-xs text-[#4A453A] outline-none"
+                          >
+                            {Object.keys(state.goldPurityFactors).map((k) => (
+                              <option key={k} value={k}>{k}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-bold text-[#A8A294] mb-1 block uppercase">Purity Rate (₹)</label>
+                          <input
+                            type="number"
+                            value={calcRate}
+                            onChange={(e) => setCalcRate(e.target.value)}
+                            placeholder="e.g. 45000"
+                            className="w-full bg-white border border-[#E5E1DA] rounded p-1.5 text-xs text-[#4A453A] outline-none"
+                          />
+                        </div>
+                      </div>
+                      {calculated24KRate > 0 && (
+                        <div className="flex items-center justify-between bg-[#C5A059]/10 border border-[#C5A059]/20 rounded p-2">
+                          <div className="flex flex-col">
+                            <span className="text-[7px] font-bold text-[#C5A059] uppercase tracking-wider">Calculated 24KT</span>
+                            <span className="text-xs font-bold text-[#2D2A24]">₹ {Math.round(calculated24KRate).toLocaleString('en-IN')}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={applyCalculatedRate}
+                            className="bg-[#C5A059] hover:bg-[#B39049] text-white text-[9px] font-bold px-2 py-1 rounded transition-all"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <label className="text-xs font-semibold text-[#8B8579]">Select Purity</label>
                   <select
                     className={selectStyle}
