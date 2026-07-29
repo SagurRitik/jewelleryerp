@@ -1,55 +1,119 @@
 name: Deploy JewelryERP
 
+# ============================================================================
+#  DEVELOPMENT deployment pipeline  (DEV ONLY)
+# ----------------------------------------------------------------------------
+#  Trigger : push to `dev`
+#  Target  : DEVELOPMENT server  (devjewelerp.nazaradiamonds.com)
+#
+#  Production lives in a separate file — deploy-production.yml — which
+#  triggers on `main`. The two workflows listen to DIFFERENT branches, so a
+#  push to one branch can never start the other's deploy:
+#      deploy.yml             -> `dev`  -> development server (this file)
+#      deploy-production.yml  -> `main` -> production server
+#
+#  NOTE: GitHub reads this file from the branch that was pushed. For a `dev`
+#  push to trigger anything, THIS version of the file must exist on `dev`.
+# ============================================================================
+
 on:
   push:
     branches:
-      - main
-      # - development   # uncomment to also deploy on pushes to development
+      - dev    # Development ONLY (production is handled by deploy-production.yml)
+  workflow_dispatch:   # allow a manual re-deploy from the Actions tab
 
-# Prevent overlapping deploys; a newer push cancels an in-progress one
-concurrency:
-  group: deploy-production
-  cancel-in-progress: true
+# Least privilege: deployment happens over SSH, so the workflow token only
+# needs read access to the repository. Nothing here writes back to GitHub.
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  deploy-development:
+    # Second, independent guard: run ONLY when the pushed ref is exactly dev.
+    if: github.ref == 'refs/heads/dev'
+
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Binding to the `development` Environment makes every `secrets.*` below
+    # resolve to that environment first. The `||` fallbacks let this work with
+    # the older repo-level secret names too, so the pipeline runs whichever
+    # naming the repo currently has configured.
+    environment: development
+
+    # Stop two overlapping dev deploys from racing on the same server.
+    concurrency:
+      group: deploy-development
+      cancel-in-progress: false
 
     steps:
-      - name: Deploy to server over SSH
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Deploy to Development Server
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_BRANCH: dev   # hard-coded: this job only ever deploys dev
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/html/jewelleryerp' }}
+          BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          port: ${{ secrets.SSH_PORT }}
+          host: ${{ secrets.SERVER_HOST || secrets.SSH_HOST }}
+          username: ${{ secrets.SERVER_USER || secrets.SSH_USERNAME }}
+          port: ${{ secrets.SERVER_PORT || secrets.SSH_PORT || 22 }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true   # abort the deploy if any command below fails
+          envs: DEPLOY_BRANCH,DEPLOY_PATH,BACKEND_ENV_B64
+          script_stop: true
           script: |
-            set -e
-            echo "==> Project directory"
-            cd /var/www/html/jewelleryerp
+            # Fail the whole deploy on the FIRST error.
+            set -eo pipefail
+            trap 'echo "::error::[DEV] Deployment FAILED (exit code $?)"; exit 1' ERR
 
-            echo "==> Sync code with origin/main (discards local changes to tracked files)"
-            git fetch origin main
-            git reset --hard origin/main
+            echo "==== [DEV] Deployment started: $(date -u) ===="
+            echo "Branch : $DEPLOY_BRANCH"
+            echo "Path   : $DEPLOY_PATH"
 
-            echo "==> Backend dependencies"
+            echo "[1/8] Go to project directory"
+            cd "$DEPLOY_PATH"
+
+            echo "[2/8] Load Node & NVM environment"
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            # Resolve pm2 wherever it lives: global install, repo-local, or npx.
+            if command -v pm2 >/dev/null 2>&1; then
+              PM2="pm2"
+            elif [ -x "$DEPLOY_PATH/node_modules/.bin/pm2" ]; then
+              PM2="$DEPLOY_PATH/node_modules/.bin/pm2"
+            else
+              PM2="npx --yes pm2"
+            fi
+            echo "      node: $(node -v)  pm2: $PM2"
+
+            echo "[3/8] Fetch & hard-reset to origin/$DEPLOY_BRANCH"
+            git fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+
+            # Optional: recreate backend/.env from the environment secret.
+            # No-op if BACKEND_ENV_B64 is not set (server keeps its own .env).
+            if [ -n "${BACKEND_ENV_B64:-}" ]; then
+              echo "[3b/8] Writing backend/.env from secret"
+              echo "$BACKEND_ENV_B64" | base64 -d > backend/.env
+            fi
+
+            echo "[4/8] Backend dependencies"
             cd backend
             npm install --omit=dev
 
-            echo "==> Frontend dependencies + production build"
+            echo "[5/8] Frontend dependencies"
             cd ../frontend
             npm install
-            npm run build
 
-            echo "==> Restart backend (pm2)"
+            echo "[6/8] Build frontend"
+            NODE_OPTIONS=--max-old-space-size=4096 npm run build
+
+            echo "[7/8] Restart backend via PM2"
             cd ../backend
-            pm2 restart jewellery-backend --update-env || pm2 start server.js --name jewellery-backend --update-env
-            pm2 save
+            $PM2 restart jewellery-backend --update-env \
+              || $PM2 start server.js --name jewellery-backend --update-env
 
-            echo "==> Reload Nginx (serves the fresh frontend build)"
-            nginx -t && systemctl reload nginx
+            echo "[8/8] Persist PM2 process list"
+            $PM2 save
+            $PM2 list
 
-            echo "==> Status"
-            pm2 list
-            echo "Deploy complete."
+            echo "==== [DEV] Deployment finished successfully: $(date -u) ===="
