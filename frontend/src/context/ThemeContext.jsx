@@ -8,7 +8,7 @@ export const ThemeProvider = ({ children }) => {
     if (saved !== null) {
       return saved === "true";
     }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return false; // By default Light mode
   });
 
   useEffect(() => {

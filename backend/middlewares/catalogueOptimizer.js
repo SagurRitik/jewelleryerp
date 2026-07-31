@@ -33,9 +33,10 @@ export const optimizeCatalogueImages = async (req, res, next) => {
         const outputPath = path.join(catalogueDir, filename);
 
         await sharp(file.buffer)
+          .rotate()
           .resize(400, 400, { fit: "inside", withoutEnlargement: true })
           .toFormat("webp")
-          .webp({ quality: 75 })
+          .webp({ quality: 75, effort: 6 })
           .toFile(outputPath);
 
         file.filename = filename;
@@ -54,9 +55,10 @@ export const optimizeCatalogueImages = async (req, res, next) => {
         const outputPath = path.join(catalogueDir, filename);
 
         await sharp(file.buffer)
+          .rotate()
           .resize(1200, 1600, { fit: "inside", withoutEnlargement: true })
           .toFormat("webp")
-          .webp({ quality: 80 })
+          .webp({ quality: 75, effort: 6 })
           .toFile(outputPath);
 
         file.filename = filename;

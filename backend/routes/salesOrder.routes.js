@@ -4,13 +4,16 @@
 import express from "express";
 import { confirmInvoice } from "../controllers/cart/confirmInvoice.controller.js";
 import { getInvoiceById ,resyncTally, getAllInvoices} from "../controllers/cart/salesOrder.controller.js";
-
-
+import { getFindCalculation } from "../controllers/cart/findCalculation.controller.js";
 import {downloadInvoicePDF} from "../controllers/cart/downloadInvoicePDF.js"
 const router = express.Router();
 
 /* CREATE INVOICE */
 router.post("/confirm-invoice", confirmInvoice);
+
+/* FIND CALCULATION AUDIT (QR & INVOICE SEARCH) */
+router.get("/find-calculation", getFindCalculation);
+router.get("/find-calculation/:identifier", getFindCalculation);
 
 /* GET ALL INVOICES */
 router.get("/", getAllInvoices);

@@ -74,14 +74,16 @@ const cartSchema = new mongoose.Schema(
 
     /* ================= TOTALS ================= */
     totals: {
+      grossTotal: { type: Number, default: 0 },
       subtotal: { type: Number, default: 0 },
       gst: { type: Number, default: 0 },
       grandTotal: { type: Number, default: 0 },
-       // 🔥 ADD THESE (CRITICAL)
-  discount: { type: Number, default: 0 },
-  discountDiamond: { type: Number, default: 0 },
-  discountStone: { type: Number, default: 0 },
-  discountMaking: { type: Number, default: 0 },
+      discount: { type: Number, default: 0 },
+      regularDiscount: { type: Number, default: 0 },
+      celebrationDiscount: { type: Number, default: 0 },
+      discountDiamond: { type: Number, default: 0 },
+      discountStone: { type: Number, default: 0 },
+      discountMaking: { type: Number, default: 0 },
     },
     
   },

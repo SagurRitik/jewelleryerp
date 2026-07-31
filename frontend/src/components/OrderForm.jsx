@@ -23,6 +23,9 @@ const CLARITY_OPTIONS = ["FL", "IF", "VVS-VS", "VVS1", "VVS2", "VS1", "VS2", "SI
 const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
 const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];
 const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
+const JEWELLERY_CATEGORIES = [
+  "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Other"
+];
 
 export default function OrderForm({ onSuccess, initialProduct: propInitialProduct, initialOrder }) {
   const [form, setForm] = useState({
@@ -1224,12 +1227,16 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1.5">Category</label>
-                      <input
-                        placeholder="Bracelet"
-                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm"
+                      <select
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#6B2E4A] text-sm cursor-pointer"
                         value={currentSnapshot.jewelleryCategory || ""}
                         onChange={(e) => updateSnapshotField("jewelleryCategory", e.target.value)}
-                      />
+                      >
+                        <option value="">Select Category</option>
+                        {JEWELLERY_CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1.5">Size</label>

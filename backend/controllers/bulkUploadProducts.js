@@ -91,9 +91,10 @@ export const bulkUploadProducts = async (req, res) => {
               console.log(`  📸 Compressing: ${originalName} → ${outputFilename}`);
 
               await sharp(entry.getData())
-                .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+                .rotate()
+                .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
                 .toFormat("webp")
-                .webp({ quality: 80 })
+                .webp({ quality: 75, effort: 6 })
                 .toFile(destPath);
             } else {
               console.log(`  ⏭️ Skipped (not an image): ${originalName}`);

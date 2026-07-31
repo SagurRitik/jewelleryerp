@@ -221,7 +221,10 @@ export const createManualInvoice = async (req, res) => {
       payment: {
         mode: payment?.mode || "CASH",
         referenceNo: payment?.referenceNo || "",
-        status: "PAID"
+        status: "PAID",
+        ...(payment?.mode === "SPLIT" && Array.isArray(payment?.splitPayments)
+          ? { splitPayments: payment.splitPayments }
+          : {}),
       }
     }
 

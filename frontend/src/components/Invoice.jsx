@@ -1025,9 +1025,24 @@ export default function Invoice({ invoice }) {
             Payment & Delivery
           </h3>
           <div className="text-[9px] space-y-0.5 text-gray-800">
-            <p>Mode: {invoice.payment.mode}</p>
-            <p>Ref: {invoice.payment.ref}</p>
-            <p>Status: <span className="font-bold">{invoice.payment.status}</span></p>
+            <p>
+              Mode:{" "}
+              {invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+                ? invoice.payment.splitPayments
+                    .map((p) => p.mode)
+                    .join(" + ")
+                : (invoice.payment?.mode || "CASH")}
+            </p>
+            <p>
+              Ref:{" "}
+              {invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+                ? invoice.payment.splitPayments
+                    .filter((p) => p.referenceNo)
+                    .map((p) => `${p.mode}: ${p.referenceNo}`)
+                    .join(", ") || "-"
+                : (invoice.payment?.referenceNo || invoice.payment?.ref || "-")}
+            </p>
+            <p>Status: <span className="font-bold">{invoice.payment?.status || "PAID"}</span></p>
           </div>
         </div>
       </div>

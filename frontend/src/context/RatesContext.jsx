@@ -160,6 +160,17 @@ export const RatesProvider = ({ children }) => {
         },
       },
 
+      /* ===== CELEBRATION DISCOUNTS ===== */
+      birthdayDiscountTarget: rawRates.birthdayDiscountTarget || "making",
+      birthdayDiscountType: rawRates.birthdayDiscountType || "percent",
+      birthdayDiscountValue: Number(rawRates.birthdayDiscountValue ?? 20),
+      birthdayMinWeight: Number(rawRates.birthdayMinWeight || 0),
+
+      anniversaryDiscountTarget: rawRates.anniversaryDiscountTarget || "making",
+      anniversaryDiscountType: rawRates.anniversaryDiscountType || "percent",
+      anniversaryDiscountValue: Number(rawRates.anniversaryDiscountValue ?? 20),
+      anniversaryMinWeight: Number(rawRates.anniversaryMinWeight || 0),
+
       // Utility functions for components
       helpers: {
         getMetalRate: (type, purity) => {

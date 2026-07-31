@@ -30,9 +30,10 @@ const saveUploadedFile = async (file) => {
   const filename = `quotation-${uniqueSuffix}.webp`;
   const outputPath = path.join(UPLOADS_DIR, filename);
   await sharp(file.buffer)
-    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+    .rotate()
+    .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
     .toFormat("webp")
-    .webp({ quality: 80 })
+    .webp({ quality: 75, effort: 6 })
     .toFile(outputPath);
   return filename;
 };
@@ -519,7 +520,7 @@ export const manualQuotation = calculateQuotation;
 /* ========== INTERNAL: BUILD PDF BUFFER =========== */
 /* ================================================= */
 const generatePdfBuffer = async (q, baseUrl) => {
-  const html = estimateTemplate(q, baseUrl);
+  const html = await estimateTemplate(q, baseUrl);
 
   const launchArgs = [
     "--no-sandbox",
@@ -527,10 +528,6 @@ const generatePdfBuffer = async (q, baseUrl) => {
     "--disable-dev-shm-usage",
     "--disable-accelerated-2d-canvas",
     "--disable-gpu",
-    "--no-first-run",
-    "--no-zygote",
-    "--single-process",
-    "--disable-extensions",
   ];
 
   const browser = await puppeteer.launch({
@@ -642,10 +639,10 @@ export const sendEstimateWhatsApp = async (req, res) => {
   } catch (err) {
     console.error("❌ sendEstimateWhatsApp error:", err.message);
     console.error(err.stack);
-    res.status(500).json({
+    return res.json({
       success: false,
-      error: err.message,
-      detail: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+      canFallback: true,
+      error: err.message || "Failed to process WhatsApp send",
     });
   }
 };

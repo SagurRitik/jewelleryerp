@@ -712,8 +712,9 @@
 
 import fs from "fs";
 import path from "path";
+import QRCode from "qrcode";
 
-export const invoiceTemplate = (invoice) => {
+export const invoiceTemplate = async (invoice) => {
   // --- 1. IMAGE LOADING LOGIC ---   
   let logoSrc = "";
   try {
@@ -1022,43 +1023,43 @@ export const invoiceTemplate = (invoice) => {
     }
     .ts-val.bold { font-weight: bold; }
 
-    /* --- Charges Grid --- */
-    .charges-container {
-      display: flex;
+    /* --- Charges Table Grid --- */
+    .charges-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
       border: 1px solid #531b4e;
       border-radius: 4px;
       overflow: hidden;
       font-size: 9.5px;
       margin-bottom: 10px;
     }
-    .charges-half {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-    .left-half { border-right: 1px solid #531b4e; }
-    .c-row {
-      display: flex;
-      border-bottom: 1px solid #531b4e;
-      min-height: 22px;
-    }
-    .c-row.last { border-bottom: none; }
-    .c-label {
-      flex: 1;
-      padding: 4px 8px;
-      color: #531b4e;
+    .charges-table td {
       border-right: 1px solid #531b4e;
-      display: flex;
-      align-items: center;
+      border-bottom: 1px solid #531b4e;
+      padding: 6px 8px;
+      vertical-align: middle;
+      height: 24px;
     }
-    .c-val {
-      width: 100px;
-      padding: 4px 8px;
+    .charges-table td.c-label {
+      color: #531b4e;
+      text-align: left;
+    }
+    .charges-table td.c-val {
       text-align: right;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
       color: #333;
+    }
+    .charges-table td.bold {
+      font-weight: bold;
+    }
+    .charges-table tr.highlight-row {
+      background-color: #f9f3f9;
+    }
+    .charges-table tr td:last-child {
+      border-right: none;
+    }
+    .charges-table tr:last-child td {
+      border-bottom: none;
     }
 
     .amount-words-section {
@@ -1139,7 +1140,7 @@ export const invoiceTemplate = (invoice) => {
     <img src="${logoSrc}" class="logo-img" alt="Nazara Diamonds" />
   </div>
   <div class="header-right">
-    <div class="company-title">Nazara Diamonds</div>
+    <div class="company-title">Nazara Luxe Diamonds Pvt Ltd.</div>
     <div class="company-tagline">Lab Grown Diamonds.</div>
     <div class="header-divider"></div>
     <div class="company-info">
@@ -1195,8 +1196,14 @@ export const invoiceTemplate = (invoice) => {
   <div class="box-panel">
     <div class="box-title">Payment & Delivery</div>
     <div class="box-content">
-      <div>Mode: ${invoice.payment?.mode || "CASH"}</div>
-      <div>Ref: ${invoice.payment?.referenceNo || "-"}</div>
+      <div>Mode: ${invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+      ? invoice.payment.splitPayments.map(p => p.mode).join(" , ")
+      : (invoice.payment?.mode || "CASH")
+    }</div>
+      <div>Ref: ${invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+      ? (invoice.payment.splitPayments.filter(p => p.referenceNo).map(p => `${p.mode}: ${p.referenceNo}`).join(", ") || "-")
+      : (invoice.payment?.referenceNo || "-")
+    }</div>
       <div>Status: <b>${invoice.payment?.status || "PAID"}</b></div>
     </div>
   </div>
@@ -1247,63 +1254,81 @@ export const invoiceTemplate = (invoice) => {
   </thead>
   <tbody>
 ${invoice.items.map((item, index) => {
-    const pd = item.itemSnapshot?.productDetails || {};
-    const pricing = item.breakup || {};
-    const breakup = pricing.componentBreakup || [];
+      const pd = item.itemSnapshot?.productDetails || {};
+      const pricing = item.breakup || {};
+      const breakup = pricing.componentBreakup || [];
 
-    const desc =
-      pd.title ||
-      item.itemSnapshot?.title ||
-      "Custom Jewellery";
+      const desc =
+        pd.title ||
+        item.itemSnapshot?.title ||
+        "Custom Jewellery";
 
-    const metalType = pd.metalType || "Gold";
-    const purity = Number(pd.metalPurity?.replace("KT", "")) || 0;
+      const metalType = pd.metalType || "Gold";
+      const purity = Number(pd.metalPurity?.replace("KT", "")) || 0;
 
-    const grossWt = Number(pd.grossWeight || 0);
-    const netWt = Number(pd.netWeight || 0);
+      const grossWt = Number(pd.grossWeight || 0);
+      const netWt = Number(pd.netWeight || 0);
 
-    const diamondWt = breakup
-      .filter(c => c.pricingRef === "DIAMOND")
-      .map(c => {
-        const gross =
-          c.grossWeight && c.grossWeight > 0
-            ? c.grossWeight
-            : (c.weight || 0) * (c.count || 1);
-        return `${gross} ct`;
-      })
-      .join("<br>");
+      const diamondWt = breakup
+        .filter(c => c.pricingRef === "DIAMOND")
+        .map(c => {
+          const gross =
+            c.grossWeight && c.grossWeight > 0
+              ? c.grossWeight
+              : (c.weight || 0) * (c.count || 1);
+          return `${gross} ct`;
+        })
+        .join("<br>");
 
-    const diamondRate = breakup
-      .filter(c => c.pricingRef === "DIAMOND")
-      .map(c => fmt(c.rate))
-      .join("<br>");
+      const diamondRate = breakup
+        .filter(c => c.pricingRef === "DIAMOND")
+        .map(c => fmt(c.rate))
+        .join("<br>");
 
-    const stoneLines = breakup
-      .filter(c => c.pricingRef === "STONE")
-      .map(c => `${c.count}×${c.weight || 1}`)
-      .join("<br>");
+      const stoneLines = breakup
+        .filter(c => c.pricingRef === "STONE")
+        .map(c => `${c.count}×${c.weight || 1}`)
+        .join("<br>");
 
-    const stoneValueLines = breakup
-      .filter(c => c.pricingRef === "STONE")
-      .map(c => fmt(c.value))
-      .join("<br>");
+      const stoneValueLines = breakup
+        .filter(c => c.pricingRef === "STONE")
+        .map(c => fmt(c.value))
+        .join("<br>");
 
-    const accessoryLines = breakup
-      .filter(c => c.pricingRef === "BELT")
-      .map(c => {
-        const parts = [c.type || "Belt"];
-        if (c.category) parts.push(`(${c.category})`);
-        if (c.count > 0) parts.push(`(${c.count} pcs)`);
-        parts.push(` ₹${fmt(c.value)}`);
-        return parts.join(" ");
-      })
-      .join("<br>");
+      const accessoryLines = breakup
+        .filter(c => c.pricingRef === "BELT")
+        .map(c => {
+          const parts = [c.type || "Belt"];
+          if (c.category) parts.push(`(${c.category})`);
+          if (c.count > 0) parts.push(`(${c.count} pcs)`);
+          parts.push(` ₹${fmt(c.value)}`);
+          return parts.join(" ");
+        })
+        .join("<br>");
 
-    const making = Number(pricing.makingCharge || 0);
-    const productPrice = Number(pricing.subtotal || 0);
-    const schemeDisc = Number(pricing.discount || 0);
+      const making = Number(pricing.makingCharge || 0);
 
-    return `
+      // ✅ Include ALL discounts (regular, celebration, anniversary, birthday) in Scheme Disc and show discounted Product Price
+      const totalInvDiscount = Number(invoice.totals?.discount || 0);
+      const totalInvGross = Number(invoice.totals?.grossTotal || 0);
+
+      const itemGross = Number(pricing.grossTotal || (Number(pricing.subtotal || 0) + Number(pricing.discount || 0)) || 0);
+
+      let itemTotalDisc = Number(pricing.discount || 0);
+      if (totalInvDiscount > 0) {
+        if (invoice.items.length === 1) {
+          itemTotalDisc = totalInvDiscount;
+        } else if (totalInvGross > 0) {
+          itemTotalDisc = Math.round((itemGross / totalInvGross) * totalInvDiscount * 100) / 100;
+        }
+      }
+
+      const itemNetProductPrice = Math.max(0, itemGross - itemTotalDisc);
+
+      const schemeDisc = itemTotalDisc;
+      const productPrice = itemNetProductPrice;
+
+      return `
     <tr>
       <td>${index + 1}</td>
       <td>${safe(desc)}</td>
@@ -1313,12 +1338,12 @@ ${invoice.items.map((item, index) => {
       <td>${fmt(netWt)}</td>
       <td>
         ${(() => {
-        const certArray = item.certificates || pd.certificates || (item.itemSnapshot?.certificates) || [];
-        const certFallback = Array.isArray(certArray) && certArray.length > 0
-          ? certArray.map(c => `${c.lab} - ${c.certificateNo}`).join(", ")
-          : (pd.certificateNo || item.certificateNo || "-");
-        return safe(certFallback);
-      })()}
+          const certArray = item.certificates || pd.certificates || (item.itemSnapshot?.certificates) || [];
+          const certFallback = Array.isArray(certArray) && certArray.length > 0
+            ? certArray.map(c => `${c.lab} - ${c.certificateNo}`).join(", ")
+            : (pd.certificateNo || item.certificateNo || "-");
+          return safe(certFallback);
+        })()}
       </td>
       <td>${diamondWt || "-"}</td>
       <td>${diamondRate || "-"}</td>
@@ -1329,7 +1354,7 @@ ${invoice.items.map((item, index) => {
       <td>${fmt(productPrice)}</td>
     </tr>
   `;
-  }).join("")}
+    }).join("")}
   </tbody>
   <tfoot>
     <tr style="background-color:#f9f3f9; font-weight:bold;">
@@ -1380,40 +1405,41 @@ ${invoice.items.map((item, index) => {
   </div>
 </div>
 
-<div class="charges-title bold theme-color mb-1" style="font-size:9px;">Other Charges & Payment Details</div>
-<div class="charges-container">
-
-  <div class="charges-half left-half">
-    <div class="c-row">
-      <div class="c-label">Other Charges (₹)</div>
-      <div class="c-val">0.00</div>
-    </div>
-    <div class="c-row">
-      <div class="c-label">Additional Other Charges (₹)</div>
-      <div class="c-val">0.00</div>
-    </div>
-    <div class="c-row last">
-      <div class="c-label bold">Total Other Charges (₹)</div>
-      <div class="c-val bold">0.00</div>
-    </div>
-  </div>
-
-  <div class="charges-half">
-    <div class="c-row">
-      <div class="c-label">Payment Mode</div>
-      <div class="c-val" style="width:140px;">${invoice.payment?.mode || "Cash / UPI / Card"}</div>
-    </div>
-    <div class="c-row">
-      <div class="c-label">Payment Reference No.</div>
-      <div class="c-val" style="width:140px;">${invoice.payment?.referenceNo || "---------"}</div>
-    </div>
-    <div class="c-row last">
-      <div class="c-label bold">Total Amount to be Paid (₹)</div>
-      <div class="c-val bold" style="width:140px;">${fmt(invoice.totals.grandTotal)}</div>
-    </div>
-  </div>
-
-</div>
+<div class="bold theme-color" style="font-size:9.5px; margin-bottom:4px; font-family:inherit;">Other Charges & Payment Details</div>
+<table class="charges-table">
+  <colgroup>
+    <col style="width: 35%;" />
+    <col style="width: 15%;" />
+    <col style="width: 30%;" />
+    <col style="width: 20%;" />
+  </colgroup>
+  <tbody>
+    <tr>
+      <td class="c-label">Other Charges (₹)</td>
+      <td class="c-val">0.00</td>
+      <td class="c-label">Payment Mode</td>
+      <td class="c-val bold">${invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+      ? invoice.payment.splitPayments.map(p => `${p.mode} (₹${fmt(p.amount)})`).join(" + ")
+      : (invoice.payment?.mode || "CASH")
+    }</td>
+    </tr>
+    <tr>
+      <td class="c-label">Additional Other Charges (₹)</td>
+      <td class="c-val">0.00</td>
+      <td class="c-label">Payment Reference No.</td>
+      <td class="c-val">${invoice.payment?.mode === "SPLIT" && Array.isArray(invoice.payment?.splitPayments)
+      ? (invoice.payment.splitPayments.filter(p => p.referenceNo).map(p => `${p.mode}: ${p.referenceNo}`).join(", ") || "---------")
+      : (invoice.payment?.referenceNo || "---------")
+    }</td>
+    </tr>
+    <tr class="highlight-row">
+      <td class="c-label bold">Total Other Charges (₹)</td>
+      <td class="c-val bold">0.00</td>
+      <td class="c-label bold">Total Amount to be Paid (₹)</td>
+      <td class="c-val bold">${fmt(invoice.totals.grandTotal)}</td>
+    </tr>
+  </tbody>
+</table>
 
 <div class="amount-words-section">
   <div class="bold theme-color">Amount in Words</div>

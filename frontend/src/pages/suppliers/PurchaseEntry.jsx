@@ -8,15 +8,21 @@ import {
   Package,
   Upload,
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Sparkles,
+  Loader2,
+  Plus,
+  Edit2,
+  Trash2,
+  ArrowLeft
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import ProductForm from "../../components/ProductForm";
-import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const PurchaseEntry = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [suppliers, setSuppliers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
@@ -29,6 +35,126 @@ const PurchaseEntry = () => {
     notes: ""
   });
   const [addedProducts, setAddedProducts] = useState([]);
+
+  const [isScanning, setIsScanning] = useState(false);
+  const aiFileInputRef = useRef(null);
+
+  const handleAiScan = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    const formDataPayload = new FormData();
+    formDataPayload.append("bill", file);
+
+    try {
+      const response = await axios.post("/api/ai/parse-bill", formDataPayload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (response.data?.success) {
+        const data = response.data.data;
+        
+        // Populate basic form data
+        setFormData((prev) => ({
+          ...prev,
+          purchaseDate: data.date || prev.purchaseDate,
+          description: data.partyDetails?.name ? `AI Purchase from ${data.partyDetails.name}` : prev.description,
+          amount: data.pricing?.totalAmount || prev.amount,
+          notes: `Invoice No: ${data.invoiceNo || "N/A"}. Automatically scanned by AI.`
+        }));
+
+        // Attempt to match supplier by name or GSTIN
+        if (data.partyDetails?.name) {
+          const matched = suppliers.find(s => 
+            s.name.toLowerCase().includes(data.partyDetails.name.toLowerCase()) ||
+            (data.partyDetails.gstin && s.gstin && s.gstin.toLowerCase() === data.partyDetails.gstin.toLowerCase())
+          );
+          if (matched) {
+            setFormData(prev => ({ ...prev, supplierId: matched._id }));
+            toast.success(`Matched supplier: ${matched.name}`);
+          } else {
+            toast.error(`Supplier "${data.partyDetails.name}" not found. Select manually.`);
+          }
+        }
+
+        // Map items to products list
+        if (data.items && data.items.length > 0) {
+          const items = data.items.map((item) => ({
+            metadata: {
+              title: item.description || "Jewellery Item",
+              sku: `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              metalType: item.metalType || "Gold",
+              metalPurity: item.purity || "18KT",
+              metalWeight: item.netWeight || item.grossWeight || 0,
+              grossWeight: item.grossWeight || 0,
+              purchasePrice: item.rate || 0,
+              stock: 1,
+            },
+            images: []
+          }));
+          setAddedProducts(items);
+          toast.success(`Extracted and added ${items.length} items to products!`);
+        }
+      } else {
+        toast.error("Failed to parse invoice using AI.");
+      }
+    } catch (err) {
+      console.error(err);
+      const errorMsg = err.response?.data?.message || err.message || "Failed to scan.";
+      toast.error(`AI Scan Error: ${errorMsg}`);
+    } finally {
+      setIsScanning(false);
+      if (aiFileInputRef.current) aiFileInputRef.current.value = "";
+    }
+  };
+
+  useEffect(() => {
+    if (location.state?.parsedPurchase && suppliers.length > 0) {
+      const data = location.state.parsedPurchase;
+      
+      setFormData((prev) => ({
+        ...prev,
+        purchaseDate: data.date || prev.purchaseDate,
+        description: data.partyDetails?.name ? `AI Purchase from ${data.partyDetails.name}` : prev.description,
+        amount: data.pricing?.totalAmount || prev.amount,
+        notes: `Invoice No: ${data.invoiceNo || "N/A"}. Automatically scanned by AI.`
+      }));
+
+      // Match supplier
+      if (data.partyDetails?.name) {
+        const matched = suppliers.find(s => 
+          s.name.toLowerCase().includes(data.partyDetails.name.toLowerCase()) ||
+          (data.partyDetails.gstin && s.gstin && s.gstin.toLowerCase() === data.partyDetails.gstin.toLowerCase())
+        );
+        if (matched) {
+          setFormData(prev => ({ ...prev, supplierId: matched._id }));
+          toast.success(`Matched supplier: ${matched.name}`);
+        } else {
+          toast.error(`Supplier "${data.partyDetails.name}" not found. Select manually.`);
+        }
+      }
+
+      // Map items
+      if (data.items && data.items.length > 0) {
+        const items = data.items.map((item) => ({
+          metadata: {
+            title: item.description || "Jewellery Item",
+            sku: `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            metalType: item.metalType || "Gold",
+            metalPurity: item.purity || "18KT",
+            metalWeight: item.netWeight || item.grossWeight || 0,
+            grossWeight: item.grossWeight || 0,
+            purchasePrice: item.rate || 0,
+            stock: 1,
+          },
+          images: []
+        }));
+        setAddedProducts(items);
+        toast.success(`Extracted and added ${items.length} items to products!`);
+      }
+    }
+  }, [location.state, suppliers]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductIndex, setEditingProductIndex] = useState(null);
 
@@ -152,17 +278,41 @@ const PurchaseEntry = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-8 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6B3654] hover:border-[#6B3654]/20 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6B3654] hover:border-[#6B3654]/20 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 leading-none mb-1">New Purchase</h1>
+            <p className="text-gray-500 text-sm">Record a simplified purchase entry with slip upload</p>
+          </div>
+        </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 leading-none mb-1">New Purchase</h1>
-          <p className="text-gray-500 text-sm">Record a simplified purchase entry with slip upload</p>
+          <input
+            type="file"
+            accept="image/*"
+            ref={aiFileInputRef}
+            onChange={handleAiScan}
+            className="hidden"
+          />
+          <button
+            type="button"
+            disabled={isScanning}
+            onClick={() => aiFileInputRef.current?.click()}
+            className="px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-700 hover:to-rose-600 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50"
+          >
+            {isScanning ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {isScanning ? "Scanning..." : "Scan Bill with AI"}
+          </button>
         </div>
       </div>
 

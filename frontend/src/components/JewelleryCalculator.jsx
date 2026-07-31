@@ -110,6 +110,24 @@ export default function JewelleryCalculator() {
     }
   };
 
+  const [calcSilverPurity, setCalcSilverPurity] = useState("925");
+  const [calcSilverRate, setCalcSilverRate] = useState("");
+  const [showSilverRateCalc, setShowSilverRateCalc] = useState(false);
+
+  const calculated999Rate = useMemo(() => {
+    const rateVal = parseFloat(calcSilverRate);
+    if (!rateVal || isNaN(rateVal)) return 0;
+    const factor = state.silverPurityFactors[calcSilverPurity] || 1;
+    return rateVal / factor;
+  }, [calcSilverPurity, calcSilverRate, state.silverPurityFactors]);
+
+  const applyCalculatedSilverRate = () => {
+    if (calculated999Rate > 0) {
+      update({ silverRate: String(Math.round(calculated999Rate * 100) / 100) });
+      setShowSilverRateCalc(false);
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
@@ -488,13 +506,67 @@ export default function JewelleryCalculator() {
               <span className={labelClass}>Silver Configuration</span>
               <div className="grid md:grid-cols-2 gap-4 mt-2">
                 <div className="space-y-4">
-                  <label className="text-xs font-semibold text-[#8B8579]">999 Silver Rate (₹/gm)</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-[#8B8579]">999 Silver Rate (₹/gm)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowSilverRateCalc(!showSilverRateCalc)}
+                      className="text-[10px] font-bold text-[#C5A059] hover:underline"
+                    >
+                      Check 999 Rate
+                    </button>
+                  </div>
                   <input
                     disabled={state.ratesLocked}
                     className={inputStyle}
                     value={state.silverRate}
                     onChange={(e) => update({ silverRate: e.target.value })}
                   />
+
+                  {showSilverRateCalc && (
+                    <div className="bg-[#FAF9F6] border border-[#E5E1DA] rounded-lg p-3 space-y-3 transition-all">
+                      <span className="text-[9px] font-bold text-[#A8A294] uppercase tracking-wider block">Check 999 Rate</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] font-bold text-[#A8A294] mb-1 block uppercase">Purity</label>
+                          <select
+                            value={calcSilverPurity}
+                            onChange={(e) => setCalcSilverPurity(e.target.value)}
+                            className="w-full bg-white border border-[#E5E1DA] rounded p-1.5 text-xs text-[#4A453A] outline-none"
+                          >
+                            {Object.keys(state.silverPurityFactors).map((k) => (
+                              <option key={k} value={k}>{k}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-bold text-[#A8A294] mb-1 block uppercase">Purity Rate (₹)</label>
+                          <input
+                            type="number"
+                            value={calcSilverRate}
+                            onChange={(e) => setCalcSilverRate(e.target.value)}
+                            placeholder="e.g. 70"
+                            className="w-full bg-white border border-[#E5E1DA] rounded p-1.5 text-xs text-[#4A453A] outline-none"
+                          />
+                        </div>
+                      </div>
+                      {calculated999Rate > 0 && (
+                        <div className="flex items-center justify-between bg-[#C5A059]/10 border border-[#C5A059]/20 rounded p-2">
+                          <div className="flex flex-col">
+                            <span className="text-[7px] font-bold text-[#C5A059] uppercase tracking-wider">Calculated 999</span>
+                            <span className="text-xs font-bold text-[#2D2A24]">₹ {Math.round(calculated999Rate * 100) / 100}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={applyCalculatedSilverRate}
+                            className="bg-[#C5A059] hover:bg-[#B39049] text-white text-[9px] font-bold px-2 py-1 rounded transition-all"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <label className="text-xs font-semibold text-[#8B8579]">Select Purity</label>
                   <select
                     className={selectStyle}

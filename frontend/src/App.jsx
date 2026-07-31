@@ -89,6 +89,7 @@ import ManualBillingForm from "./pages/ManualBillingForm.jsx";
 import ExpensePage from "./pages/ExpensePage.jsx";
 import AddExpensePage from "./pages/AddExpensePage.jsx";
 import InquiryList from "./pages/InquiryListPage.jsx";
+import CustomerListPage from "./pages/customers/CustomerListPage.jsx";
 import AddInquiryPage from "./pages/AddInquiryPage.jsx";
 import InquiryDetailPage from "./pages/InquiryDetailPage.jsx";
 import BulkUploadInquiries from "./pages/bulkUpload/BulkUploadInquiries.jsx";
@@ -201,6 +202,7 @@ export default function App() {
                     <Route path="/orders/closing-report" element={<OrderClosingReport />} />
                     <Route path="/catalogues" element={<CataloguePage />} />
                     <Route path="/catalogues/:id" element={<CatalogueViewPage />} />
+                    <Route path="/customers" element={<CustomerListPage />} />
                   </Route>
 
 

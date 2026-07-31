@@ -831,11 +831,13 @@ import {
   User, Mail, MapPin, Building, CreditCard,
   FileText, CheckCircle2, Loader2, Banknote, Landmark,
   SmartphoneNfc, ChevronDown, ChevronUp, AlertCircle,
-  Calendar, Hash, Shield, Flag, Globe, RotateCcw, Tag
+  Calendar, Hash, Shield, Flag, Globe, RotateCcw, Tag,
+  Cake, Heart, Send, Sparkles, X, Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRates } from "../../context/RatesContext";
 import { toast } from "sonner";
+import CelebrationDiscountModal from "../../components/checkout/CelebrationDiscountModal";
 
 // --- CONSTANTS ---
 const COUNTRY_CODES = [
@@ -858,7 +860,11 @@ const purityOptions = {
   platinum: ["950", "900"]
 };
 
-export default function InvoiceConfirmPanel() {
+export default function InvoiceConfirmPanel({
+  cartTotals: cartTotalsProp,
+  appliedCelebrationDiscount: externalAppliedDiscount,
+  onApplyCelebrationDiscount,
+}) {
   const { cart, sessionId, clearCart, fetchCartSummary } = useCart();
   const navigate = useNavigate();
   const { invalidateCache } = useProductList();
@@ -875,7 +881,7 @@ export default function InvoiceConfirmPanel() {
     payment: true,
   });
 
-  const { rates } = useRates();
+  const { rates, rawRates } = useRates();
 
   const [metalExchange, setMetalExchange] = useState({
     metalType: "gold",
@@ -884,6 +890,18 @@ export default function InvoiceConfirmPanel() {
     ratePerGram: 0,
     totalValue: 0
   });
+
+  const [internalDiscount, setInternalDiscount] = useState(null);
+  const appliedCelebrationDiscount = externalAppliedDiscount !== undefined ? externalAppliedDiscount : internalDiscount;
+  const setAppliedCelebrationDiscount = onApplyCelebrationDiscount || setInternalDiscount;
+
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+
+  const cartTotals = cartTotalsProp || cart?.totals;
+  const basePayable = cartTotals?.payable !== undefined
+    ? cartTotals.payable
+    : (cart?.totals ? cart.totals.grandTotal - (cart.totals.advancePayment || 0) - (cart.totals.metalPayment || 0) : 0);
+  const maxPayable = Math.max(0, basePayable - (metalExchange.totalValue || 0));
 
   useEffect(() => {
     if (!rates) return;
@@ -910,6 +928,103 @@ export default function InvoiceConfirmPanel() {
     address: "", gstin: "", stateCode: "", panNumber: "",
   });
 
+  const [celebrationAlert, setCelebrationAlert] = useState(null);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+
+  const checkCelebrationDate = (dateStr) => {
+    if (!dateStr) return null;
+    const today = new Date();
+    const event = new Date(dateStr);
+    if (isNaN(event.getTime())) return null;
+
+    const currentYear = today.getFullYear();
+    let thisYearEvent = new Date(currentYear, event.getMonth(), event.getDate());
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    let diffTime = thisYearEvent.getTime() - todayMidnight.getTime();
+    let diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+
+    if (diffDays < 0) {
+      const nextYearEvent = new Date(currentYear + 1, event.getMonth(), event.getDate());
+      diffTime = nextYearEvent.getTime() - todayMidnight.getTime();
+      diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+    }
+
+    if (diffDays >= 0 && diffDays <= 30) {
+      const formattedDate = event.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+      return { daysRemaining: diffDays, dateStr: formattedDate };
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const cleanMobile = (customer.mobile || "").replace(/\D/g, "");
+    if (cleanMobile.length === 10) {
+      setSearchingCustomer(true);
+      API.get(`/customers?search=${cleanMobile}`)
+        .then((res) => {
+          const found = res.data?.customers?.[0];
+          if (found) {
+            setCustomer((prev) => ({
+              ...prev,
+              name: prev.name || found.name || "",
+              email: prev.email || found.email || "",
+              address: prev.address || found.address || "",
+              gstin: prev.gstin || found.gstin || "",
+            }));
+
+            let alertObj = null;
+
+            if (found.dob) {
+              const bdayCheck = checkCelebrationDate(found.dob);
+              if (bdayCheck) {
+                alertObj = {
+                  type: "BIRTHDAY",
+                  customerName: found.name,
+                  mobile: found.mobile,
+                  daysRemaining: bdayCheck.daysRemaining,
+                  dateStr: bdayCheck.dateStr,
+                  customerId: found._id,
+                };
+              }
+            }
+
+            if (found.anniversaryDate) {
+              const anniCheck = checkCelebrationDate(found.anniversaryDate);
+              if (anniCheck) {
+                if (!alertObj || anniCheck.daysRemaining === 0) {
+                  alertObj = {
+                    type: "ANNIVERSARY",
+                    customerName: found.name,
+                    mobile: found.mobile,
+                    daysRemaining: anniCheck.daysRemaining,
+                    dateStr: anniCheck.dateStr,
+                    customerId: found._id,
+                  };
+                }
+              }
+            }
+
+            setCelebrationAlert(alertObj);
+            if (alertObj) {
+              toast.success(
+                `🎉 ${alertObj.type === "BIRTHDAY" ? "Birthday" : "Anniversary"} alert for ${found.name}!`,
+                { duration: 5000 }
+              );
+            }
+          } else {
+            setCelebrationAlert(null);
+          }
+        })
+        .catch((err) => {
+          console.error("Customer lookup error:", err);
+        })
+        .finally(() => setSearchingCustomer(false));
+    } else {
+      setCelebrationAlert(null);
+    }
+  }, [customer.mobile]);
+
   const [payment, setPayment] = useState({
     mode: "CASH",
     referenceNo: "",
@@ -917,15 +1032,77 @@ export default function InvoiceConfirmPanel() {
     date: new Date().toISOString().split('T')[0]
   });
 
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState([
+    { mode: "CASH", amount: 0, referenceNo: "" },
+    { mode: "UPI", amount: 0, referenceNo: "" },
+  ]);
+
   useEffect(() => {
-    if (!cart?.totals) return;
-    const basePayable = cart.totals.grandTotal - (cart.totals.advancePayment || 0) - (cart.totals.metalPayment || 0);
-    const remaining = Math.max(0, basePayable - (metalExchange.totalValue || 0));
     setPayment(prev => ({
       ...prev,
-      amount: remaining
+      amount: maxPayable
     }));
-  }, [cart?.totals, metalExchange.totalValue]);
+    // Auto-fill first split with full remaining amount
+    setSplitPayments(prev => [
+      { ...prev[0], amount: maxPayable },
+      { ...prev[1], amount: 0 },
+    ]);
+  }, [maxPayable]);
+
+  const splitTotal = splitPayments.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+
+  const handleAmountChange = (idx, value) => {
+    const inputVal = Number(value);
+
+    if (splitPayments.length === 2) {
+      // Mutual auto-adjust for 2 splits
+      const val = Math.min(maxPayable, Math.max(0, inputVal));
+      const otherIdx = idx === 0 ? 1 : 0;
+      const updated = [...splitPayments];
+      updated[idx] = { ...updated[idx], amount: val };
+      updated[otherIdx] = {
+        ...updated[otherIdx],
+        amount: Number(Math.max(0, maxPayable - val).toFixed(2))
+      };
+      setSplitPayments(updated);
+    } else {
+      // For 3+ splits, just cap at maxPayable and let them edit freely
+      const updated = [...splitPayments];
+      updated[idx] = { ...updated[idx], amount: Math.min(maxPayable, Math.max(0, inputVal)) };
+      setSplitPayments(updated);
+    }
+  };
+
+  const addSplitPayment = () => {
+    const allocated = splitPayments.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+    const remaining = Math.max(0, maxPayable - allocated);
+    setSplitPayments([...splitPayments, { mode: "CARD", amount: remaining, referenceNo: "" }]);
+  };
+
+  const deleteSplitPayment = (idx) => {
+    if (splitPayments.length <= 1) return;
+
+    if (splitPayments.length === 2) {
+      const remainingSplit = splitPayments[idx === 0 ? 1 : 0];
+      setPayment(prev => ({
+        ...prev,
+        mode: remainingSplit.mode,
+        referenceNo: remainingSplit.referenceNo,
+      }));
+      setIsSplitPayment(false);
+      return;
+    }
+
+    const removedAmount = Number(splitPayments[idx].amount || 0);
+    const updated = splitPayments.filter((_, i) => i !== idx);
+
+    if (updated.length > 0) {
+      updated[0].amount = Number((Number(updated[0].amount || 0) + removedAmount).toFixed(2));
+    }
+
+    setSplitPayments(updated);
+  };
 
   const [itemsMeta, setItemsMeta] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -1014,6 +1191,26 @@ export default function InvoiceConfirmPanel() {
       return;
     }
 
+    if (isSplitPayment) {
+      if (splitTotal > maxPayable + 0.01) {
+        setErrors({ submit: `Total split payment (₹${splitTotal.toLocaleString("en-IN")}) cannot exceed the remaining payable amount (₹${maxPayable.toLocaleString("en-IN")})` });
+        return;
+      }
+      if (Math.abs(splitTotal - maxPayable) > 0.01) {
+        setErrors({ submit: `Total split payment (₹${splitTotal.toLocaleString("en-IN")}) must equal the remaining payable amount (₹${maxPayable.toLocaleString("en-IN")})` });
+        return;
+      }
+    } else {
+      if (Number(payment.amount) > maxPayable + 0.01) {
+        setErrors({ submit: `Amount collected (₹${Number(payment.amount).toLocaleString("en-IN")}) cannot exceed the remaining payable amount (₹${maxPayable.toLocaleString("en-IN")})` });
+        return;
+      }
+      if (Math.abs(Number(payment.amount) - maxPayable) > 0.01) {
+        setErrors({ submit: `Amount collected (₹${Number(payment.amount).toLocaleString("en-IN")}) must equal the remaining payable amount (₹${maxPayable.toLocaleString("en-IN")})` });
+        return;
+      }
+    }
+
     setErrors({});
 
     try {
@@ -1044,7 +1241,7 @@ export default function InvoiceConfirmPanel() {
           const snap = item.customSnapshot || item.itemSnapshot || {};
           const existingHSN = snap?.hsn || snap?.productDetails?.hsnCode || snap?.productDetails?.hsn || item.product?.hsnCode;
           const certs = snap?.productDetails?.certificates || snap?.certificates || item.product?.certificates || [];
-          const existingCert = certs.length > 0 
+          const existingCert = certs.length > 0
             ? certs.map(c => `${c.lab} - ${c.certificateNo}`).join(", ")
             : (snap?.certificateNo || snap?.certificateNumber || snap?.productDetails?.certificateNo || "");
 
@@ -1055,13 +1252,33 @@ export default function InvoiceConfirmPanel() {
             certificates: itemsMeta[item._id]?.certificates || certs || [],
           };
         }),
-        payment: {
-          mode: payment.mode || "CASH",
-          referenceNo: payment.referenceNo || "",
-          amount: Number(payment.amount || 0),
-          date: payment.date || null,
-        },
+        payment: isSplitPayment
+          ? {
+            mode: "SPLIT",
+            date: payment.date || null,
+            amount: splitTotal,
+            splitPayments: splitPayments.map(s => ({
+              mode: s.mode,
+              amount: Number(s.amount || 0),
+              referenceNo: s.referenceNo || "",
+            })),
+          }
+          : {
+            mode: payment.mode || "CASH",
+            referenceNo: payment.referenceNo || "",
+            amount: Number(payment.amount || 0),
+            date: payment.date || null,
+          },
         metalPayment: metalPayload,
+        celebrationDiscount: appliedCelebrationDiscount
+          ? {
+              amount: appliedCelebrationDiscount.amount,
+              target: appliedCelebrationDiscount.target,
+              discountMode: appliedCelebrationDiscount.discountMode,
+              value: appliedCelebrationDiscount.value,
+              title: appliedCelebrationDiscount.title,
+            }
+          : undefined,
       };
 
       const res = await API.post("/sales-orders/confirm-invoice", invoiceData);
@@ -1153,6 +1370,103 @@ export default function InvoiceConfirmPanel() {
                   />
                 </div>
                 {errors.mobile && <p className="text-[10px] text-red-500 mt-1">{errors.mobile}</p>}
+
+                {/* Celebration Alert Popup Banner */}
+                <AnimatePresence>
+                  {celebrationAlert && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className={`mt-2 p-3.5 rounded-xl border shadow-lg overflow-hidden relative ${
+                        celebrationAlert.type === "BIRTHDAY"
+                          ? "bg-gradient-to-r from-pink-50 via-rose-50 to-amber-50 border-pink-300 text-pink-950"
+                          : "bg-gradient-to-r from-purple-50 via-indigo-50 to-rose-50 border-purple-300 text-purple-950"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className={`p-2 rounded-xl shrink-0 ${
+                          celebrationAlert.type === "BIRTHDAY"
+                            ? "bg-pink-500 text-white shadow-md shadow-pink-500/20"
+                            : "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+                        }`}>
+                          {celebrationAlert.type === "BIRTHDAY" ? <Cake size={20} /> : <Heart size={20} />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                              celebrationAlert.type === "BIRTHDAY"
+                                ? "bg-pink-100 text-pink-800 border-pink-300"
+                                : "bg-purple-100 text-purple-800 border-purple-300"
+                            }`}>
+                              {celebrationAlert.type === "BIRTHDAY" ? "🎂 Birthday Alert!" : "💍 Anniversary Alert!"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setCelebrationAlert(null)}
+                              className="text-gray-400 hover:text-gray-600 p-0.5"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+
+                          <h5 className="font-extrabold text-xs text-gray-900 mt-1">
+                            {celebrationAlert.customerName}{" "}
+                            {celebrationAlert.daysRemaining === 0 ? (
+                              <span className="text-pink-600 font-black">has {celebrationAlert.type === "BIRTHDAY" ? "Birthday" : "Anniversary"} TODAY! 🎉</span>
+                            ) : (
+                              <span>has {celebrationAlert.type === "BIRTHDAY" ? "Birthday" : "Anniversary"} in {celebrationAlert.daysRemaining} days ({celebrationAlert.dateStr})! 🎁</span>
+                            )}
+                          </h5>
+
+                          <p className="text-[11px] text-gray-600 mt-0.5">
+                            Auto-filled customer details! Wish them & offer a special celebration discount on this purchase.
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = encodeURIComponent(
+                                  `Dear ${celebrationAlert.customerName}, Happy ${celebrationAlert.type === "BIRTHDAY" ? "Birthday" : "Anniversary"} from Luxe Jewellery! 💐 Enjoy special celebration discount on your purchase today!`
+                                );
+                                window.open(`https://wa.me/91${celebrationAlert.mobile}?text=${text}`, "_blank");
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-xs"
+                            >
+                              <Send size={12} /> Send WhatsApp Wish
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsDiscountModalOpen(true)}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-xs"
+                            >
+                              <Gift size={12} /> {appliedCelebrationDiscount ? "Edit Discount" : "Apply Celebration Discount 🎁"}
+                            </button>
+                          </div>
+
+                          {appliedCelebrationDiscount && (
+                            <div className="mt-2.5 p-2 rounded-lg bg-emerald-50 border border-emerald-300 flex items-center justify-between text-xs">
+                              <span className="font-extrabold text-emerald-900 flex items-center gap-1 text-[11px]">
+                                <Sparkles size={13} className="text-amber-500 shrink-0" />
+                                {appliedCelebrationDiscount.title}: -₹{appliedCelebrationDiscount.amount.toLocaleString("en-IN")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAppliedCelebrationDiscount(null)}
+                                className="text-[11px] text-red-600 hover:text-red-700 font-bold ml-2 underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <ModernInput
@@ -1292,7 +1606,7 @@ export default function InvoiceConfirmPanel() {
                     const snap = item.customSnapshot || item.itemSnapshot || {};
                     const existingHSN = snap?.hsn || snap?.productDetails?.hsnCode || snap?.productDetails?.hsn || item.product?.hsnCode;
                     const existingCertsArray = snap?.productDetails?.certificates || snap?.certificates || item.product?.certificates || [];
-                    const existingCert = existingCertsArray.length > 0 
+                    const existingCert = existingCertsArray.length > 0
                       ? existingCertsArray.map(c => `${c.lab} - ${c.certificateNo}`).join(", ")
                       : (snap?.certificateNo || snap?.certificateNumber || snap?.productDetails?.certificateNo || "");
 
@@ -1340,7 +1654,7 @@ export default function InvoiceConfirmPanel() {
                                 + Add Certificate
                               </button>
                             </div>
-                            
+
                             {(itemsMeta[item._id]?.certificates || []).map((cert, cIndex) => (
                               <div key={cIndex} className="flex gap-2 items-center">
                                 <input
@@ -1393,9 +1707,9 @@ export default function InvoiceConfirmPanel() {
           >
             <div className="space-y-5">
 
-              {/* PAYMENT MODE PILLS */}
-              <div className="flex gap-2">
-                {[
+              {/* PAYMENT MODE PILLS + SPLIT TOGGLE */}
+              <div className="flex flex-wrap gap-2 items-center">
+                {!isSplitPayment && [
                   { id: "CASH", label: "CASH" },
                   { id: "UPI", label: "UPI" },
                   { id: "CARD", label: "CARD" },
@@ -1412,9 +1726,20 @@ export default function InvoiceConfirmPanel() {
                     {mode.label}
                   </button>
                 ))}
+
+                {/* SPLIT TOGGLE BUTTON */}
+                <button
+                  onClick={() => setIsSplitPayment(prev => !prev)}
+                  className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest transition-all border ${isSplitPayment
+                    ? "bg-amber-500 text-white border-amber-500"
+                    : "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
+                    }`}
+                >
+                  ✂ SPLIT
+                </button>
               </div>
 
-              {/* PAYMENT DATE */}
+              {/* TRANSACTION DATE */}
               <ModernInput
                 label="TRANSACTION DATE"
                 type="date"
@@ -1423,25 +1748,123 @@ export default function InvoiceConfirmPanel() {
                 onChange={(e) => setPayment({ ...payment, date: e.target.value })}
               />
 
-              {/* REFERENCE NUMBER */}
-              {payment.mode !== "CASH" && (
-                <ModernInput
-                  label="REFERENCE / TRANSACTION ID"
-                  icon={<Hash size={14} className="text-[#462434]" />}
-                  placeholder="TXN987654321"
-                  value={payment.referenceNo}
-                  onChange={(e) => setPayment({ ...payment, referenceNo: e.target.value })}
-                />
-              )}
+              {/* ===== SPLIT PAYMENT UI ===== */}
+              {isSplitPayment ? (
+                <div className="space-y-4">
+                  {/* Remaining Balance Indicator */}
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold ${Math.abs(splitTotal - payment.amount) < 1
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}>
+                    <span>Total Allocated: ₹{splitTotal.toLocaleString("en-IN")}</span>
+                    <span>
+                      {Math.abs(splitTotal - payment.amount) < 1
+                        ? "✓ Balanced"
+                        : `Remaining: ₹${Math.max(0, payment.amount - splitTotal).toLocaleString("en-IN")}`
+                      }
+                    </span>
+                  </div>
 
-              {/* AMOUNT RECEIVED (Auto-Calculated if Metal Exchange used) */}
-              <ModernInput
-                label="AMOUNT COLLECTED"
-                icon={<span className="text-xs font-bold text-[#462434]">₹</span>}
-                type="number"
-                value={payment.amount}
-                onChange={(e) => setPayment({ ...payment, amount: Math.max(0, Number(e.target.value)) })}
-              />
+                  {/* Split Rows */}
+                  {splitPayments.map((split, idx) => (
+                    <div key={idx} className="border border-gray-100 rounded-lg p-3 space-y-3 bg-gray-50 relative animate-fadeIn">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[9px] font-extrabold uppercase tracking-widest text-[#462434]">
+                          Payment {idx + 1}
+                        </p>
+                        {splitPayments.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => deleteSplitPayment(idx)}
+                            className="text-red-500 hover:text-red-700 text-[10px] font-bold transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Mode Selector */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {["CASH", "UPI", "CARD", "BANK"].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              const updated = [...splitPayments];
+                              updated[idx] = { ...updated[idx], mode: m, referenceNo: "" };
+                              setSplitPayments(updated);
+                            }}
+                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest transition-all ${split.mode === m
+                              ? "bg-[#462434] text-white"
+                              : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                              }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Amount */}
+                      <ModernInput
+                        label={`AMOUNT (Payment ${idx + 1})`}
+                        icon={<span className="text-xs font-bold text-[#462434]">₹</span>}
+                        type="number"
+                        value={split.amount || ""}
+                        onChange={(e) => handleAmountChange(idx, e.target.value)}
+                      />
+
+                      {/* Reference (if not cash) */}
+                      {split.mode !== "CASH" && (
+                        <ModernInput
+                          label="REFERENCE / TRANSACTION ID"
+                          icon={<Hash size={14} className="text-[#462434]" />}
+                          placeholder="TXN987654321"
+                          value={split.referenceNo}
+                          onChange={(e) => {
+                            const updated = [...splitPayments];
+                            updated[idx] = { ...updated[idx], referenceNo: e.target.value };
+                            setSplitPayments(updated);
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add Payment Button */}
+                  <button
+                    type="button"
+                    onClick={addSplitPayment}
+                    className="w-full py-2.5 bg-white hover:bg-neutral-50 text-[#462434] text-[10px] font-bold tracking-widest uppercase rounded-xl border border-dashed border-[#462434]/30 transition-all active:scale-[0.98] flex items-center justify-center gap-1 shadow-sm"
+                  >
+                    + Add Payment Method
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* REFERENCE NUMBER (single mode) */}
+                  {payment.mode !== "CASH" && (
+                    <ModernInput
+                      label="REFERENCE / TRANSACTION ID"
+                      icon={<Hash size={14} className="text-[#462434]" />}
+                      placeholder="TXN987654321"
+                      value={payment.referenceNo}
+                      onChange={(e) => setPayment({ ...payment, referenceNo: e.target.value })}
+                    />
+                  )}
+
+                  {/* AMOUNT COLLECTED (single mode) */}
+                  <ModernInput
+                    label="AMOUNT COLLECTED"
+                    icon={<span className="text-xs font-bold text-[#462434]">₹</span>}
+                    type="number"
+                    value={payment.amount || ""}
+                    onChange={(e) => {
+                      const inputVal = Number(e.target.value);
+                      setPayment({ ...payment, amount: Math.min(maxPayable, Math.max(0, inputVal)) });
+                    }}
+                  />
+                </>
+              )}
 
             </div>
           </SectionCard>
@@ -1473,6 +1896,16 @@ export default function InvoiceConfirmPanel() {
           <span>ROYAL ATELIER ERP V2.4</span>
         </div>
       </div>
+
+      {/* Celebration Discount Selector Modal */}
+      <CelebrationDiscountModal
+        isOpen={isDiscountModalOpen}
+        onClose={() => setIsDiscountModalOpen(false)}
+        celebrationAlert={celebrationAlert}
+        cart={cart}
+        rates={rawRates || rates}
+        onApplyDiscount={(discountObj) => setAppliedCelebrationDiscount(discountObj)}
+      />
 
     </motion.div>
   );

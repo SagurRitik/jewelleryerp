@@ -1965,8 +1965,19 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../api";
-import { ArrowLeft, Printer, Download, MessageCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Printer,
+  MessageCircle,
+  Download,
+  Share2,
+  Check,
+  UserPlus,
+  QrCode,
+  Calculator,
+} from "lucide-react";
 import BackButton from "../components/BackButton";
+import toast from "react-hot-toast";
 
 export default function InvoicePreview() {
   // URL se ID nikalo (kabhi wo "invoiceId" hoti hai, kabhi "id")
@@ -1978,6 +1989,7 @@ export default function InvoicePreview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null);
+  const [whatsAppLoading, setWhatsAppLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2010,38 +2022,112 @@ export default function InvoicePreview() {
     return snap.productDetails?.title || snap.title || "Custom Jewellery";
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     if (!invoiceData) {
       alert("Invoice data not loaded yet.");
       return;
     }
 
+    if (whatsAppLoading) return;
+    setWhatsAppLoading(true);
+    const toastId = toast.loading("Sending PDF to WhatsApp...");
+
     try {
-      const customer = invoiceData.customer || {};
-      const customerName = customer.name?.trim() || "Customer";
-      let mobile = customer.mobile || "";
-      if (mobile && !mobile.startsWith("+") && mobile.length === 10) {
-        mobile = `91${mobile}`;
+      // Attempt backend WhatsApp send (AiSensy direct send with PDF attachment)
+      const res = await API.post(`/sales-invoices/${activeId}/whatsapp`);
+
+      if (res.data?.success) {
+        toast.success(`📲 Invoice PDF sent directly to customer's WhatsApp!`, { id: toastId });
+        return;
       }
-      const mobileForWa = mobile.replace(/\D/g, "");
 
-      const invoiceNo = invoiceData.invoiceNo || "N/A";
-      const totals = invoiceData.totals || {};
-      const grandTotal = totals.grandTotal || 0;
+      // If AiSensy service is unavailable (e.g. local environment), fallback to download PDF + WhatsApp Web link
+      toast.info("Direct send unavailable. Downloading PDF to share manually...", { id: toastId, duration: 4000 });
 
-      const itemsBreakdown = (invoiceData.items || []).map((item, idx) => {
-        const name = getItemName(item);
-        const qty = item.quantity || 1;
-        const total = item.breakup?.grandTotal || 0;
-        return `${idx + 1}. *${name}* (x${qty}) - ₹${total.toLocaleString('en-IN')}`;
-      }).join('\n');
+      // 1. Fetch PDF Blob from backend
+      const pdfRes = await API.get(`/sales-invoices/${activeId}/pdf`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([pdfRes.data], { type: "application/pdf" });
+      const safeNo = (invoiceData.invoiceNo || activeId).replace(/[/\\:*?"<>|]/g, "-");
+      const filename = `Invoice-${safeNo}.pdf`;
+      const blobUrl = URL.createObjectURL(blob);
 
-      //const message = `✨ *INVOICE: ${invoiceNo}* ✨\n\nनमस्ते *${customerName}*,\n\nआपका बिल सफलतापूर्वक जनरेट हो गया है।\n\n*आइटम विवरण:*\n--------------------------------\n${itemsBreakdown}\n--------------------------------\n\n*बिल सारांश:*\n• सबटोटल: ₹${(totals.subtotal || 0).toLocaleString('en-IN')}\n• GST: ₹${(totals.gst || 0).toLocaleString('en-IN')}\n• *कुल राशि:* ₹${grandTotal.toLocaleString('en-IN')}\n\n*भुगतान विधि:* ${invoiceData.payment?.mode || "N/A"}\n\nधन्यवाद,\n💎 *Nazara Diamonds* 💎`;
-      const message = `✨ *INVOICE: ${invoiceNo}* ✨\n\nHello *${customerName}*,\n\nWe’re delighted to let you know that your invoice has been successfully generated. Thank you for choosing us—it truly means a lot.\n\n*Order Details:*\n--------------------------------\n${itemsBreakdown}\n--------------------------------\n\n*Summary:*\n• Subtotal: ₹${(totals.subtotal || 0).toLocaleString('en-IN')}\n• GST: ₹${(totals.gst || 0).toLocaleString('en-IN')}\n• *Total Amount:* ₹${grandTotal.toLocaleString('en-IN')}\n\n*Payment Method:* ${invoiceData.payment?.mode || "N/A"}\n\nWe sincerely appreciate your trust in us and hope you loved your purchase. If you need any assistance, feel free to reach out—we’re always here for you.\n\nWith gratitude,\n💎 *Nazara Diamonds* 💎`;
-      const encodedMessage = encodeURIComponent(message);
-      window.open(`https://wa.me/${mobileForWa}?text=${encodedMessage}`, "_blank");
+      // Check Web Share API for supported devices (mobile browsers)
+      const pdfFile = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: `Invoice ${invoiceData.invoiceNo || ""}`,
+            text: `Invoice ${invoiceData.invoiceNo || ""} for ${invoiceData.customer?.name || "Customer"}`,
+            files: [pdfFile],
+          });
+          URL.revokeObjectURL(blobUrl);
+          return;
+        } catch (shareErr) {
+          console.log("Web Share cancelled, continuing download", shareErr);
+        }
+      }
+
+      // 2. Download the PDF file to user device
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      // 3. Open WhatsApp Web / App with message
+      setTimeout(() => {
+        const customer = invoiceData.customer || {};
+        const customerName = customer.name?.trim() || "Customer";
+        let mobile = customer.mobile || "";
+        if (mobile && !mobile.startsWith("+") && mobile.length === 10) {
+          mobile = `91${mobile}`;
+        }
+        const mobileForWa = mobile.replace(/\D/g, "");
+
+        const invoiceNo = invoiceData.invoiceNo || "N/A";
+        const totals = invoiceData.totals || {};
+        const grandTotal = totals.grandTotal || 0;
+
+        const message = `✨ *INVOICE: ${invoiceNo}* ✨\n\nHello *${customerName}*,\n\nYour invoice PDF (*${filename}*) has been generated and downloaded to your device.\n\n*Summary:*\n• Subtotal: ₹${(totals.subtotal || 0).toLocaleString('en-IN')}\n• GST: ₹${(totals.gst || 0).toLocaleString('en-IN')}\n• *Total Amount:* ₹${grandTotal.toLocaleString('en-IN')}\n\n*Payment Method:* ${invoiceData.payment?.mode || "N/A"}\n\n📎 *Please attach the downloaded PDF file here in our chat.* \n\nThank you for choosing us!\n💎 *Nazara Diamonds* 💎`;
+        const encodedMessage = encodeURIComponent(message);
+        window.open(`https://wa.me/${mobileForWa}?text=${encodedMessage}`, "_blank");
+      }, 500);
+
     } catch (err) {
       console.error("WhatsApp Error:", err);
+      toast.error(err?.response?.data?.error || err.message || "Failed to send WhatsApp", { id: toastId });
+    } finally {
+      setWhatsAppLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      const toastId = toast.loading("Downloading Invoice PDF...");
+      const pdfRes = await API.get(`/sales-invoices/${activeId}/pdf`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([pdfRes.data], { type: "application/pdf" });
+      const safeNo = (invoiceData?.invoiceNo || activeId).replace(/[/\\:*?"<>|]/g, "-");
+      const filename = `Invoice-${safeNo}.pdf`;
+      const blobUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success("PDF Downloaded successfully!", { id: toastId });
+    } catch (err) {
+      console.error("PDF Download Error:", err);
+      toast.error("Failed to download PDF");
     }
   };
 
@@ -2053,13 +2139,31 @@ export default function InvoicePreview() {
     }
   };
 
+  const handleAddCustomerFromInvoice = () => {
+    const cust = invoiceData?.customer || {};
+    const rawMobile = (cust.mobile || "").replace(/\D/g, "");
+    const cleanMobile = rawMobile.length >= 10 ? rawMobile.slice(-10) : rawMobile;
+
+    navigate("/customers", {
+      state: {
+        prefillCustomer: {
+          name: cust.name || "",
+          mobile: cleanMobile,
+          email: cust.email || "",
+          address: cust.address || "",
+          city: cust.city || "",
+          gstin: cust.gstin || "",
+        },
+      },
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
 
       {/* --- Toolbar --- */}
       <div className="w-full max-w-[210mm] bg-white shadow-md rounded-lg p-4 mb-6 flex justify-between items-center print:hidden">
         <div className="flex items-center gap-4">
-
           <button
             onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-gray-600 hover:text-[#531b4e] font-medium transition"
@@ -2072,12 +2176,21 @@ export default function InvoicePreview() {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-2.5 items-center">
+          <button
+            onClick={handleAddCustomerFromInvoice}
+            className="p-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-lg shadow-md shadow-pink-600/20 transition-all active:scale-95 flex items-center justify-center"
+            title="Save Customer Profile & Add Birthday / Anniversary Dates"
+          >
+            <UserPlus size={18} />
+          </button>
+
           <button
             onClick={handleWhatsApp}
-            className="flex items-center gap-2 px-5 py-2 bg-[#25D366] text-white rounded-lg hover:bg-[#1ea952] shadow-md transition font-semibold"
+            disabled={whatsAppLoading}
+            className="flex items-center gap-2 px-5 py-2 bg-[#25D366] text-white rounded-lg hover:bg-[#1ea952] shadow-md transition font-semibold disabled:opacity-50"
           >
-            <MessageCircle size={18} fill="white" /> WhatsApp
+            <MessageCircle size={18} fill="white" /> {whatsAppLoading ? "Sending..." : "WhatsApp"}
           </button>
 
           <button

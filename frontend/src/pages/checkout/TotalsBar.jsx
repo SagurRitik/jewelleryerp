@@ -158,6 +158,8 @@ export default function TotalsBar({ totals }) {
     payable = grandTotal,
 
     discount = 0,
+    regularDiscount = 0,
+    celebrationDiscount = 0,
     discountDiamond = 0,
     discountStone = 0,
     discountMaking = 0,
@@ -167,7 +169,7 @@ export default function TotalsBar({ totals }) {
   const totalDiscount =
     discount > 0
       ? discount
-      : discountDiamond + discountStone + discountMaking;
+      : (regularDiscount + celebrationDiscount) || (discountDiamond + discountStone + discountMaking);
 
   const hasDiscount = totalDiscount > 0;
 
@@ -189,11 +191,18 @@ export default function TotalsBar({ totals }) {
 
         {/* DISCOUNTS */}
         {hasDiscount && (
-          <div className="space-y-4 pt-2">
-            {/* {discountDiamond > 0 && <Row label="Diamond Discount" value={-discountDiamond} />}
-            {discountStone > 0 && <Row label="Stone Discount" value={-discountStone} />}
-            {discountMaking > 0 && <Row label="Making Discount" value={-discountMaking} />} */}
-            {totalDiscount > 0 && <Row label="Total Discount" value={-totalDiscount} />}
+          <div className="space-y-2 pt-2">
+            {regularDiscount > 0 && celebrationDiscount > 0 ? (
+              <>
+                <Row label="Scheme Discount" value={-regularDiscount} />
+                <Row label="Celebration Gift Discount 🎁" value={-celebrationDiscount} />
+                <Row label="Total Discount" value={-totalDiscount} bold />
+              </>
+            ) : celebrationDiscount > 0 ? (
+              <Row label="Celebration Discount 🎁" value={-celebrationDiscount} />
+            ) : (
+              <Row label="Total Discount" value={-totalDiscount} />
+            )}
           </div>
         )}
 

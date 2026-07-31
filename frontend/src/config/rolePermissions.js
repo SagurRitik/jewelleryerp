@@ -22,6 +22,7 @@ export const rolePermissions = {
      "quotation",
      "suppliers",
      "catalogues",
+    "customers",
   ],
 
   admin: [
@@ -48,6 +49,7 @@ export const rolePermissions = {
     "quotation",
     "suppliers",
     "catalogues",
+    "customers",
   ],
 
 
@@ -57,6 +59,7 @@ export const rolePermissions = {
      "Home",
     "reports",
     "orders",
+    "customers",
   ],
 
   salesperson: [
@@ -72,6 +75,7 @@ export const rolePermissions = {
     "inquiries",
     "quotation",
     "catalogues",
+    "customers",
   ],
 
 

@@ -28,8 +28,10 @@ const saveUploadedFile = async (file) => {
   const filePath = path.join(UPLOADS_DIR, filename);
 
   await sharp(file.buffer)
-    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+    .rotate()
+    .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
     .toFormat("webp")
+    .webp({ quality: 75, effort: 6 })
     .toFile(filePath);
 
   return `/uploads/${filename}`;

@@ -38,6 +38,17 @@ export const createRateConfig = async (req, res) => {
       stoneDiscountType = "none",
       stoneDiscountValue = 0,
       discountEnabled = true,
+
+      /* ===== CELEBRATION DISCOUNTS ===== */
+      birthdayDiscountType = "percent",
+      birthdayDiscountValue = 20,
+      birthdayDiscountTarget = "making",
+      birthdayMinWeight = 0,
+
+      anniversaryDiscountType = "percent",
+      anniversaryDiscountValue = 20,
+      anniversaryDiscountTarget = "making",
+      anniversaryMinWeight = 0,
     } = req.body;
 
     /* ===== VALIDATION ===== */
@@ -96,6 +107,17 @@ export const createRateConfig = async (req, res) => {
 
       stoneDiscountType,
       stoneDiscountValue,
+
+      birthdayDiscountType,
+      birthdayDiscountValue,
+      birthdayDiscountTarget,
+      birthdayMinWeight: Number(birthdayMinWeight || 0),
+
+      anniversaryDiscountType,
+      anniversaryDiscountValue,
+      anniversaryDiscountTarget,
+      anniversaryMinWeight: Number(anniversaryMinWeight || 0),
+
       discountEnabled,
       active: true,
     });

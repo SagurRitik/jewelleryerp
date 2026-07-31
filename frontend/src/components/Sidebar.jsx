@@ -1,6 +1,6 @@
 import { rolePermissions } from "../config/rolePermissions.js";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Upload, ChevronDown, X, Home, ShoppingBag, PlusCircle, FileText, Calculator, BarChart2, DollarSign, Settings, User, LogOut } from "lucide-react";
+import { Upload, ChevronDown, X, Home, ShoppingBag, PlusCircle, FileText, Calculator, BarChart2, DollarSign, Settings, User, LogOut, Sparkles } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/NazaraWhite.png";
 import { useState, useEffect } from "react";
@@ -22,8 +22,10 @@ export default function Sidebar({ isOpen, onClose }) {
     {
       name: "Home",
       icon: Home,
+      path: "/",
       permission: "products",
     },
+
     {
       name: "admin",
       icon: ShoppingBag,
@@ -87,11 +89,12 @@ export default function Sidebar({ isOpen, onClose }) {
       ]
     },
     {
-      name: "Enquiry",
+      name: "Enquiry & Customers",
       icon: FileText,
       permission: "inquiries",
       children: [
         { name: "Enquiries", path: "/inquiries", icon: FileText, permission: "inquiries" },
+        { name: "Customers Directory", path: "/customers", icon: User, permission: "customers" },
       ]
     }
   ];
@@ -146,31 +149,49 @@ export default function Sidebar({ isOpen, onClose }) {
 
               const isOpenMenu = openMenu === item.name;
 
+              const isItemActive = item.path ? location.pathname === item.path : isParentActive;
+
               return (
                 <div key={item.name}>
-                  <button
-                    onClick={() =>
-                      item.children
-                        ? setOpenMenu(isOpenMenu ? null : item.name)
-                        : onClose()
-                    }
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isParentActive
-                      ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
-                      : "text-white/70 hover:bg-white/5"
-                      }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      {item.icon && <item.icon size={18} />}
-                      <span className="text-[13px] uppercase">{item.name}</span>
-                    </div>
+                  {item.path ? (
+                    <Link
+                      to={item.path}
+                      onClick={onClose}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isItemActive
+                        ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
+                        : "text-white/70 hover:bg-white/5"
+                        }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        {item.icon && <item.icon size={18} />}
+                        <span className="text-[13px] uppercase">{item.name}</span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        item.children
+                          ? setOpenMenu(isOpenMenu ? null : item.name)
+                          : onClose()
+                      }
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isParentActive
+                        ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
+                        : "text-white/70 hover:bg-white/5"
+                        }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        {item.icon && <item.icon size={18} />}
+                        <span className="text-[13px] uppercase">{item.name}</span>
+                      </div>
 
-                    {item.children && (
-                      <ChevronDown
-                        size={16}
-                        className={`transition-transform ${isOpenMenu ? "rotate-180" : ""}`}
-                      />
-                    )}
-                  </button>
+                      {item.children && (
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${isOpenMenu ? "rotate-180" : ""}`}
+                        />
+                      )}
+                    </button>
+                  )}
 
                   {item.children && (
                     <div

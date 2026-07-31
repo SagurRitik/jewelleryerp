@@ -55,6 +55,44 @@ const RateConfigSchema = new mongoose.Schema(
       default: 0,
     },
 
+    /* ===== CELEBRATION DISCOUNTS ===== */
+    birthdayDiscountType: {
+      type: String,
+      enum: ["none", "percent", "flat"],
+      default: "percent",
+    },
+    birthdayDiscountValue: {
+      type: Number,
+      default: 20,
+    },
+    birthdayDiscountTarget: {
+      type: String,
+      enum: ["making", "diamond", "stone", "flat"],
+      default: "making",
+    },
+    birthdayMinWeight: {
+      type: Number,
+      default: 0,
+    },
+    anniversaryDiscountType: {
+      type: String,
+      enum: ["none", "percent", "flat"],
+      default: "percent",
+    },
+    anniversaryDiscountValue: {
+      type: Number,
+      default: 20,
+    },
+    anniversaryDiscountTarget: {
+      type: String,
+      enum: ["none", "making", "diamond", "stone", "flat"],
+      default: "making",
+    },
+    anniversaryMinWeight: {
+      type: Number,
+      default: 0,
+    },
+
     active: Boolean,
     discountEnabled: { type: Boolean, default: true },
   },
