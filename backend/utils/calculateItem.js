@@ -160,7 +160,7 @@ export default async function calculateItem(
     rateConfig.stoneDiscountType,
     rateConfig.stoneDiscountValue
   );
-
+  // discount on making
   const discountMaking = applyDiscount(
     makingCharge,
     rateConfig.makingDiscountType,
