@@ -18,39 +18,39 @@ export const getDashboardStats = async (req, res) => {
       end.setHours(23, 59, 59, 999);
 
       dateMatch = {
-        createdAt: {
+        date: {
           $gte: start,
           $lte: end,
         },
       };
 
       groupFormat = {
-        $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+        $dateToString: { format: "%Y-%m-%d", date: "$date" },
       };
     } else {
       let fromDate = new Date();
       switch (filter) {
         case "daily":
           fromDate.setDate(fromDate.getDate() - 30);
-          groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+          groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$date" } };
           break;
         case "weekly":
           fromDate.setDate(fromDate.getDate() - 84);
-          groupFormat = { $dateToString: { format: "%Y-%U", date: "$createdAt" } };
+          groupFormat = { $dateToString: { format: "%Y-%U", date: "$date" } };
           break;
         case "yearly":
           fromDate.setFullYear(fromDate.getFullYear() - 5);
-          groupFormat = { $dateToString: { format: "%Y", date: "$createdAt" } };
+          groupFormat = { $dateToString: { format: "%Y", date: "$date" } };
           break;
         case "monthly":
         default:
           fromDate.setMonth(fromDate.getMonth() - 11);
           fromDate.setDate(1);
-          groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
+          groupFormat = { $dateToString: { format: "%Y-%m", date: "$date" } };
       }
       fromDate.setHours(0, 0, 0, 0);
       dateMatch = {
-        createdAt: {
+        date: {
           $gte: fromDate,
           $lte: now,
         },
@@ -69,9 +69,9 @@ export const getDashboardStats = async (req, res) => {
 
     /* ================= RECENT ORDERS ================= */
     const recentOrders = await SalesOrder.find(dateMatch)
-      .sort({ createdAt: -1 })
+      .sort({ date: -1 })
       .limit(5)
-      .select("invoiceNo customer.name totals.grandTotal createdAt payment.status")
+      .select("invoiceNo customer.name totals.grandTotal date payment.status")
       .lean();
 
     /* ================= SALES GRAPH ================= */

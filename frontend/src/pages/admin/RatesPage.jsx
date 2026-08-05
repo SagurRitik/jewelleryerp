@@ -38,6 +38,16 @@ export default function RatesPage() {
     stoneDiscountType: "none",
     stoneDiscountValue: 0,
     discountEnabled: true,
+
+    /* ===== CELEBRATION DISCOUNTS ===== */
+    birthdayDiscountType: "percent",
+    birthdayDiscountValue: 20,
+    birthdayDiscountTarget: "making",
+    birthdayMinWeight: 0,
+    anniversaryDiscountType: "percent",
+    anniversaryDiscountValue: 20,
+    anniversaryDiscountTarget: "making",
+    anniversaryMinWeight: 0,
   });
 
   const [loading, setLoading] = useState(false);
@@ -321,6 +331,40 @@ export default function RatesPage() {
               </div>
             </div>
 
+            {/* CELEBRATION DISCOUNTS CARD */}
+            <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-amber-50 rounded-xl p-6 shadow-sm border border-purple-200">
+              <h2 className="text-base font-bold text-[#5D3354] mb-0.5 flex items-center gap-2">
+                🎂 Celebration Offers (Admin Preset)
+              </h2>
+              <p className="text-[10px] text-gray-500 mb-5 uppercase tracking-wider">Set pre-configured discounts for Birthdays & Anniversaries</p>
+
+              <div className="space-y-4">
+                <CelebrationDiscountRow
+                  label="🎂 BIRTHDAY SPECIAL OFFER"
+                  target={rates.birthdayDiscountTarget}
+                  type={rates.birthdayDiscountType}
+                  value={rates.birthdayDiscountValue}
+                  minWeight={rates.birthdayMinWeight}
+                  onTargetChange={(v) => setRates({ ...rates, birthdayDiscountTarget: v })}
+                  onTypeChange={(v) => setRates({ ...rates, birthdayDiscountType: v })}
+                  onValueChange={(v) => setRates({ ...rates, birthdayDiscountValue: v })}
+                  onMinWeightChange={(v) => setRates({ ...rates, birthdayMinWeight: v })}
+                />
+
+                <CelebrationDiscountRow
+                  label="💍 ANNIVERSARY SPECIAL OFFER"
+                  target={rates.anniversaryDiscountTarget}
+                  type={rates.anniversaryDiscountType}
+                  value={rates.anniversaryDiscountValue}
+                  minWeight={rates.anniversaryMinWeight}
+                  onTargetChange={(v) => setRates({ ...rates, anniversaryDiscountTarget: v })}
+                  onTypeChange={(v) => setRates({ ...rates, anniversaryDiscountType: v })}
+                  onValueChange={(v) => setRates({ ...rates, anniversaryDiscountValue: v })}
+                  onMinWeightChange={(v) => setRates({ ...rates, anniversaryMinWeight: v })}
+                />
+              </div>
+            </div>
+
             <button
               onClick={save}
               disabled={loading}
@@ -388,5 +432,72 @@ const DiscountRow = ({ label, type, value, onTypeChange, onValueChange }) => (
         className="w-2/5 bg-white border border-gray-200 rounded-md p-2 text-sm font-bold text-gray-700 outline-none text-center focus:border-gray-400 disabled:opacity-50"
       />
     </div>
+  </div>
+);
+
+const CelebrationDiscountRow = ({ label, target, type, value, minWeight, onTargetChange, onTypeChange, onValueChange, onMinWeightChange }) => (
+  <div className="p-3.5 bg-white rounded-lg border border-gray-200 shadow-2xs space-y-2.5">
+    <label className="text-[10px] font-bold text-[#5D3354] block uppercase tracking-wider">{label}</label>
+    <div className="grid grid-cols-4 gap-2">
+      <div>
+        <label className="text-[9px] font-bold text-gray-400 block uppercase mb-1">Target</label>
+        <select
+          value={target || "making"}
+          onChange={(e) => onTargetChange(e.target.value)}
+          className="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-xs font-medium text-gray-700 outline-none focus:border-[#5D3354]"
+        >
+          <option value="making">Making</option>
+          <option value="diamond">Diamond</option>
+          <option value="stone">Stone</option>
+          <option value="flat">Total Bill</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="text-[9px] font-bold text-gray-400 block uppercase mb-1">Mode</label>
+        <select
+          value={type || "percent"}
+          onChange={(e) => onTypeChange(e.target.value)}
+          className="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-xs font-medium text-gray-700 outline-none focus:border-[#5D3354]"
+        >
+          <option value="none">None</option>
+          <option value="percent">Percent (%)</option>
+          <option value="flat">Flat (₹)</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="text-[9px] font-bold text-gray-400 block uppercase mb-1">Value</label>
+        <input
+          type="number"
+          value={value ?? ""}
+          onChange={(e) => onValueChange(e.target.value)}
+          disabled={type === "none"}
+          className="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-xs font-bold text-gray-800 outline-none text-center focus:border-[#5D3354] disabled:opacity-50"
+        />
+      </div>
+
+      <div>
+        <label className="text-[9px] font-bold text-amber-600 block uppercase mb-1" title="Minimum Weight Required (0 = No limit)">
+          Min Wt ({target === "diamond" || target === "stone" ? "ct" : "g"})
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          placeholder="0"
+          value={minWeight ?? ""}
+          onChange={(e) => onMinWeightChange(e.target.value)}
+          disabled={type === "none"}
+          className="w-full bg-amber-50/60 border border-amber-200 rounded-md p-1.5 text-xs font-bold text-amber-900 outline-none text-center focus:border-amber-500 disabled:opacity-50"
+          title="Min weight required for offer eligibility (0 = No limit)"
+        />
+      </div>
+    </div>
+    <p className="text-[9px] text-gray-400 italic">
+      {Number(minWeight || 0) > 0 
+        ? `*Offer applies ONLY if ${target === "diamond" ? "Diamond" : target === "stone" ? "Stone" : "Item"} weight >= ${minWeight} ${target === "diamond" || target === "stone" ? "ct" : "g"}`
+        : "*No minimum weight limit required"
+      }
+    </p>
   </div>
 );

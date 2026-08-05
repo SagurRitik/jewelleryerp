@@ -414,21 +414,18 @@ export default function EstimatePreview() {
       return;
     }
 
-    // Prepare data for Order Form
-    const firstItem = q.items[0];
-
-    // Convert estimate item structure to order form structure
-    const initialProduct = {
-      title: firstItem.title,
-      jewelleryCategory: firstItem.jewelleryCategory,
-      description: firstItem.description,
-      metalType: firstItem.metalType,
-      metalPurity: firstItem.metalPurity,
-      netWeight: firstItem.netWeight,
-      grossWeight: firstItem.grossWeight,
-      images: firstItem.images || [],
-      components: firstItem.components || [],
-    };
+    // Convert all estimate items structure to order form structure
+    const initialProducts = q.items.map(item => ({
+      title: item.title,
+      jewelleryCategory: item.jewelleryCategory,
+      description: item.description,
+      metalType: item.metalType,
+      metalPurity: item.metalPurity,
+      netWeight: item.netWeight,
+      grossWeight: item.grossWeight,
+      images: item.images || [],
+      components: item.components || [],
+    }));
 
     const customer = {
       name: q.customerName,
@@ -439,7 +436,7 @@ export default function EstimatePreview() {
 
     navigate("/orders/new", {
       state: {
-        initialProduct,
+        initialProducts,
         customer,
         convertedFromEstimateId: id // Keep track of the source
       }
@@ -449,55 +446,80 @@ export default function EstimatePreview() {
   const handleWhatsApp = async () => {
     if (whatsAppLoading) return;
     setWhatsAppLoading(true);
+    const toastId = toast.loading("Sending PDF to WhatsApp...");
     try {
       const res = await sendEstimateWhatsAppAuto(id);
 
       if (res.data?.success) {
         // ✅ AiSensy sent it directly
-        toast.success(`📲 Estimate PDF sent to customer's WhatsApp!`);
-        if (q.status === "DRAFT") {
+        toast.success(`📲 Estimate PDF sent to customer's WhatsApp!`, { id: toastId });
+        if (q?.status === "DRAFT") {
           try { await markEstimateSent(id); } catch (_) {}
           setQ((prev) => ({ ...prev, status: "SENT" }));
         }
         return;
       }
 
-      if (res.data?.canFallback) {
-        // ⚠️ AiSensy unavailable (e.g. localhost) — fall back to download + WhatsApp text
-        toast.info("Direct send unavailable. Downloading PDF to share manually…", { duration: 4000 });
+      toast.info("Direct send unavailable. Downloading PDF to share...", { id: toastId, duration: 4000 });
 
-        // 1. Download the PDF
-        const pdfRes = await getEstimatePdfBlob(id);
-        const blob = new Blob([pdfRes.data], { type: "application/pdf" });
-        const safeNo = (q?.quotationNo || id).replace(/[/\\:*?"<>|]/g, "-");
-        const filename = `Estimate-${safeNo}.pdf`;
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(blobUrl);
+      // 1. Fetch PDF Blob
+      const pdfRes = await getEstimatePdfBlob(id);
+      const blob = new Blob([pdfRes.data], { type: "application/pdf" });
+      const safeNo = (q?.quotationNo || id).replace(/[/\\:*?"<>|]/g, "-");
+      const filename = `Estimate-${safeNo}.pdf`;
+      const blobUrl = URL.createObjectURL(blob);
 
-        // 2. Open WhatsApp with a pre-filled message
-        setTimeout(() => {
-          const mobile = (q?.mobile || "").replace(/\D/g, "");
-          const finalMobile = mobile.length === 10 ? `91${mobile}` : mobile;
-          const amount = fmt(q?.grandTotal);
-          const text =
-            `✨ *ESTIMATE: ${q?.quotationNo}* ✨\n\nनमस्ते *${q?.customerName || "Customer"}*,` +
-            `\n\nआपके गहनों का एस्टीमेट तैयार है।\n*कुल: ₹${amount}*` +
-            `\n\nकृपया संलग्न PDF देखें।\n\n💎 *Nazara Diamonds*`;
-          const waUrl = finalMobile
-            ? `https://wa.me/${finalMobile}?text=${encodeURIComponent(text)}`
-            : `https://wa.me/?text=${encodeURIComponent(text)}`;
-          window.open(waUrl, "_blank");
-        }, 600);
-
-        toast.success("PDF downloaded! Attach it in the WhatsApp chat that just opened.", { duration: 6000 });
-        return;
+      // 2. Mobile Web Share API (attaches PDF directly if supported)
+      const pdfFile = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: `Estimate ${q?.quotationNo || ""}`,
+            text: `Estimate ${q?.quotationNo || ""} for ${q?.customerName || "Customer"}`,
+            files: [pdfFile],
+          });
+          if (q?.status === "DRAFT") {
+            try { await markEstimateSent(id); } catch (_) {}
+            setQ((prev) => ({ ...prev, status: "SENT" }));
+          }
+          URL.revokeObjectURL(blobUrl);
+          return;
+        } catch (shareErr) {
+          console.log("Web Share cancelled/failed, falling back to download", shareErr);
+        }
       }
 
-      toast.error(res.data?.error || "Failed to send WhatsApp");
+      // 3. Download the PDF file
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      // 4. Open WhatsApp with pre-filled message
+      setTimeout(() => {
+        const mobile = (q?.mobile || "").replace(/\D/g, "");
+        const finalMobile = mobile.length === 10 ? `91${mobile}` : mobile;
+        const amount = fmt(q?.grandTotal);
+        const text =
+          `✨ *ESTIMATE: ${q?.quotationNo || safeNo}* ✨\n\n` +
+          `नमस्ते *${q?.customerName || "Customer"}*,\n\n` +
+          `आपके गहनों का एस्टीमेट तैयार है।\n*कुल राशि: ₹${amount}*\n\n` +
+          `📎 *कृपया डाउनलोड की गई PDF (Estimate-${safeNo}.pdf) को इस चैट में अटैच करें।*\n\n` +
+          `💎 *Nazara Diamonds*`;
+        const waUrl = finalMobile
+          ? `https://wa.me/${finalMobile}?text=${encodeURIComponent(text)}`
+          : `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, "_blank");
+      }, 500);
+
+      toast.success("PDF downloaded! Attach it in the WhatsApp chat that just opened.", { duration: 6000 });
+      if (q?.status === "DRAFT") {
+        try { await markEstimateSent(id); } catch (_) {}
+        setQ((prev) => ({ ...prev, status: "SENT" }));
+      }
     } catch (err) {
       const msg =
         err?.response?.data?.error ||
@@ -505,8 +527,7 @@ export default function EstimatePreview() {
         err.message ||
         "Failed to send WhatsApp";
       console.error("WhatsApp send error:", err?.response?.data || err.message);
-      toast.error(`WhatsApp Error: ${msg}`);
-
+      toast.error(`WhatsApp Error: ${msg}`, { id: toastId });
     } finally {
       setWhatsAppLoading(false);
     }

@@ -154,19 +154,19 @@ export const getAllInvoices = async (req, res) => {
       const selectedDate = new Date(date);
       const nextDate = new Date(selectedDate);
       nextDate.setDate(nextDate.getDate() + 1);
-      filter.createdAt = {
-        $gte: new Date(selectedDate.setHours(0, 0, 0, 0)),
-        $lt: new Date(nextDate.setHours(0, 0, 0, 0))
+      filter.date = {
+        $gte: new Date(new Date(selectedDate).setHours(0, 0, 0, 0)),
+        $lt: new Date(new Date(nextDate).setHours(0, 0, 0, 0))
       };
     } else if (startDate || endDate) {
-      filter.createdAt = {};
+      filter.date = {};
       if (startDate) {
-        filter.createdAt.$gte = new Date(new Date(startDate).setHours(0, 0, 0, 0));
+        filter.date.$gte = new Date(new Date(startDate).setHours(0, 0, 0, 0));
       }
       if (endDate) {
         const end = new Date(endDate);
         end.setDate(end.getDate() + 1);
-        filter.createdAt.$lt = new Date(end.setHours(0, 0, 0, 0));
+        filter.date.$lt = new Date(end.setHours(0, 0, 0, 0));
       }
     }
 
@@ -174,7 +174,7 @@ export const getAllInvoices = async (req, res) => {
 
     const [invoices, total] = await Promise.all([
       SalesOrder.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ date: -1 })
         .skip(skip)
         .limit(Number(limit))
         .lean(),

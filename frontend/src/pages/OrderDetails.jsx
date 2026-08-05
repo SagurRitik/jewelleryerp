@@ -9,6 +9,7 @@ import {
   updateOrderStatusById,
   cancelOrderById,
   deleteOrderById,
+  getOrdersByGroupOrderNo,
 } from "../api/orderApi";
 import StatusBadge from "../components/StatusBadge";
 import { useCart } from "../context/CartContext";
@@ -167,13 +168,27 @@ export default function OrderDetails() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [suppliers, setSuppliers] = useState([]);
   const [isSendingToSupplier, setIsSendingToSupplier] = useState(false);
+  const [groupOrders, setGroupOrders] = useState([]);
 
   /* ================= FETCH ================= */
   useEffect(() => {
     setLoading(true);
     getOrderById(id)
       .then((res) => {
-        if (res.data?.success) setOrder(res.data.order);
+        if (res.data?.success) {
+          const fetchedOrder = res.data.order;
+          setOrder(fetchedOrder);
+          
+          if (fetchedOrder.groupOrderNo) {
+            getOrdersByGroupOrderNo(fetchedOrder.groupOrderNo)
+              .then((groupRes) => {
+                if (groupRes.data?.success) {
+                  setGroupOrders(groupRes.data.orders || []);
+                }
+              })
+              .catch((err) => console.error("Failed to load group orders:", err));
+          }
+        }
         else setError("Order not found");
       })
       .catch(() => setError("Failed to fetch order"))
@@ -593,6 +608,14 @@ export default function OrderDetails() {
                       <p className="text-[9px]  uppercase tracking-widest mb-1 font-semibold">Contact</p>
                       <p className="font-mono text-sm">{customer?.mobile}</p>
                       {customer?.email && <p className=" text-xs mt-0.5 truncate hover:text-[#A0826D] cursor-pointer">{customer.email}</p>}
+                      {customer?.mobile && (
+                        <a
+                          href={`/orders?search=${encodeURIComponent(customer.mobile)}`}
+                          className="inline-flex items-center gap-1 mt-1.5 text-[9px] uppercase tracking-widest font-bold text-white/70 hover:text-white border-b border-white/30 hover:border-white transition-colors"
+                        >
+                          View All Orders ↗
+                        </a>
+                      )}
                     </div>
                     <div>
                       <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold">Address</p>
@@ -695,6 +718,86 @@ export default function OrderDetails() {
                 </div>
               )}
             </div>
+
+            {/* Booking Group Linked Items */}
+            {groupOrders.length > 1 && (
+              <div className="bg-white border border-stone-200/60 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-dashed border-stone-200">
+                  <div className="p-2 bg-[#F5F1EB] text-[#8B7355] rounded">
+                    <Layers size={14} />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-sm text-[#2D2D2D] font-semibold">Booking Group ({groupOrders.length} Items)</h3>
+                    <p className="text-[9px] text-[#8B7355] font-mono tracking-wider">Group: {order.groupOrderNo}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {groupOrders.map((o) => {
+                    const itemSnapshot = o.productSnapshot || {};
+                    const isCurrent = o._id === order._id;
+                    const itemImage = (itemSnapshot.productImages || itemSnapshot.images || [])[0];
+                    
+                    return (
+                      <div
+                        key={o._id}
+                        onClick={() => {
+                          if (!isCurrent) navigate(`/orders/${o._id}`);
+                        }}
+                        className={`flex items-center gap-3 p-2 border transition cursor-pointer rounded ${
+                          isCurrent
+                            ? "bg-[#6B3151]/5 border-[#6B3151]/30 font-medium"
+                            : "border-stone-100 hover:border-[#A0826D]/30 hover:bg-[#F5F1EB]/30"
+                        }`}
+                      >
+                        {/* Thumbnail */}
+                        <div className="w-10 h-12 bg-stone-100 flex-shrink-0 overflow-hidden border border-stone-200 rounded">
+                          {itemImage ? (
+                            <img
+                              src={getImageUrl(itemImage)}
+                              alt="thumb"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[8px] uppercase text-stone-400">
+                              No Pic
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[#2D2D2D] truncate font-semibold">
+                            {itemSnapshot.title || `Custom Item`}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[9px] font-mono text-stone-400">{o.orderNo.split("-").pop()}</span>
+                            <span className="text-[9px] text-stone-300">•</span>
+                            <span className="text-[9px] text-[#8B7355]">{itemSnapshot.jewelleryCategory || "Jewellery"}</span>
+                          </div>
+                        </div>
+
+                        {/* Status & Indicator */}
+                        <div className="text-right flex-shrink-0">
+                          <span className={`px-1.5 py-0.5 text-[8px] uppercase tracking-wider font-bold rounded ${
+                            o.status === "Ready" ? "bg-emerald-100 text-emerald-800" :
+                            o.status === "In-Process" ? "bg-amber-100 text-amber-800" :
+                            o.status === "Delivered" ? "bg-blue-100 text-blue-800" :
+                            o.status === "Cancelled" ? "bg-rose-100 text-rose-800" :
+                            "bg-stone-100 text-stone-700"
+                          }`}>
+                            {o.status}
+                          </span>
+                          {isCurrent && (
+                            <p className="text-[7px] text-[#6B3151] font-extrabold uppercase mt-1 tracking-widest text-center">Active</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Quick Actions Panel */}
             {!isCancelled && (

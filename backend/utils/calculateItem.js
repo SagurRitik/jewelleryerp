@@ -160,7 +160,7 @@ export default async function calculateItem(
     rateConfig.stoneDiscountType,
     rateConfig.stoneDiscountValue
   );
-
+  // discount on making
   const discountMaking = applyDiscount(
     makingCharge,
     rateConfig.makingDiscountType,
@@ -234,5 +234,120 @@ export default async function calculateItem(
     netWeight,
     chargeableWeight: netWeight,
     wastagePercent: Number(p.wastagePercent || 0),
+  };
+}
+
+/**
+ * ================= CENTRALIZED CART & INVOICE PRICING ENGINE =================
+ * Single Source of Truth for calculating cart/invoice totals with safety guards and discount differentiation.
+ */
+export function calculateCartTotals(
+  items = [],
+  celebrationDiscount = null,
+  options = {}
+) {
+  let grossTotal = 0;
+  let regularDiscountDiamond = 0;
+  let regularDiscountStone = 0;
+  let regularDiscountMaking = 0;
+  let baseSubtotal = 0;
+  let totalAdvancePayment = 0;
+  let totalMetalPayment = 0;
+
+  for (const item of items) {
+    const calc = item.breakup || {};
+    grossTotal += Number(calc.grossTotal || (Number(calc.subtotal || 0) + Number(calc.discount || 0)) || 0);
+    regularDiscountDiamond += Number(calc.discountDiamond || 0);
+    regularDiscountStone += Number(calc.discountStone || 0);
+    regularDiscountMaking += Number(calc.discountMaking || 0);
+    baseSubtotal += Number(calc.subtotal || 0);
+    totalAdvancePayment += Number(calc.advanceUsed || 0);
+    totalMetalPayment += Number(calc.metalUsed || 0);
+  }
+
+  const regularDiscount = round2(
+    regularDiscountDiamond + regularDiscountStone + regularDiscountMaking
+  );
+
+  /* ================= 🛡️ CELEBRATION DISCOUNT WITH SAFETY GUARDS ================= */
+  let celebrationDiscountAmount = 0;
+  let celebrationDiscountMaking = 0;
+  let celebrationDiscountDiamond = 0;
+  let celebrationDiscountStone = 0;
+
+  if (celebrationDiscount && Number(celebrationDiscount.amount) > 0) {
+    let rawAmount = Number(celebrationDiscount.amount) || 0;
+
+    // 🛡️ GUARD 0: Minimum Weight Threshold Validation
+    const minWeightRequired = Number(celebrationDiscount.minWeight || 0);
+    if (minWeightRequired > 0) {
+      let applicableWeight = 0;
+      const target = (celebrationDiscount.target || "").toUpperCase();
+      if (target === "DIAMOND") {
+        applicableWeight = items.reduce((sum, it) => sum + Number(it.breakup?.totalDiamondWeight || it.customSnapshot?.pricingSnapshot?.totalDiamondWeight || 0), 0);
+      } else if (target === "STONE") {
+        applicableWeight = items.reduce((sum, it) => sum + Number(it.breakup?.stoneValue ? 1 : 0), 0);
+      } else {
+        // MAKING or FLAT (Net Weight)
+        applicableWeight = items.reduce((sum, it) => sum + Number(it.customSnapshot?.productDetails?.netWeight || it.itemSnapshot?.productDetails?.netWeight || it.netWeight || 0), 0);
+      }
+
+      if (applicableWeight < minWeightRequired) {
+        rawAmount = 0;
+      }
+    }
+
+    // 🛡️ GUARD 1: Cannot be negative
+    rawAmount = Math.max(0, rawAmount);
+
+    // 🛡️ GUARD 2: Cannot exceed current base subtotal
+    rawAmount = Math.min(rawAmount, baseSubtotal);
+
+    // 🛡️ GUARD 3: Total combined discount cannot exceed 75% of gross total (anti-fraud cap)
+    const maxAllowedDiscount = round2(grossTotal * 0.75);
+    const availableCap = Math.max(0, maxAllowedDiscount - regularDiscount);
+    celebrationDiscountAmount = round2(Math.min(rawAmount, availableCap));
+
+    if (celebrationDiscount.target === "MAKING") {
+      celebrationDiscountMaking = celebrationDiscountAmount;
+    } else if (celebrationDiscount.target === "DIAMOND") {
+      celebrationDiscountDiamond = celebrationDiscountAmount;
+    } else if (celebrationDiscount.target === "STONE") {
+      celebrationDiscountStone = celebrationDiscountAmount;
+    }
+  }
+
+  const totalDiscount = round2(regularDiscount + celebrationDiscountAmount);
+
+  /* ================= TAX & GRAND TOTAL ================= */
+  const netSubtotal = round2(Math.max(0, baseSubtotal - celebrationDiscountAmount));
+  const gstRate = Number(options.gstRate || 3);
+  const gst = round2((netSubtotal * gstRate) / 100);
+  const grandTotal = round2(netSubtotal + gst);
+
+  const netPayable = round2(
+    Math.max(0, grandTotal - totalAdvancePayment - totalMetalPayment)
+  );
+
+  return {
+    grossTotal: round2(grossTotal),
+    subtotal: netSubtotal,
+    gst,
+    grandTotal,
+
+    /* 🔑 DIFFERENTIATED DISCOUNTS AUDIT TRAIL */
+    regularDiscount: round2(regularDiscount),
+    celebrationDiscount: round2(celebrationDiscountAmount),
+    discount: round2(totalDiscount),
+
+    /* CATEGORY WISE TOTAL DISCOUNTS */
+    discountMaking: round2(regularDiscountMaking + celebrationDiscountMaking),
+    discountDiamond: round2(regularDiscountDiamond + celebrationDiscountDiamond),
+    discountStone: round2(regularDiscountStone + celebrationDiscountStone),
+
+    advancePayment: round2(totalAdvancePayment),
+    metalPayment: round2(totalMetalPayment),
+    netPayable,
+    payable: netPayable,
   };
 }

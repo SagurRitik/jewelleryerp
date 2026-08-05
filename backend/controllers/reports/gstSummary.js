@@ -323,7 +323,7 @@ export const getGSTSummary = async (req, res) => {
 
     const match = {};
     if (from && to) {
-      match.createdAt = {
+      match.date = {
         $gte: new Date(from),
         $lte: new Date(to),
       };
@@ -397,7 +397,7 @@ export const getJewellerySummary = async (req, res) => {
 
     const match = {};
     if (from && to) {
-      match.createdAt = {
+      match.date = {
         $gte: new Date(from),
         $lte: new Date(to),
       };

@@ -1,5 +1,3 @@
-
-
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api";
@@ -191,33 +189,6 @@ export default function Dashboard() {
   // ✅ GLOBAL FILTER STATE
   const [filterType, setFilterType] = useState("monthly"); // daily, weekly, monthly, yearly, custom
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
-
-  // useEffect(() => {
-  //   const loadDashboard = async () => {
-  //     try {
-  //       setLoading(true);
-  //        console.log("🔥 Dashboard component mounted");
-        
-  //       // Build Query String
-  //       let query = `/dashboard/stats?filter=${filterType}`;
-  //       if (filterType === "custom" && customRange.start && customRange.end) {
-  //         query += `&startDate=${customRange.start}&endDate=${customRange.end}`;
-  //       }
-
-  //       const res = await API.get(query);
-  //       setData(res.data);
-  //     } catch (error) {
-  //       console.error("Dashboard Load Failed", error);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   // Load data only if not 'custom' OR if 'custom' has both dates selected
-  //   if (filterType !== "custom" || (customRange.start && customRange.end)) {
-  //     loadDashboard();
-  //   }
-  // }, [filterType, customRange]);
 
   useEffect(() => {
   const loadDashboard = async () => {

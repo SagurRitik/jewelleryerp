@@ -24,6 +24,7 @@ const fmtDate = (d, days = 0) => {
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import QRCode from "qrcode";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,9 +44,47 @@ const toBase64 = (filePath) => {
 const logoPath = path.join(__dirname, "../assets/NazaraWhite.png");
 const logoBase64 = toBase64(logoPath);
 
-export const estimateTemplate = (q, baseUrl = "") => {
+export const estimateTemplate = async (q, baseUrl = "") => {
   const validUntil = fmtDate(q.createdAt, q.validDays || 7);
   const issueDate = fmtDate(q.createdAt);
+
+  // Generate Metadata QR Code
+  let qrCodeDataUrl = "";
+  try {
+    const qrPayload = {
+      type: "ESTIMATE",
+      estNo: q.quotationNo || "",
+      date: issueDate,
+      customer: q.customerName || "Customer",
+      mobile: q.mobile || "",
+      totals: {
+        subtotal: q.subtotal || 0,
+        gst: q.gstTotal || 0,
+        grandTotal: q.grandTotal || 0,
+      },
+      items: (q.items || []).map((item, idx) => {
+        const b = item.breakup || {};
+        return {
+          title: item.title || `Item ${idx + 1}`,
+          metal: item.metalType || "gold",
+          purity: item.metalPurity || "18KT",
+          gWt: Number(item.grossWeight || 0),
+          nWt: Number(item.netWeight || 0),
+          mRate: Number(b.metalRate || 0),
+          making: Number(b.makingCharge || 0),
+          subtotal: Number(b.subtotal || 0),
+          grandTotal: Number(b.grandTotal || 0),
+        };
+      })
+    };
+    qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload), {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 120,
+    });
+  } catch (qrErr) {
+    console.error("Error generating estimate QR Code:", qrErr.message);
+  }
 
   const itemsHtml = (q.items || [])
     .map((item, idx) => {
@@ -307,6 +346,11 @@ export const estimateTemplate = (q, baseUrl = "") => {
   <div style="padding:6px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#64748b;">
     <p>Generated via <strong>Nazara ERP</strong></p>
     <p style="font-weight:700;">Thank you for choosing NAZARA DIAMONDS 💎</p>
+  </div>
+
+  <!-- ── BOTTOM METADATA QR CODE ── -->
+  <div style="text-align: center; padding: 6px 0; background: #ffffff;">
+    ${qrCodeDataUrl ? `<img src="${qrCodeDataUrl}" style="width: 50px; height: 50px; display: inline-block; opacity: 0.85;" alt="QR Code" />` : ''}
   </div>
 
 </div>

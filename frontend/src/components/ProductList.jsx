@@ -17,6 +17,7 @@ import { updateRate } from "../api/ratesApi";
 import { toast } from "sonner";
 import { Percent, ToggleLeft, ToggleRight } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 
 
@@ -165,7 +166,7 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
                 console.error("Cart error:", err);
               }
             }}
-            className={`w-full py-2 text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70 pointer-events-none"}`}
+            className={`w-full py-2 text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70"}`}
           >
             {Number(p?.stock || 0) > 0 ? "Add To Cart" : "Out of Stock"}
           </button>
@@ -207,6 +208,7 @@ export default function ProductList() {
   } = useProductList();
 
   const { isDark, toggleTheme } = useTheme();
+  const { user } = useAuth();
 
   /* ================= LOCAL UI STATE ================= */
   const { addProduct, fetchCartSummary } = useCart();
@@ -696,6 +698,7 @@ export default function ProductList() {
                 <option value="Bracelet">Bracelets</option>
                 <option value="Earring">Earrings</option>
                 <option value="Pendant">Pendants</option>
+                <option value="Chain">Chains</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -789,27 +792,29 @@ export default function ProductList() {
               </select>
             </div>
 
-            {/* Global Discount toggle (Switch Style) — Inside Filter Panel */}
-            <div
-              onClick={!isUpdatingDiscount ? toggleGlobalDiscount : undefined}
-              className={`flex items-center gap-3 px-4 py-1.5 rounded-full border text-sm font-medium transition-all cursor-pointer ${rawRates?.discountEnabled
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                : `${theme.inputBg} ${theme.border} text-gray-500`
-                } ${isUpdatingDiscount ? "opacity-50 cursor-wait" : "active:scale-95"}`}
-              title={rawRates?.discountEnabled ? "Disable global discounts" : "Enable global discounts"}
-            >
-              <div className="flex items-center gap-2">
-                <Percent size={14} />
-                <span className="text-[13px]">Discount</span>
+            {/* Global Discount toggle (Switch Style) — Inside Filter Panel (Admin & Superadmin Only) */}
+            {(user?.role === "admin" || user?.role === "superadmin") && (
+              <div
+                onClick={!isUpdatingDiscount ? toggleGlobalDiscount : undefined}
+                className={`flex items-center gap-3 px-4 py-1.5 rounded-full border text-sm font-medium transition-all cursor-pointer ${rawRates?.discountEnabled
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                  : `${theme.inputBg} ${theme.border} text-gray-500`
+                  } ${isUpdatingDiscount ? "opacity-50 cursor-wait" : "active:scale-95"}`}
+                title={rawRates?.discountEnabled ? "Disable global discounts" : "Enable global discounts"}
+              >
+                <div className="flex items-center gap-2">
+                  <Percent size={14} />
+                  <span className="text-[13px]">Discount</span>
+                </div>
+                {isUpdatingDiscount ? (
+                  <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                ) : rawRates?.discountEnabled ? (
+                  <ToggleRight size={20} className="text-emerald-500" />
+                ) : (
+                  <ToggleLeft size={20} className="text-gray-400" />
+                )}
               </div>
-              {isUpdatingDiscount ? (
-                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              ) : rawRates?.discountEnabled ? (
-                <ToggleRight size={20} className="text-emerald-500" />
-              ) : (
-                <ToggleLeft size={20} className="text-gray-400" />
-              )}
-            </div>
+            )}
 
             {/* Close filters button on mobile */}
             <button

@@ -9,20 +9,37 @@
 
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createManualInvoice } from "../api/invoiceApi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCcw, Sparkles, Loader2 } from "lucide-react";
+import { useModal } from "../context/ModalContext";
+import { useRates } from "../context/RatesContext";
 
 export default function ManualBillingForm() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showConfirm } = useModal();
+  const { rates } = useRates();
+
+  const getFormattedInvoiceNo = (datePart, seqVal) => {
+    if (!seqVal?.trim()) return "";
+    const seq = seqVal.trim();
+    const paddedSeq = /^\d+$/.test(seq) ? seq.padStart(5, "0") : seq;
+    const cleanDatePart = datePart ? datePart.trim() : "";
+    return `NZD-${cleanDatePart}-${paddedSeq}`;
+  };
 
   const [credits, setCredits] = useState([]);
   const [selectedCreditIds, setSelectedCreditIds] = useState([]);
   const [appliedCredit, setAppliedCredit] = useState(0);
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayments, setSplitPayments] = useState([
+    { mode: "CASH", amount: 0, referenceNo: "" },
+    { mode: "UPI", amount: 0, referenceNo: "" },
+  ]);
 
   const emptyItem = {
     // PRODUCT
@@ -186,6 +203,9 @@ export default function ManualBillingForm() {
     const savedGST = localStorage.getItem("billing_gst");
 
     return {
+      date: new Date().toISOString().split("T")[0],
+      invoiceDatePart: new Date().toISOString().split("T")[0].replace(/-/g, "/"),
+      invoiceSeq: "",
       baseRates: savedRates
         ? JSON.parse(savedRates)
         : {
@@ -230,9 +250,78 @@ export default function ManualBillingForm() {
 
     // Check for Prefill from Location State during initialization
     const prefill = location.state?.prefillDiamond;
+    const parsedInvoice = location.state?.parsedInvoice;
     let initialItems = [{ ...emptyItem }];
 
-    if (prefill) {
+    let initialBaseRates = savedRates
+      ? JSON.parse(savedRates)
+      : {
+        gold24k: "",
+        silver999: "",
+        platinum999: "",
+      };
+
+    let initialCustomer = {
+      name: "",
+      mobile: "",
+      email: "",
+      address: "",
+      gstin: "",
+      stateCode: "",
+      panNumber: "",
+    };
+
+    let initialDate = new Date().toISOString().split("T")[0];
+
+    if (parsedInvoice) {
+      initialCustomer = {
+        name: parsedInvoice.partyDetails?.name || "",
+        mobile: parsedInvoice.partyDetails?.mobile || "",
+        email: parsedInvoice.partyDetails?.email || "",
+        address: parsedInvoice.partyDetails?.address || "",
+        gstin: parsedInvoice.partyDetails?.gstin || "",
+        stateCode: parsedInvoice.partyDetails?.stateCode || "",
+        panNumber: "",
+      };
+
+      if (parsedInvoice.date) {
+        initialDate = parsedInvoice.date;
+      }
+
+      const puritiesMap = {
+        Gold: { "24KT": 1, "22KT": 0.916, "18KT": 0.76, "14KT": 0.6, "10KT": 0.43, "9KT": 0.39 },
+        Silver: { "999": 1, "950": 0.95, "925": 0.925, "900": 0.9, "800": 0.8 },
+        Platinum: { "999": 1, "950": 0.95, "900": 0.9 }
+      };
+
+      if (parsedInvoice.items && parsedInvoice.items.length > 0) {
+        initialItems = parsedInvoice.items.map((item) => {
+          const metal = item.metalType || "Gold";
+          const purity = (item.purity || "18KT").toUpperCase();
+          const rateNum = Number(item.rate || 0);
+
+          if (puritiesMap[metal] && puritiesMap[metal][purity] && rateNum > 0) {
+            const factor = puritiesMap[metal][purity];
+            const baseVal = Math.round(rateNum / factor).toString();
+            if (metal === "Gold") initialBaseRates.gold24k = baseVal;
+            else if (metal === "Silver") initialBaseRates.silver999 = baseVal;
+            else if (metal === "Platinum") initialBaseRates.platinum999 = baseVal;
+          }
+
+          return {
+            ...emptyItem,
+            title: item.description || "",
+            metalType: metal,
+            purity: item.purity || "18KT",
+            grossWeight: item.grossWeight !== null && item.grossWeight !== undefined ? item.grossWeight.toString() : "",
+            netWeight: (item.netWeight || item.grossWeight || "").toString(),
+            metalRate: item.rate ? item.rate.toString() : "",
+            makingRate: item.makingRate ? item.makingRate.toString() : "",
+            amount: item.amount ? item.amount.toString() : "",
+          };
+        });
+      }
+    } else if (prefill) {
       initialItems = [{
         ...emptyItem,
         title: prefill.sku
@@ -267,43 +356,184 @@ export default function ManualBillingForm() {
     }
 
     return {
-      baseRates: savedRates
-        ? JSON.parse(savedRates)
-        : {
-          gold24k: "",
-          silver999: "",
-          platinum999: "",
-        },
-
-      customer: {
-        name: "",
-        mobile: "",
-        email: "",
-        address: "",
-        gstin: "",
-        stateCode: "",
-        panNumber: "",
-      },
-
+      date: initialDate,
+      invoiceDatePart: initialDate.replace(/-/g, "/"),
+      invoiceSeq: "",
+      baseRates: initialBaseRates,
+      customer: initialCustomer,
       items: initialItems,
-
       salesperson: "",
-
       payment: {
         mode: "CASH",
         referenceNo: "",
       },
-
       gstPercent: savedGST ? Number(savedGST) : 3,
       makingRates: localStorage.getItem("billing_making_rates")
         ? JSON.parse(localStorage.getItem("billing_making_rates"))
         : { Gold: "", Silver: "", Platinum: "" },
       ratesLocked: false,
     };
-  });  // Handle Prefill from Diamond Inventory (Enhanced for immediate capture)
+  });
+
+  const [isScanning, setIsScanning] = useState(false);
+  const aiFileInputRef = useRef(null);
+
+  // Shared helper: convert AI-parsed item → ManualBillingForm item shape
+  const buildItemFromAiData = (item, existingFormItem) => {
+    const metal = ["Gold", "Silver", "Platinum"].includes(item.metalType)
+      ? item.metalType
+      : "Gold";
+    const rawPurity = (item.purity || "").toUpperCase();
+    const purity = rawPurity || (metal === "Gold" ? "18KT" : metal === "Silver" ? "925" : "950");
+    const netWt = (item.netWeight || item.grossWeight || "").toString();
+    const mRate = item.makingRate ? item.makingRate.toString() : "";
+
+    // Making charge: use flat fee if weight is below threshold
+    const weight = Number(netWt || 0);
+    const minWeight = Number(rates?.making?.minWeight || 0);
+    const minFlat = Number(rates?.making?.flatFee || 0);
+    let makingCharge = "";
+    if (weight > 0) {
+      if (minWeight > 0 && weight < minWeight) {
+        makingCharge = minFlat.toFixed(2);
+      } else if (mRate) {
+        makingCharge = (weight * Number(mRate)).toFixed(2);
+      } else if (item.makingCharge != null) {
+        makingCharge = item.makingCharge.toString();
+      }
+    }
+
+    // Diamonds: map AI diamonds array into form shape
+    const parsedDiamonds = Array.isArray(item.diamonds) && item.diamonds.length > 0
+      ? item.diamonds.map(d => ({
+        qty: d.qty != null ? d.qty.toString() : "",
+        grossWeight: d.grossWeight != null ? d.grossWeight.toString() : "",
+        netWeight: d.netWeight != null ? d.netWeight.toString() : "",
+        rate: d.rate != null ? d.rate.toString() : "",
+      }))
+      : [{ qty: "", grossWeight: "", netWeight: "", rate: "" }];
+
+    // Stones: map AI stones array into form shape
+    const parsedStones = Array.isArray(item.stones) && item.stones.length > 0
+      ? item.stones.map(s => ({
+        qty: s.qty != null ? s.qty.toString() : "",
+        grossWeight: s.grossWeight != null ? s.grossWeight.toString() : "",
+        netWeight: s.netWeight != null ? s.netWeight.toString() : "",
+        rate: s.rate != null ? s.rate.toString() : "",
+      }))
+      : [{ qty: "", grossWeight: "", netWeight: "", rate: "" }];
+
+    // Accessories/Belts: map AI accessories array into belt form shape
+    const parsedBelts = Array.isArray(item.accessories) && item.accessories.length > 0
+      ? item.accessories.map(a => ({
+        material: a.description || "",
+        color: "",
+        size: "",
+        qty: a.qty != null ? a.qty.toString() : "",
+        rate: a.rate != null ? a.rate.toString() : "",
+      }))
+      : [{ material: "", color: "", size: "", qty: "", rate: "" }];
+
+    return {
+      ...emptyItem,
+      title: item.description || "",
+      hsnCode: item.hsnCode || "",
+      metalType: metal,
+      purity,
+      grossWeight: item.grossWeight != null ? item.grossWeight.toString() : "",
+      netWeight: netWt,
+      // Use scanned metalRate if available, else keep existing form rate
+      metalRate: item.metalRate != null
+        ? item.metalRate.toString()
+        : (item.rate != null ? item.rate.toString() : (existingFormItem?.metalRate || "")),
+      makingRate: mRate,
+      makingCharge,
+      diamonds: parsedDiamonds,
+      stones: parsedStones,
+      belts: parsedBelts,
+    };
+  };
+
+  const handleAiScan = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    const formData = new FormData();
+    formData.append("bill", file);
+
+    try {
+      const response = await axios.post("/api/ai/parse-bill", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (response.data?.success) {
+        const data = response.data.data;
+
+        setForm((p) => {
+          const parsedItems = data.items && data.items.length > 0
+            ? data.items.map((item, idx) => buildItemFromAiData(item, p.items[idx]))
+            : p.items;
+
+          return {
+            ...p,
+            date: data.date || p.date,
+            gstPercent: data.pricing?.gstRate ? data.pricing.gstRate.toString() : p.gstPercent,
+            customer: {
+              ...p.customer,
+              name: data.partyDetails?.name || p.customer.name,
+              mobile: data.partyDetails?.mobile || p.customer.mobile,
+              email: data.partyDetails?.email || p.customer.email,
+              gstin: data.partyDetails?.gstin || p.customer.gstin,
+              address: data.partyDetails?.address || p.customer.address,
+              stateCode: data.partyDetails?.stateCode || p.customer.stateCode,
+            },
+            items: parsedItems,
+          };
+        });
+        toast.success("AI scanned invoice data auto-filled!");
+      } else {
+        toast.error("Failed to parse invoice using AI.");
+      }
+    } catch (err) {
+      console.error(err);
+      const errorMsg = err.response?.data?.message || err.message || "Failed to scan.";
+      toast.error(`AI Scan Error: ${errorMsg}`);
+    } finally {
+      setIsScanning(false);
+      if (aiFileInputRef.current) aiFileInputRef.current.value = "";
+    }
+  };
+
+  // Handle Prefill from Diamond Inventory & AI Scanner
   useEffect(() => {
     if (location.state?.prefillDiamond) {
       toast.success("Diamond details auto-filled from stock!");
+    } else if (location.state?.parsedInvoice) {
+      const data = location.state.parsedInvoice;
+
+      setForm((p) => {
+        const parsedItems = data.items && data.items.length > 0
+          ? data.items.map((item, idx) => buildItemFromAiData(item, p.items[idx]))
+          : p.items;
+
+        return {
+          ...p,
+          date: data.date || p.date,
+          gstPercent: data.pricing?.gstRate ? data.pricing.gstRate.toString() : p.gstPercent,
+          customer: {
+            ...p.customer,
+            name: data.partyDetails?.name || p.customer.name,
+            mobile: data.partyDetails?.mobile || p.customer.mobile,
+            email: data.partyDetails?.email || p.customer.email,
+            gstin: data.partyDetails?.gstin || p.customer.gstin,
+            address: data.partyDetails?.address || p.customer.address,
+            stateCode: data.partyDetails?.stateCode || p.customer.stateCode,
+          },
+          items: parsedItems,
+        };
+      });
+      toast.success("AI scanned invoice data auto-filled!");
     }
   }, [location.state]);
 
@@ -369,18 +599,31 @@ export default function ManualBillingForm() {
   useEffect(() => {
     if (form.ratesLocked) return;
 
+    const minWeight = Number(rates?.making?.minWeight || 0);
+    const minFlat = Number(rates?.making?.flatFee || 0);
+
     const updatedItems = form.items.map((item) => {
       const weight = Number(item.netWeight || 0);
       const rate = Number(form.makingRates[item.metalType] || 0);
+
+      let makingCharge = "0.00";
+      if (weight > 0) {
+        if (minWeight > 0 && weight < minWeight) {
+          makingCharge = minFlat.toFixed(2);
+        } else {
+          makingCharge = (weight * rate).toFixed(2);
+        }
+      }
+
       return {
         ...item,
         makingRate: rate,
-        makingCharge: (weight * rate).toFixed(2),
+        makingCharge,
       };
     });
 
     setForm((p) => ({ ...p, items: updatedItems }));
-  }, [form.makingRates, form.items.length, form.ratesLocked]);
+  }, [form.makingRates, form.items.length, form.ratesLocked, rates]);
 
   const handleItemChange = (index, field, value) => {
     const updated = [...form.items];
@@ -393,10 +636,21 @@ export default function ManualBillingForm() {
 
     const item = updated[index];
 
-    if (field === "netWeight" && !form.ratesLocked) {
+    if ((field === "netWeight" || field === "metalType" || field === "purity") && !form.ratesLocked) {
       const weight = Number(updated[index].netWeight || 0);
       const rate = Number(form.makingRates[item.metalType] || 0);
-      updated[index].makingCharge = (weight * rate).toFixed(2);
+      const minWeight = Number(rates?.making?.minWeight || 0);
+      const minFlat = Number(rates?.making?.flatFee || 0);
+
+      if (weight > 0) {
+        if (minWeight > 0 && weight < minWeight) {
+          updated[index].makingCharge = minFlat.toFixed(2);
+        } else {
+          updated[index].makingCharge = (weight * rate).toFixed(2);
+        }
+      } else {
+        updated[index].makingCharge = "0.00";
+      }
     }
 
     if (field === "diamondGrossWeight" || field === "diamondQty") {
@@ -474,6 +728,13 @@ export default function ManualBillingForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isSplitPayment) {
+      if (Math.abs(splitTotal - maxPayable) > 0.05) {
+        alert(`Split payment total (₹${splitTotal.toLocaleString("en-IN")}) must match the Net Due (₹${maxPayable.toLocaleString("en-IN")})`);
+        return;
+      }
+    }
+
     const itemsPayload = form.items.map((item) => {
       const netWeight = Number(item.netWeight || 0);
       const grossWeight = Number(item.grossWeight || 0);
@@ -546,6 +807,21 @@ export default function ManualBillingForm() {
         }
       });
 
+      item.belts.forEach((b) => {
+        const qty = Number(b.qty || 0);
+        const rate = Number(b.rate || 0);
+
+        if (qty > 0) {
+          componentBreakup.push({
+            pricingRef: "BELT",
+            type: b.material || "Accessory",
+            count: qty,
+            rate,
+            value: qty * rate,
+          });
+        }
+      });
+
       return {
         quantity: 1,
         certificateNo: item.certificates?.length > 0 ? item.certificates[0].certificateNo : item.certificateNo,
@@ -582,10 +858,27 @@ export default function ManualBillingForm() {
     const payload = {
       customer: form.customer,
       items: itemsPayload,
-      payment: form.payment,
+      payment: isSplitPayment
+        ? {
+          mode: "SPLIT",
+          referenceNo: splitPayments.filter(s => s.referenceNo).map(s => `${s.mode}: ${s.referenceNo}`).join(", ") || "",
+          status: "PAID",
+          splitPayments: splitPayments.map(s => ({
+            mode: s.mode,
+            amount: Number(s.amount || 0),
+            referenceNo: s.referenceNo || ""
+          }))
+        }
+        : {
+          mode: form.payment.mode,
+          referenceNo: form.payment.referenceNo,
+          status: "PAID"
+        },
       salesperson: form.salesperson,
       creditNoteIds: selectedCreditIds,
       appliedCredit,
+      date: form.date,
+      invoiceNo: getFormattedInvoiceNo(form.invoiceDatePart, form.invoiceSeq),
       totals: {
         discount: itemsPayload.reduce(
           (sum, i) => sum + (i.breakup.discount || 0),
@@ -607,6 +900,11 @@ export default function ManualBillingForm() {
         baseRates: prev.baseRates,
         makingRates: prev.makingRates,
       }));
+      setIsSplitPayment(false);
+      setSplitPayments([
+        { mode: "CASH", amount: 0, referenceNo: "" },
+        { mode: "UPI", amount: 0, referenceNo: "" }
+      ]);
 
       // optional: clear items cache
       localStorage.removeItem("billing_items");
@@ -681,6 +979,7 @@ export default function ManualBillingForm() {
     totals.discount;
   const gst = subtotal * (Number(form.gstPercent || 0) / 100);
   const grandTotal = subtotal + gst;
+  const maxPayable = Math.max(0, grandTotal - appliedCredit);
 
   useEffect(() => {
     // Normalise: remove non-digits and take last 10 characters
@@ -720,6 +1019,85 @@ export default function ManualBillingForm() {
 
     setSelectedCreditIds(newSelected);
     setAppliedCredit(Math.min(totalAvailable, grandTotal));
+  };
+
+  const splitTotal = splitPayments.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+
+  useEffect(() => {
+    // Sync split payments when maxPayable changes
+    setSplitPayments(prev => {
+      const updated = [...prev];
+      if (updated.length === 2) {
+        updated[0] = { ...updated[0], amount: maxPayable };
+        updated[1] = { ...updated[1], amount: 0 };
+      } else if (updated.length > 0) {
+        updated[0] = { ...updated[0], amount: maxPayable };
+        for (let i = 1; i < updated.length; i++) {
+          updated[i] = { ...updated[i], amount: 0 };
+        }
+      }
+      return updated;
+    });
+  }, [maxPayable]);
+
+  const handleAmountChange = (idx, value) => {
+    const inputVal = Number(value);
+    const cleanVal = isNaN(inputVal) ? 0 : inputVal;
+
+    if (splitPayments.length === 2) {
+      const val = Math.min(maxPayable, Math.max(0, cleanVal));
+      const otherIdx = idx === 0 ? 1 : 0;
+      const updated = [...splitPayments];
+      updated[idx] = { ...updated[idx], amount: val };
+      updated[otherIdx] = {
+        ...updated[otherIdx],
+        amount: Number(Math.max(0, maxPayable - val).toFixed(2))
+      };
+      setSplitPayments(updated);
+    } else {
+      const updated = [...splitPayments];
+      updated[idx] = { ...updated[idx], amount: Math.min(maxPayable, Math.max(0, cleanVal)) };
+      setSplitPayments(updated);
+    }
+  };
+
+  const addSplitPayment = () => {
+    const allocated = splitPayments.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+    const remaining = Math.max(0, maxPayable - allocated);
+    setSplitPayments([...splitPayments, { mode: "CARD", amount: remaining, referenceNo: "" }]);
+  };
+
+  const deleteSplitPayment = (idx) => {
+    if (splitPayments.length <= 1) return;
+
+    if (splitPayments.length === 2) {
+      const remainingSplit = splitPayments[idx === 0 ? 1 : 0];
+      setForm(prev => ({
+        ...prev,
+        payment: {
+          ...prev.payment,
+          mode: remainingSplit.mode,
+          referenceNo: remainingSplit.referenceNo,
+        }
+      }));
+      setIsSplitPayment(false);
+      return;
+    }
+
+    const removedAmount = Number(splitPayments[idx].amount || 0);
+    const updated = splitPayments.filter((_, i) => i !== idx);
+
+    if (updated.length > 0) {
+      updated[0].amount = Number((Number(updated[0].amount || 0) + removedAmount).toFixed(2));
+    }
+
+    setSplitPayments(updated);
+  };
+
+  const updateSplitPaymentField = (idx, field, value) => {
+    const updated = [...splitPayments];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setSplitPayments(updated);
   };
 
   // Render Helper to calculate individual item final value for the UI card
@@ -770,9 +1148,91 @@ export default function ManualBillingForm() {
             <h1 className="text-2xl font-bold text-[#5c2b41] leading-none mb-1">Manual Billing</h1>
             <p className="text-xs text-gray-400">Create client invoices manually</p>
           </div>
-          <div className="ml-auto flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1 rounded-full text-xs font-semibold shadow-sm border border-green-100">
-            <div className="w-2 h-2 bg-[#4caf50] rounded-full"></div>
-            System Online
+          <div className="ml-auto flex items-center gap-3">
+            {/* AI Scan Button */}
+            <input
+              type="file"
+              accept="image/*"
+              ref={aiFileInputRef}
+              onChange={handleAiScan}
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={isScanning}
+              onClick={() => aiFileInputRef.current?.click()}
+              title={isScanning ? "Scanning..." : "Scan with AI"}
+              className="flex items-center justify-center bg-[#5c2b41] hover:bg-[#4a2234] text-white p-2.5 rounded-full shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              {isScanning ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Sparkles size={15} />
+              )}
+            </button>
+            {/* Invoice Date Field */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date:</label>
+              <input
+                type="date"
+                required
+                className="text-xs font-bold text-gray-700 focus:outline-none cursor-pointer border-none p-0 bg-transparent"
+                value={form.date}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    date: newDate,
+                    invoiceDatePart: newDate.replace(/-/g, "/")
+                  }));
+                }}
+              />
+            </div>
+
+            {/* Invoice No Field */}
+            <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Invoice No:</label>
+              <div className="flex items-center text-xs font-bold text-gray-700 gap-0.5">
+                <span className="text-gray-400 select-none">NZD-</span>
+                <input
+                  type="text"
+                  placeholder="YYYY/MM/DD"
+                  className="w-[84px] focus:outline-none border-none p-0 bg-transparent text-xs font-bold text-gray-700 placeholder-gray-300"
+                  value={form.invoiceDatePart || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, invoiceDatePart: e.target.value }))}
+                />
+                <span className="text-gray-400 select-none">-</span>
+                <input
+                  type="text"
+                  placeholder="Auto"
+                  className="w-10 focus:outline-none border-none p-0 bg-transparent text-xs font-bold text-gray-700 placeholder-gray-300"
+                  value={form.invoiceSeq || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, invoiceSeq: e.target.value.replace(/\D/g, "") }))}
+                />
+              </div>
+            </div>
+
+            {/* Reset Form Button */}
+            <button
+              type="button"
+              title="Clear Billing Form"
+              onClick={async () => {
+                const confirmed = await showConfirm("Are you sure you want to clear the entire billing form?");
+                if (confirmed) {
+                  setForm(getInitialForm());
+                  localStorage.removeItem("billing_items");
+                  toast.success("Billing form cleared!");
+                }
+              }}
+              className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 transition-colors"
+            >
+              <RotateCcw size={16} />
+            </button>
+
+            <div className="flex items-center gap-2 bg-[#e8f5e9] text-[#2e7d32] px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border border-green-100">
+              <div className="w-2 h-2 bg-[#4caf50] rounded-full"></div>
+              System Online
+            </div>
           </div>
         </div>
 
@@ -1428,38 +1888,146 @@ export default function ManualBillingForm() {
 
             {/* Payment Info Box */}
             <div className="bg-white p-5 rounded-xl border border-[#ebdbe2] shadow-sm relative mt-2">
-              <h2 className="text-[10px] uppercase font-bold text-[#a68e9b] tracking-wider mb-4">
-                Payment Info
-              </h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <select
-                  className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                  value={form.payment.mode}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      payment: { ...p.payment, mode: e.target.value },
-                    }))
-                  }
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-[10px] uppercase font-bold text-[#a68e9b] tracking-wider">
+                  Payment Info
+                </h2>
+
+                {/* SPLIT TOGGLE BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsSplitPayment(prev => !prev)}
+                  className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest transition-all border ${isSplitPayment
+                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                    : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                    }`}
                 >
-                  <option>CASH</option>
-                  <option>UPI</option>
-                  <option>CARD</option>
-                  <option>Bank</option>
-                  <option>Cheque</option>
-                </select>
-                <input
-                  placeholder="Reference No."
-                  className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                  value={form.payment.referenceNo}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      payment: { ...p.payment, referenceNo: e.target.value },
-                    }))
-                  }
-                />
+                  ✂ SPLIT PAYMENT
+                </button>
               </div>
+
+              {isSplitPayment ? (
+                <div className="space-y-4 mb-4">
+                  {/* Remaining Balance Indicator */}
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold ${Math.abs(splitTotal - maxPayable) < 1
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}>
+                    <span>Total Allocated: ₹{splitTotal.toLocaleString("en-IN")}</span>
+                    <span>
+                      {Math.abs(splitTotal - maxPayable) < 1
+                        ? "✓ Balanced"
+                        : `Remaining: ₹${Math.max(0, maxPayable - splitTotal).toLocaleString("en-IN")}`
+                      }
+                    </span>
+                  </div>
+
+                  {/* Split Rows */}
+                  {splitPayments.map((split, idx) => (
+                    <div key={idx} className="border border-[#ebdbe2] rounded-lg p-3 space-y-3 bg-[#faf8f9] relative">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[9px] font-extrabold uppercase tracking-widest text-[#632f4a]">
+                          Payment {idx + 1}
+                        </p>
+                        {splitPayments.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => deleteSplitPayment(idx)}
+                            className="text-red-500 hover:text-red-700 text-[10px] font-bold transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Mode Selector */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {["CASH", "UPI", "CARD", "BANK"].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              const updated = [...splitPayments];
+                              updated[idx] = { ...updated[idx], mode: m, referenceNo: "" };
+                              setSplitPayments(updated);
+                            }}
+                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest transition-all ${split.mode === m
+                              ? "bg-[#632f4a] text-white"
+                              : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                              }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Amount input */}
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Amount</label>
+                        <input
+                          type="number"
+                          placeholder="Amount"
+                          className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                          value={split.amount || ""}
+                          onChange={(e) => handleAmountChange(idx, e.target.value)}
+                        />
+                      </div>
+
+                      {/* Reference No (if not CASH) */}
+                      {split.mode !== "CASH" && (
+                        <div>
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Reference No.</label>
+                          <input
+                            placeholder="TXN987654321"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            value={split.referenceNo || ""}
+                            onChange={(e) => updateSplitPaymentField(idx, "referenceNo", e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add Payment Button */}
+                  <button
+                    type="button"
+                    onClick={addSplitPayment}
+                    className="w-full py-2 bg-white hover:bg-neutral-50 text-[#632f4a] text-[10px] font-bold tracking-widest uppercase rounded-xl border border-dashed border-[#632f4a]/30 transition-all flex items-center justify-center gap-1 shadow-sm"
+                  >
+                    + Add Payment Method
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <select
+                    className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                    value={form.payment.mode}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        payment: { ...p.payment, mode: e.target.value },
+                      }))
+                    }
+                  >
+                    <option>CASH</option>
+                    <option>UPI</option>
+                    <option>CARD</option>
+                    <option>Bank</option>
+                    <option>Cheque</option>
+                  </select>
+                  <input
+                    placeholder="Reference No."
+                    className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                    value={form.payment.referenceNo}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        payment: { ...p.payment, referenceNo: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              )}
 
               {/* Available Credits Block */}
               {credits.length > 0 && (
@@ -1693,18 +2261,18 @@ export default function ManualBillingForm() {
             </div>
 
             {/* Action Buttons */}
-            <div>
+            <div className="space-y-3 mb-4">
               <button
                 type="submit"
-                className="w-full bg-[#cda44b] hover:bg-[#b08b3c] text-white py-4 rounded-xl font-bold text-base shadow-sm transition-colors mb-4"
+                className="w-full bg-[#cda44b] hover:bg-[#b08b3c] text-white py-4 rounded-xl font-bold text-base shadow-sm transition-colors"
               >
                 Generate Final Invoice
               </button>
-
-              {/* <p className="text-center text-[11px] text-[#a68e9b] font-medium">
-                Draft autosaved at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-              </p> */}
             </div>
+
+            {/* <p className="text-center text-[11px] text-[#a68e9b] font-medium">
+              Draft autosaved at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+            </p> */}
           </div>
         </form>
       </div>

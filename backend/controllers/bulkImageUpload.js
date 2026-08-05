@@ -37,9 +37,10 @@ export const bulkUploadImages = async (req, res) => {
           const outputPath = path.join(uploadDir, outputFilename);
 
           await sharp(entry.getData())
-            .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+            .rotate()
+            .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
             .toFormat("webp")
-            .webp({ quality: 80 })
+            .webp({ quality: 75, effort: 6 })
             .toFile(outputPath);
 
           console.log(`  ✅ Compressed: ${originalName} → ${outputFilename}`);

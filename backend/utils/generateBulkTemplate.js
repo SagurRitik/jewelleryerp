@@ -35,14 +35,14 @@ const MAIN_HEADERS = [
 // Each component has: type, role, shape, color_clarity, cut, count, weight, size
 const MAX_COMPONENTS = 6;
 const COMP_FIELDS = [
-  { key: "type",          label: "Type",            example: "Diamond" },
-  { key: "role",          label: "Role",            example: "CENTER" },
-  { key: "shape",         label: "Shape",           example: "Round" },
-  { key: "color_clarity", label: "Color/Clarity",   example: "D-F / VVS-VK" },
-  { key: "cut",           label: "Cut",             example: "EX" },
-  { key: "count",         label: "Qty (pcs)",       example: "6" },
-  { key: "weight",        label: "Weight (ct/gm)",  example: "0.50" },
-  { key: "size",          label: "Size",            example: "0.5pt per pcs" },
+  { key: "type", label: "Type", example: "Diamond" },
+  { key: "role", label: "Role", example: "CENTER" },
+  { key: "shape", label: "Shape", example: "Round" },
+  { key: "color_clarity", label: "Color/Clarity", example: "D-F / VVS-VK" },
+  { key: "cut", label: "Cut", example: "EX" },
+  { key: "count", label: "Qty (pcs)", example: "6" },
+  { key: "weight", label: "Weight (ct/gm)", example: "0.50" },
+  { key: "size", label: "Size", example: "0.5pt per pcs" },
 ];
 
 // Build all component column headers: comp1_type, comp1_shape ... comp6_size
@@ -186,32 +186,32 @@ XLSX.utils.book_append_sheet(wb, ws, "Products");
 
 // --- Sheet 2: Field Guide ---
 const guideData = [
-  { Column: "sku",              Required: "YES", Example: "RNG-001",         Notes: "Unique product code" },
-  { Column: "title",            Required: "YES", Example: "Solitaire Ring",  Notes: "Product name" },
-  { Column: "jewelleryCategory",Required: "YES", Example: "Ring",            Notes: "Ring / Necklace / Earring / Bracelet / Pendant / Bangle" },
-  { Column: "metalType",        Required: "YES", Example: "Gold",            Notes: "Gold / Silver / Platinum" },
-  { Column: "metalPurity",      Required: "YES", Example: "18KT",            Notes: "18KT / 22KT / 925 / 950" },
-  { Column: "netWeight",        Required: "YES", Example: "3.5",             Notes: "Metal weight in grams" },
-  { Column: "grossWeight",      Required: "YES", Example: "4.2",             Notes: "Total product weight in grams" },
-  { Column: "description",      Required: "NO",  Example: "Beautiful ring",  Notes: "Optional description" },
-  { Column: "productType",      Required: "NO",  Example: "Engagement",      Notes: "Engagement / Wedding / Casual / Luxury" },
-  { Column: "metalColor",       Required: "NO",  Example: "Yellow",          Notes: "Yellow / White / Rose" },
-  { Column: "fineGold",         Required: "NO",  Example: "3.15",            Notes: "Fine gold content (grams)" },
-  { Column: "stock",            Required: "NO",  Example: "2",               Notes: "Stock quantity (default 0)" },
-  { Column: "hsnCode",          Required: "NO",  Example: "7113",            Notes: "Default: 7113" },
-  { Column: "huid",             Required: "NO",  Example: "HUD001",          Notes: "Hallmark Unique ID" },
-  { Column: "targetAudience",   Required: "NO",  Example: "WOMEN",           Notes: "MEN / WOMEN / UNISEX / KIDS" },
-  { Column: "image",            Required: "NO",  Example: "ring001.jpg",     Notes: "Filename in ZIP (e.g. ring001.jpg)" },
-  { Column: "---",              Required: "---", Example: "---",             Notes: "--- STONE/DIAMOND COMPONENTS (up to 6) ---" },
-  { Column: "comp1_type",       Required: "NO",  Example: "Diamond",         Notes: "Diamond / Ruby / Emerald / Polki / Moissanite" },
-  { Column: "comp1_role",       Required: "NO",  Example: "CENTER",          Notes: "CENTER / SIDE / MICRO / ACCENT" },
-  { Column: "comp1_shape",      Required: "NO",  Example: "Round",           Notes: "Round / Princess / Oval / Cushion / Pear" },
-  { Column: "comp1_color_clarity",Required:"NO", Example: "D-F / VVS-VK",   Notes: "Combined color/clarity string" },
-  { Column: "comp1_cut",        Required: "NO",  Example: "EX",              Notes: "EX / VG / GD" },
-  { Column: "comp1_count",      Required: "NO",  Example: "6",               Notes: "Number of pieces" },
-  { Column: "comp1_weight",     Required: "NO",  Example: "0.50",            Notes: "Total weight in ct or gm" },
-  { Column: "comp1_size",       Required: "NO",  Example: "0.5pt per pcs",   Notes: "Size description" },
-  { Column: "comp2_...",        Required: "NO",  Example: "(same pattern)",   Notes: "Repeat comp2_ through comp6_ for more stones" },
+  { Column: "sku", Required: "YES", Example: "RNG-001", Notes: "Unique product code" },
+  { Column: "title", Required: "YES", Example: "Solitaire Ring", Notes: "Product name" },
+  { Column: "jewelleryCategory", Required: "YES", Example: "Ring", Notes: "Ring / Necklace / Earring / Bracelet / Pendant / Bangle" },
+  { Column: "metalType", Required: "YES", Example: "Gold", Notes: "Gold / Silver / Platinum" },
+  { Column: "metalPurity", Required: "YES", Example: "18KT", Notes: "18KT / 22KT / 925 / 950" },
+  { Column: "netWeight", Required: "YES", Example: "3.5", Notes: "Metal weight in grams" },
+  { Column: "grossWeight", Required: "YES", Example: "4.2", Notes: "Total product weight in grams" },
+  { Column: "description", Required: "NO", Example: "Beautiful ring", Notes: "Optional description" },
+  { Column: "productType", Required: "NO", Example: "Engagement", Notes: "Engagement / Wedding / Casual / Luxury" },
+  { Column: "metalColor", Required: "NO", Example: "Yellow", Notes: "Yellow / White / Rose" },
+  { Column: "fineGold", Required: "NO", Example: "3.15", Notes: "Fine gold content (grams)" },
+  { Column: "stock", Required: "NO", Example: "2", Notes: "Stock quantity (default 0)" },
+  { Column: "hsnCode", Required: "NO", Example: "7113", Notes: "Default: 7113" },
+  { Column: "huid", Required: "NO", Example: "HUD001", Notes: "Hallmark Unique ID" },
+  { Column: "targetAudience", Required: "NO", Example: "WOMEN", Notes: "MEN / WOMEN / UNISEX / KIDS" },
+  { Column: "image", Required: "NO", Example: "ring001.jpg", Notes: "Filename in ZIP (e.g. ring001.jpg)" },
+  { Column: "---", Required: "---", Example: "---", Notes: "--- STONE/DIAMOND COMPONENTS (up to 6) ---" },
+  { Column: "comp1_type", Required: "NO", Example: "Diamond", Notes: "Diamond / Ruby / Emerald / Polki / Moissanite" },
+  { Column: "comp1_role", Required: "NO", Example: "CENTER", Notes: "CENTER / SIDE / MICRO / ACCENT" },
+  { Column: "comp1_shape", Required: "NO", Example: "Round", Notes: "Round / Princess / Oval / Cushion / Pear" },
+  { Column: "comp1_color_clarity", Required: "NO", Example: "D-F / VVS-VK", Notes: "Combined color/clarity string" },
+  { Column: "comp1_cut", Required: "NO", Example: "EX", Notes: "EX / VG / GD" },
+  { Column: "comp1_count", Required: "NO", Example: "6", Notes: "Number of pieces" },
+  { Column: "comp1_weight", Required: "NO", Example: "0.50", Notes: "Total weight in ct or gm" },
+  { Column: "comp1_size", Required: "NO", Example: "0.5pt per pcs", Notes: "Size description" },
+  { Column: "comp2_...", Required: "NO", Example: "(same pattern)", Notes: "Repeat comp2_ through comp6_ for more stones" },
 ];
 const wsGuide = XLSX.utils.json_to_sheet(guideData);
 wsGuide["!cols"] = [{ wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 50 }];
@@ -219,13 +219,13 @@ XLSX.utils.book_append_sheet(wb, wsGuide, "Field Guide");
 
 // --- Sheet 3: Stone Types Reference ---
 const stoneRef = [
-  { StoneType: "Diamond",      Roles: "CENTER, SIDE, MICRO, ACCENT",  ShapeExamples: "Round, Princess, Oval, Cushion, Pear, Emerald cut" },
-  { StoneType: "Ruby",         Roles: "CENTER, ACCENT",               ShapeExamples: "Oval, Round, Cushion" },
-  { StoneType: "Emerald",      Roles: "CENTER, ACCENT",               ShapeExamples: "Oval, Round, Emerald cut" },
-  { StoneType: "Polki",        Roles: "CENTER, SIDE",                 ShapeExamples: "Irregular, Round" },
-  { StoneType: "Moissanite",   Roles: "CENTER, SIDE",                 ShapeExamples: "Round, Cushion, Oval" },
-  { StoneType: "Sapphire",     Roles: "CENTER, ACCENT",               ShapeExamples: "Oval, Round, Cushion" },
-  { StoneType: "Pearl",        Roles: "CENTER",                       ShapeExamples: "Round, Baroque" },
+  { StoneType: "Diamond", Roles: "CENTER, SIDE, MICRO, ACCENT", ShapeExamples: "Round, Princess, Oval, Cushion, Pear, Emerald cut" },
+  { StoneType: "Ruby", Roles: "CENTER, ACCENT", ShapeExamples: "Oval, Round, Cushion" },
+  { StoneType: "Emerald", Roles: "CENTER, ACCENT", ShapeExamples: "Oval, Round, Emerald cut" },
+  { StoneType: "Polki", Roles: "CENTER, SIDE", ShapeExamples: "Irregular, Round" },
+  { StoneType: "Moissanite", Roles: "CENTER, SIDE", ShapeExamples: "Round, Cushion, Oval" },
+  { StoneType: "Sapphire", Roles: "CENTER, ACCENT", ShapeExamples: "Oval, Round, Cushion" },
+  { StoneType: "Pearl", Roles: "CENTER", ShapeExamples: "Round, Baroque" },
 ];
 const wsRef = XLSX.utils.json_to_sheet(stoneRef);
 wsRef["!cols"] = [{ wch: 16 }, { wch: 30 }, { wch: 45 }];

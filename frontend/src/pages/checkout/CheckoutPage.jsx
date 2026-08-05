@@ -150,6 +150,8 @@ import InvoiceConfirmPanel from "./InvoiceConfirmPanel";
 import { Loader2, ShoppingBag, ChevronRight, Bell, Settings, User ,ArrowLeft,Home} from "lucide-react";
 
 
+import { useRates } from "../../context/RatesContext";
+
 export default function CheckoutPage() {
   const {
     cart,
@@ -158,9 +160,51 @@ export default function CheckoutPage() {
     fetchCartSummary,
   } = useCart();
 
+  const { rates } = useRates();
   const navigate = useNavigate();
 
   const [expandedItems, setExpandedItems] = useState({});
+  const [appliedCelebrationDiscount, setAppliedCelebrationDiscount] = useState(null);
+
+  /* ================= RECALCULATE EFFECTIVE TOTALS ON CELEBRATION DISCOUNT ================= */
+  const effectiveTotals = useMemo(() => {
+    if (!cart?.totals) return null;
+    const discountAmount = Number(appliedCelebrationDiscount?.amount || 0);
+    if (discountAmount <= 0) return cart.totals;
+
+    const baseSubtotal = Number(cart.totals.subtotal || 0);
+    const newSubtotal = Math.max(0, Number((baseSubtotal - discountAmount).toFixed(2)));
+
+    const gstRate = rates?.gstRate ? Number(rates.gstRate) : (baseSubtotal > 0 ? (Number(cart.totals.gst || 0) / baseSubtotal) * 100 : 3);
+    const newGst = Number(((newSubtotal * gstRate) / 100).toFixed(2));
+    const newGrandTotal = Number((newSubtotal + newGst).toFixed(2));
+
+    const totalDiscount = Number(((cart.totals.discount || 0) + discountAmount).toFixed(2));
+    const advancePayment = Number(cart.totals.advancePayment || 0);
+    const metalPayment = Number(cart.totals.metalPayment || 0);
+    const newPayable = Math.max(0, Number((newGrandTotal - advancePayment - metalPayment).toFixed(2)));
+
+    let discountMaking = cart.totals.discountMaking || 0;
+    let discountDiamond = cart.totals.discountDiamond || 0;
+    let discountStone = cart.totals.discountStone || 0;
+
+    if (appliedCelebrationDiscount.target === "MAKING") discountMaking += discountAmount;
+    else if (appliedCelebrationDiscount.target === "DIAMOND") discountDiamond += discountAmount;
+    else if (appliedCelebrationDiscount.target === "STONE") discountStone += discountAmount;
+
+    return {
+      ...cart.totals,
+      subtotal: newSubtotal,
+      gst: newGst,
+      grandTotal: newGrandTotal,
+      discount: totalDiscount,
+      discountMaking,
+      discountDiamond,
+      discountStone,
+      payable: newPayable,
+      netPayable: newPayable,
+    };
+  }, [cart?.totals, appliedCelebrationDiscount, rates]);
 
   useEffect(() => {
   if (cart?.items?.length) {
@@ -291,7 +335,7 @@ export default function CheckoutPage() {
                  Sub-Payable Amount
                </span>
                <span className="text-3xl font-bold text-white tracking-widest">
-                 ₹{format(cart.totals?.payable || 0)}
+                 ₹{format(effectiveTotals?.payable || cart.totals?.payable || 0)}
                </span>
             </div>
           </div>
@@ -301,13 +345,15 @@ export default function CheckoutPage() {
             <div className="space-y-6">
               
               {/* Order Summary Block */}
-              <TotalsBar totals={cart.totals}/>
+              <TotalsBar totals={effectiveTotals || cart.totals}/>
 
               {/* Action Button (Optional duplication if you wanted it outside, but we rely on InvoiceConfirmPanel) */}
               
               {/* Customer & Payment Forms */}
               <InvoiceConfirmPanel
-                cartTotals={cart.totals}
+                cartTotals={effectiveTotals || cart.totals}
+                appliedCelebrationDiscount={appliedCelebrationDiscount}
+                onApplyCelebrationDiscount={setAppliedCelebrationDiscount}
                 onSuccess={(invoiceId) => {
                   onInvoiceSuccess();
                   navigate(`/invoice/${invoiceId}`);

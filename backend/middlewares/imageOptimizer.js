@@ -25,14 +25,15 @@ export const optimizeProductImages = async (req, res, next) => {
         const filename = `product-${uniqueSuffix}.webp`;
         const outputPath = path.join(uploadDir, filename);
 
-        // Optimize with Sharp
+        // Optimize with Sharp (Auto-rotate EXIF orientation + Max Compressed WebP)
         await sharp(file.buffer)
-          .resize(800, 800, {
+          .rotate()
+          .resize(1000, 1000, {
             fit: "inside",
             withoutEnlargement: true,
           })
           .toFormat("webp")
-          .webp({ quality: 80 })
+          .webp({ quality: 75, effort: 6 })
           .toFile(outputPath);
 
         // Add to req.files to stay compatible with controller logic

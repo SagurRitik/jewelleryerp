@@ -22,3 +22,15 @@ export const toggleDiamondRate = (id, active) =>
 /* DELETE */
 export const deleteDiamondRate = (id) =>
   axios.delete(`/admin/diamond-rates/${id}`);
+
+/* EXPORT */
+export const exportDiamondRates = () =>
+  axios.get("/admin/diamond-rates/export", { responseType: "blob" });
+
+/* IMPORT */
+export const importDiamondRates = (formData) =>
+  axios.post("/admin/diamond-rates/import", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });

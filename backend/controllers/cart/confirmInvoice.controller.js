@@ -7,9 +7,10 @@ import Cart from "../../models/Cart.js";
 import SalesOrder from "../../models/SalesOrder.js";
 import RateConfig from "../../models/RateConfig.js";
 import Product from "../../models/Product.js";
-import calculateItem from "../../utils/calculateItem.js";
+import calculateItem, { calculateCartTotals } from "../../utils/calculateItem.js";
 import { generateInvoiceNo } from "../../utils/generateInvoiceNo.js";
 import MetalLedger from "../../models/MetalLedger.js";
+import { clearProductCache } from "../../utils/productCache.js";
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
@@ -30,6 +31,7 @@ export const confirmInvoice = async (req, res) => {
       itemsMeta = [],
       payment = {},
       metalPayment = {},
+      celebrationDiscount = null,
       date = null
     } = req.body;
 
@@ -38,6 +40,12 @@ export const confirmInvoice = async (req, res) => {
     /* ================= BASIC VALIDATION ================= */
     if (!sessionId) {
       return res.status(400).json({ success: false, error: "Session ID missing" });
+    }
+
+    if (customer) {
+      if (customer.panNumber === "") delete customer.panNumber;
+      if (customer.gstin === "") delete customer.gstin;
+      if (customer.email === "") delete customer.email;
     }
 
     if (!customer.name || !customer.mobile) {
@@ -67,10 +75,6 @@ export const confirmInvoice = async (req, res) => {
 
     let metalCredit = 0;
     let metalPayments = [];
-    let discount = 0;
-    let discountDiamond = 0;
-    let discountStone = 0;
-    let discountMaking = 0;
 
     /* ================= INVOICE METAL ================= */
     if (Number(metalPayment?.weight) > 0 && Number(metalPayment?.ratePerGram) > 0) {
@@ -90,12 +94,6 @@ export const confirmInvoice = async (req, res) => {
     }
 
     /* ================= 3️⃣ PREPARE ITEMS ================= */
-    let subtotal = 0;
-    let gst = 0;
-    let grandTotal = 0;
-    let totalAdvancePayment = 0;
-    let totalMetalPayment = 0;
-
     const items = await Promise.all(
       cart.items.map(async (item) => {
         let calc;
@@ -104,17 +102,6 @@ export const confirmInvoice = async (req, res) => {
         } else {
           calc = await calculateItem(item, activeRates);
         }
-
-        subtotal += Number(calc.subtotal || 0);
-        gst += Number(calc.gst || 0);
-        grandTotal += Number(calc.grandTotal || 0);
-        totalAdvancePayment += Number(calc.advanceUsed || 0);
-        totalMetalPayment += Number(calc.metalUsed || 0);
-
-        discount += Number(calc.discount || 0);
-        discountDiamond += Number(calc.discountDiamond || 0);
-        discountStone += Number(calc.discountStone || 0);
-        discountMaking += Number(calc.discountMaking || 0);
 
         const meta = itemsMeta.find((m) => m.cartItemId === item._id.toString());
         const snap = item.customSnapshot || item.itemSnapshot || {};
@@ -143,8 +130,11 @@ export const confirmInvoice = async (req, res) => {
       })
     );
 
+    /* ================= 🧮 DELEGATE TO CENTRAL PRICING ENGINE ================= */
+    const invoiceTotals = calculateCartTotals(items, celebrationDiscount, { gstRate: activeRates.gstRate });
+
     /* ================= ✅ PAN VALIDATION ================= */
-    if (Number(subtotal) >= 200000 && !customer.panNumber) {
+    if (Number(invoiceTotals.subtotal) >= 200000 && !customer.panNumber) {
       return res.status(400).json({
         success: false,
         error: "PAN number is required for bills above ₹2,00,000 (before GST)",
@@ -155,14 +145,14 @@ export const confirmInvoice = async (req, res) => {
     }
 
     /* ================= ORDER METAL ================= */
-    if (totalMetalPayment > 0) {
+    if (invoiceTotals.metalPayment > 0) {
       metalPayments.push({
         source: "ORDER",
         metalType: "ORDER_ADJUSTMENT",
         purity: null,
         weight: 0,
         ratePerGram: 0,
-        totalValue: round2(totalMetalPayment),
+        totalValue: round2(invoiceTotals.metalPayment),
         receivedAt: new Date()
       });
     }
@@ -184,6 +174,9 @@ export const confirmInvoice = async (req, res) => {
       stoneDiscountValue: activeRates.stoneDiscountValue,
     };
 
+    const totalAdjustments = round2(invoiceTotals.advancePayment + invoiceTotals.metalPayment + metalCredit);
+    const netPayable = round2(Math.max(0, invoiceTotals.grandTotal - totalAdjustments));
+
     /* ================= 5️⃣ SAVE INVOICE ================= */
     const invoice = await SalesOrder.create({
       invoiceNo: await generateInvoiceNo(invoiceDate),
@@ -192,22 +185,43 @@ export const confirmInvoice = async (req, res) => {
       items,
       metalPayments,
       totals: {
-        subtotal: round2(subtotal),
-        gst: round2(gst),
-        grandTotal: round2(grandTotal),
-        discount: round2(discount),
-        discountMaking: round2(discountMaking),
-        discountDiamond: round2(discountDiamond),
-        discountStone: round2(discountStone),
-        advancePayment: round2(totalAdvancePayment),
-        totalAdjustments: round2(totalAdvancePayment + totalMetalPayment + metalCredit),
-        netPayable: round2(grandTotal - totalAdvancePayment - totalMetalPayment - metalCredit)
+        grossTotal: invoiceTotals.grossTotal,
+        subtotal: invoiceTotals.subtotal,
+        gst: invoiceTotals.gst,
+        grandTotal: invoiceTotals.grandTotal,
+
+        /* 🔑 DIFFERENTIATED AUDIT TRAIL DISCOUNTS */
+        regularDiscount: invoiceTotals.regularDiscount,
+        celebrationDiscount: invoiceTotals.celebrationDiscount,
+        discount: invoiceTotals.discount,
+
+        discountMaking: invoiceTotals.discountMaking,
+        discountDiamond: invoiceTotals.discountDiamond,
+        discountStone: invoiceTotals.discountStone,
+
+        advancePayment: invoiceTotals.advancePayment,
+        metalPayment: invoiceTotals.metalPayment,
+        metalCredit,
+        totalAdjustments,
+        netPayable,
       },
       rateSnapshot,
+      celebrationDiscount: celebrationDiscount
+        ? {
+          amount: invoiceTotals.celebrationDiscount,
+          target: celebrationDiscount.target,
+          discountMode: celebrationDiscount.discountMode,
+          value: celebrationDiscount.value,
+          title: celebrationDiscount.title,
+        }
+        : undefined,
       payment: {
         mode: payment.mode || "CASH",
         referenceNo: payment.referenceNo || "",
-        status: "PAID"
+        status: "PAID",
+        ...(payment.mode === "SPLIT" && Array.isArray(payment.splitPayments)
+          ? { splitPayments: payment.splitPayments }
+          : {}),
       }
     });
 
@@ -244,6 +258,8 @@ export const confirmInvoice = async (req, res) => {
         }
       }
     }
+    // 🧹 Clear product cache so product list reflects updated stock immediately
+    clearProductCache();
 
     /* ================= 7️⃣ UPDATE ORIGINAL ORDER STATUS ================= */
     for (const item of cart.items) {

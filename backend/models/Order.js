@@ -61,6 +61,7 @@ const orderSchema = new mongoose.Schema(
   {
     /* ================= BASIC ================= */
     orderNo: { type: String, required: true, unique: true },
+    groupOrderNo: { type: String, default: null },
     sku: { type: String, default: null },
 
     productRef: {

@@ -92,12 +92,15 @@ const SalesOrderSchema = new mongoose.Schema(
     /* ================= FINAL TOTALS ================= */
 
     totals: {
+      grossTotal: Number,
       subtotal: Number,
 
       /* ===== DISCOUNTS ===== */
       discountMaking: Number,
       discountDiamond: Number,
       discountStone: Number,
+      regularDiscount: { type: Number, default: 0 },
+      celebrationDiscount: { type: Number, default: 0 },
       discount: Number,
 
       /* ===== TAX ===== */
@@ -161,10 +164,20 @@ const SalesOrderSchema = new mongoose.Schema(
     payment: {
       mode: {
         type: String,
-        enum: ["CASH", "UPI", "CARD", "BANK", "CHEQUE"],
+        enum: ["CASH", "UPI", "CARD", "BANK", "CHEQUE", "SPLIT"],
       },
       referenceNo: String,
       status: String,
+      splitPayments: [
+        {
+          mode: {
+            type: String,
+            enum: ["CASH", "UPI", "CARD", "BANK", "CHEQUE"],
+          },
+          amount: { type: Number, default: 0 },
+          referenceNo: { type: String, default: "" },
+        },
+      ],
     },
 
     /* ================= TALLY SYNC ================= */

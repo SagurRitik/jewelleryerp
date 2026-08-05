@@ -73,7 +73,12 @@ export const sendEstimateViaWhatsApp = async ({
   const campaignName = process.env.AISENSY_CAMPAIGN_NAME || "invoice_pdf";
 
   if (!apiKey) {
-    return { success: false, error: "AISENSY_API_KEY not configured" };
+    return { success: false, error: "AISENSY_API_KEY not configured in .env" };
+  }
+
+  if (pdfUrl.includes("localhost") || pdfUrl.includes("127.0.0.1")) {
+    console.warn("⚠️ BASE_URL is localhost. AiSensy API requires a public domain URL (e.g. https://yourdomain.com) to access the PDF file.");
+    return { success: false, error: "AiSensy media URL must be a public HTTPS domain (currently running on localhost)" };
   }
 
   // Normalise mobile number: ensure 91 prefix
@@ -111,3 +116,6 @@ export const sendEstimateViaWhatsApp = async ({
     return { success: false, error: errMsg };
   }
 };
+
+export const sendInvoiceViaWhatsApp = sendEstimateViaWhatsApp;
+

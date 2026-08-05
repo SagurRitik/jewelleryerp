@@ -11,10 +11,15 @@ import {
 } from "../api/salesInvoiceApi";
 import BackButton from "../components/BackButton";
 import { useModal } from "../context/ModalContext";
+import { useAuth } from "../context/AuthContext";
+import { QrCode } from "lucide-react";
 
 export default function SalesInvoices() {
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useModal();
+  const { user } = useAuth();
+  const isAdminOrSuperAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperAdmin = user?.role?.toLowerCase() === "superadmin";
 
   const fileInputRef = useRef(null);
 
@@ -177,12 +182,14 @@ export default function SalesInvoices() {
         </h1>
 
         <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            className="rounded border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition hover:bg-slate-100"
-          >
-            Export
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={handleExport}
+              className="rounded border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 transition hover:bg-slate-100"
+            >
+              Export
+            </button>
+          )}
           
           <button
             onClick={handleImportClick}
@@ -199,13 +206,15 @@ export default function SalesInvoices() {
             className="hidden"
           />
 
-          <button
-            onClick={handleDeleteAll}
-            disabled={loading || deleteBusy}
-            className="rounded border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {deleteBusy ? "Deleting..." : "Delete All Invoices"}
-          </button>
+          {isAdminOrSuperAdmin && (
+            <button
+              onClick={handleDeleteAll}
+              disabled={loading || deleteBusy}
+              className="rounded border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleteBusy ? "Deleting..." : "Delete All Invoices"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -283,7 +292,7 @@ export default function SalesInvoices() {
                     {inv.invoiceNo}
                   </td>
                     <td className="text-center">
-                    {new Date(inv.createdAt).toLocaleDateString("en-IN")}
+                    {new Date(inv.date || inv.createdAt).toLocaleDateString("en-IN")}
                   </td>
                   <td className="text-center font-medium">
                     {inv.customer?.name || "Cash Customer"}
@@ -318,7 +327,7 @@ export default function SalesInvoices() {
 
   </div>
 </td> */}
- <div className="flex gap-2 justify-center">
+  <div className="flex gap-2 justify-center">
 
       <button
         onClick={() => navigate(`/invoice/${inv._id}`)}
@@ -327,6 +336,29 @@ export default function SalesInvoices() {
         View
       </button>
 
+      {isSuperAdmin && (
+        <button
+          onClick={async () => {
+            try {
+              const res = await exportSalesInvoices({ id: inv._id });
+              const url = window.URL.createObjectURL(new Blob([res.data]));
+              const link = document.createElement("a");
+              link.href = url;
+              link.setAttribute("download", `invoice_${inv.invoiceNo}.xlsx`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            } catch (err) {
+              console.error(err);
+              showAlert("Failed to export invoice");
+            }
+          }}
+          className="bg-blue-100 hover:bg-blue-600 hover:text-white text-blue-700 px-3 py-1 rounded border text-xs font-bold"
+        >
+          Excel
+        </button>
+      )}
+
       <button
         onClick={() => navigate(`/returns/create/${inv._id}`)}
         className="bg-green-100 hover:bg-green-600 hover:text-white text-green-700 px-3 py-1 rounded border text-xs font-bold"
@@ -334,13 +366,15 @@ export default function SalesInvoices() {
         Return
       </button>
 
-      <button
-        onClick={() => handleDeleteOne(inv._id, inv.invoiceNo)}
-        disabled={deleteBusy}
-        className="bg-red-100 hover:bg-red-600 hover:text-white text-red-700 px-3 py-1 rounded border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Delete
-      </button>
+      {isAdminOrSuperAdmin && (
+        <button
+          onClick={() => handleDeleteOne(inv._id, inv.invoiceNo)}
+          disabled={deleteBusy}
+          className="bg-red-100 hover:bg-red-600 hover:text-white text-red-700 px-3 py-1 rounded border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Delete
+        </button>
+      )}
 
     </div>
                   </td>

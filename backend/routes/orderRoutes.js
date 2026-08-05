@@ -6,6 +6,8 @@ import {
   getAllOrders,
   getOrderById,
   getOrderByOrderNo,
+  getOrdersByCustomerMobile,
+  getOrdersByGroupOrderNo,
   updateOrderById,
   updateOrderStatusById,
   cancelOrderById,
@@ -45,6 +47,8 @@ router.get("/closing", getOrderClosingSummary);
 
 /* ================= READ ================= */
 router.get("/order-no/:orderNo", getOrderByOrderNo);
+router.get("/customer/:mobile", getOrdersByCustomerMobile);
+router.get("/group/:groupOrderNo", getOrdersByGroupOrderNo);
 router.get("/:id", getOrderById);
 
 /* ================= UPDATE ================= */

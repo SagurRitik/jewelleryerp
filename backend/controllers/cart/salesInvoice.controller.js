@@ -363,8 +363,11 @@ import mongoose from "mongoose";
 import ReturnOrder from "../../models/ReturnOrder.js";
 import CreditNote from "../../models/creditnotes.js";
 import xlsx from "xlsx";
+import puppeteer from "puppeteer";
+import { saveTempPdf, scheduleTempDelete, sendEstimateViaWhatsApp } from "../../utils/whatsappService.js";
 // ✅ Import the template engine
 import { invoiceTemplate } from "../../templates/invoice.template.js";
+
 
 const buildInvoiceQuery = ({ search = "", fromDate, toDate }) => {
   const query = {};
@@ -378,9 +381,13 @@ const buildInvoiceQuery = ({ search = "", fromDate, toDate }) => {
   }
 
   if (fromDate || toDate) {
-    query.createdAt = {};
-    if (fromDate) query.createdAt.$gte = new Date(fromDate);
-    if (toDate) query.createdAt.$lte = new Date(toDate);
+    query.date = {};
+    if (fromDate) query.date.$gte = new Date(fromDate);
+    if (toDate) {
+      const toDateEnd = new Date(toDate);
+      toDateEnd.setHours(23, 59, 59, 999);
+      query.date.$lte = toDateEnd;
+    }
   }
 
   return query;
@@ -401,8 +408,8 @@ export const getAllSalesInvoices = async (req, res) => {
     const query = buildInvoiceQuery({ search, fromDate, toDate });
 
     const sortMap = {
-      "date-desc": { createdAt: -1 },
-      "date-asc": { createdAt: 1 },
+      "date-desc": { date: -1 },
+      "date-asc": { date: 1 },
       "amount-desc": { "totals.grandTotal": -1 },
       "amount-asc": { "totals.grandTotal": 1 },
     };
@@ -591,7 +598,7 @@ export const getInvoicePreviewHTML = async (req, res) => {
     }
 
     // 2. Generate HTML using your template
-    const htmlContent = invoiceTemplate(invoice);
+    const htmlContent = await invoiceTemplate(invoice);
 
     // 3. Send as HTML (Not JSON)
     res.set("Content-Type", "text/html");
@@ -606,10 +613,20 @@ export const getInvoicePreviewHTML = async (req, res) => {
 
 export const exportSalesInvoices = async (req, res) => {
   try {
-    const { search = "", fromDate, toDate } = req.query;
-    const query = buildInvoiceQuery({ search, fromDate, toDate });
+    const { search = "", fromDate, toDate, id } = req.query;
 
-    const invoices = await SalesOrder.find(query).sort({ createdAt: -1 }).lean();
+    let query = {};
+    if (id) {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        query._id = new mongoose.Types.ObjectId(id);
+      } else {
+        query.invoiceNo = id;
+      }
+    } else {
+      query = buildInvoiceQuery({ search, fromDate, toDate });
+    }
+
+    const invoices = await SalesOrder.find(query).sort({ date: -1 }).lean();
 
     const formattedInvoices = invoices.map((inv) => ({
       "Invoice No": inv.invoiceNo,
@@ -645,9 +662,14 @@ export const exportSalesInvoices = async (req, res) => {
 
     const buffer = xlsx.write(workbook, { bookType: "xlsx", type: "buffer" });
 
+    let filename = "sales_invoices.xlsx";
+    if (id && invoices.length > 0) {
+      filename = `invoice_${invoices[0].invoiceNo}.xlsx`;
+    }
+
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=sales_invoices.xlsx"
+      `attachment; filename=${filename}`
     );
     res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buffer);
@@ -680,11 +702,11 @@ export const importSalesInvoices = async (req, res) => {
     const parseInvoiceDate = (val) => {
       if (!val) return new Date();
       if (val instanceof Date) return val;
-      
+
       if (typeof val === 'number') {
         return new Date((val - 25569) * 86400 * 1000);
       }
-      
+
       const str = String(val).trim();
       if (!str) return new Date();
 
@@ -696,7 +718,7 @@ export const importSalesInvoices = async (req, res) => {
         const d = new Date(year, month, day);
         if (!isNaN(d.getTime())) return d;
       }
-      
+
       const d = new Date(str);
       if (!isNaN(d.getTime())) return d;
       return new Date();
@@ -839,3 +861,142 @@ export const importSalesInvoices = async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+/* ================= GENERATE SALES INVOICE PDF ================= */
+export const generateInvoicePdfBuffer = async (invoice, baseUrl) => {
+  const html = await invoiceTemplate(invoice);
+
+  const launchArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
+    "--disable-gpu",
+  ];
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: launchArgs,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "5mm", bottom: "5mm", left: "5mm", right: "5mm" },
+    });
+    return pdf;
+  } finally {
+    await browser.close();
+  }
+};
+
+export const generateSalesInvoicePdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: "Invalid invoice ID" });
+    }
+
+    const invoice = await SalesOrder.findById(id).lean();
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: "Invoice not found" });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const pdfBuffer = await generateInvoicePdfBuffer(invoice, baseUrl);
+    const safeNo = (invoice.invoiceNo || String(invoice._id)).replace(/[/\\:*?"<>|]/g, "-");
+    const filename = `Invoice-${safeNo}.pdf`;
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${filename}"`,
+      "Content-Length": pdfBuffer.length,
+    });
+
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error("❌ generateSalesInvoicePdf error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/* ================= SEND SALES INVOICE VIA WHATSAPP ================= */
+export const sendSalesInvoiceWhatsApp = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: "Invalid invoice ID" });
+    }
+
+    const invoice = await SalesOrder.findById(id).lean();
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: "Invoice not found" });
+    }
+
+    const customer = invoice.customer || {};
+    const mobile = (customer.mobile || customer.phone || "").replace(/\D/g, "");
+    if (!mobile || mobile.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: "No valid mobile number found on this invoice. Please add phone number to customer details.",
+      });
+    }
+
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+
+    // 1. Generate PDF buffer
+    console.log(`📄 Generating PDF for sales invoice ${invoice.invoiceNo}…`);
+    const pdfBuffer = await generateInvoicePdfBuffer(invoice, baseUrl);
+
+    // 2. Save to public temp folder and get URL
+    const safeNo = (invoice.invoiceNo || String(invoice._id)).replace(/[/\\:*?"<>|]/g, "-");
+    const filename = `Invoice-${safeNo}-${Date.now()}.pdf`;
+    const { filePath, publicUrl } = saveTempPdf(pdfBuffer, filename, baseUrl);
+
+    // 3. Send via AiSensy
+    const customerName = customer.name?.trim() || "Valued Customer";
+    console.log(`📲 Sending Sales Invoice WhatsApp to ${mobile} → ${publicUrl}`);
+    const waResult = await sendEstimateViaWhatsApp({
+      mobile,
+      customerName,
+      pdfUrl: publicUrl,
+      pdfFilename: `Invoice-${safeNo}.pdf`,
+      templateParams: [customerName, invoice.invoiceNo || ""],
+    });
+
+    // 4. Schedule temp file deletion after 2 minutes
+    scheduleTempDelete(filePath, 2 * 60 * 1000);
+
+    if (!waResult.success) {
+      console.warn("⚠️ AiSensy failed/unavailable, signalling fallback to client:", waResult.error);
+      return res.json({
+        success: false,
+        canFallback: true,
+        error: waResult.error || "Failed to send via AiSensy",
+        mobile: mobile.length === 10 ? `91${mobile}` : mobile,
+        customerName,
+        invoiceNo: invoice.invoiceNo,
+        grandTotal: invoice.totals?.grandTotal || 0,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Invoice PDF sent to WhatsApp (+${mobile.length === 10 ? "91" : ""}${mobile})`,
+      data: waResult.data,
+    });
+  } catch (err) {
+    console.error("❌ sendSalesInvoiceWhatsApp error:", err.message);
+    return res.json({
+      success: false,
+      canFallback: true,
+      error: err.message || "Failed to process WhatsApp send",
+    });
+  }
+};
+
+

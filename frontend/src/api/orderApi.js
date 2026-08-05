@@ -16,6 +16,12 @@ export const getOrders = (params) =>
 export const getOrderById = (id) =>
   axiosInstance.get(`/orders/${id}`);
 
+export const getOrdersByCustomerMobile = (mobile) =>
+  axiosInstance.get(`/orders/customer/${encodeURIComponent(mobile)}`);
+
+export const getOrdersByGroupOrderNo = (groupOrderNo) =>
+  axiosInstance.get(`/orders/group/${encodeURIComponent(groupOrderNo)}`);
+
 /* ================= UPDATE ================= */
 export const updateOrderById = (id, data) =>
   axiosInstance.patch(`/orders/${id}`, data, {

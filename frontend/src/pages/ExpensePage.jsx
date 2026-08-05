@@ -815,9 +815,13 @@ export default function ExpensePage() {
 
     <div className="min-h-screen bg-[#FCFBFA] p-8 flex flex-col font-sans text-slate-800 pb-12">
 
-
-
-
+      {/* BACK BUTTON */}
+      <button
+        onClick={() => navigate("/")}
+        className="flex items-center gap-2 text-slate-500 hover:text-[#6A3D55] font-bold text-sm mb-6 transition-colors self-start"
+      >
+        <ArrowLeft size={18} /> Back to Dashboard
+      </button>
 
 
 
