@@ -21,7 +21,7 @@ import { useRates } from "../context/RatesContext";
 export default function ManualBillingForm() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showConfirm } = useModal();
+  const { showConfirm, showAlert } = useModal();
   const { rates } = useRates();
 
   const getFormattedInvoiceNo = (datePart, seqVal) => {
@@ -589,6 +589,17 @@ export default function ManualBillingForm() {
     }));
   };
 
+  // 🚫 Disable mouse wheel value changing on number inputs
+  useEffect(() => {
+    const handleWheel = () => {
+      if (document.activeElement && document.activeElement.type === "number") {
+        document.activeElement.blur();
+      }
+    };
+    window.addEventListener("wheel", handleWheel);
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem("billing_base_rates", JSON.stringify(form.baseRates));
     localStorage.setItem("billing_items", JSON.stringify(form.items));
@@ -730,7 +741,7 @@ export default function ManualBillingForm() {
 
     if (isSplitPayment) {
       if (Math.abs(splitTotal - maxPayable) > 0.05) {
-        alert(`Split payment total (₹${splitTotal.toLocaleString("en-IN")}) must match the Net Due (₹${maxPayable.toLocaleString("en-IN")})`);
+        showAlert(`Split payment total (₹${splitTotal.toLocaleString("en-IN")}) must match the Net Due (₹${maxPayable.toLocaleString("en-IN")})`);
         return;
       }
     }
@@ -776,16 +787,20 @@ export default function ManualBillingForm() {
 
       item.diamonds.forEach((d) => {
         const qty = Number(d.qty || 0);
+        const grossWeight = Number(d.grossWeight || 0);
         const netWeight = Number(d.netWeight || 0);
         const rate = Number(d.rate || 0);
 
-        if (qty > 0) {
+        if (qty > 0 || grossWeight > 0) {
+          const roundedWeight = Number(netWeight.toFixed(3));
+          const totalVal = grossWeight > 0 ? grossWeight * rate : roundedWeight * qty * rate;
           componentBreakup.push({
             pricingRef: "DIAMOND",
             count: qty,
-            weight: netWeight,
+            grossWeight: grossWeight,
+            weight: roundedWeight,
             rate,
-            value: netWeight * rate,
+            value: totalVal,
             diamondId: d.diamondId
           });
         }
@@ -793,16 +808,19 @@ export default function ManualBillingForm() {
 
       item.stones.forEach((s) => {
         const qty = Number(s.qty || 0);
+        const grossWeight = Number(s.grossWeight || 0);
         const netWeight = Number(s.netWeight || 0);
         const rate = Number(s.rate || 0);
 
-        if (qty > 0) {
+        if (qty > 0 || netWeight > 0 || grossWeight > 0) {
+          const totalVal = netWeight > 0 ? netWeight * rate : grossWeight * rate;
           componentBreakup.push({
             pricingRef: "STONE",
             count: qty,
+            grossWeight: grossWeight,
             weight: netWeight,
             rate,
-            value: netWeight * rate,
+            value: totalVal,
           });
         }
       });
@@ -870,7 +888,7 @@ export default function ManualBillingForm() {
           }))
         }
         : {
-          mode: form.payment.mode,
+          mode: (form.payment.mode || "CASH").toUpperCase(),
           referenceNo: form.payment.referenceNo,
           status: "PAID"
         },
@@ -891,7 +909,7 @@ export default function ManualBillingForm() {
       const res = await createManualInvoice(payload);
       const invoiceId = res?.data?.invoiceId;
 
-      if (!invoiceId) return alert("Invoice ID missing");
+      if (!invoiceId) return showAlert("Invoice ID missing");
 
       // ✅ FORM RESET (LOCK PRESERVED 🔒)
       setForm((prev) => ({
@@ -913,7 +931,7 @@ export default function ManualBillingForm() {
     } catch (err) {
       console.error("API Submission Error:", err);
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      alert(`Submission Failed: ${errMsg}`);
+      showAlert(`Submission Failed: ${errMsg}`);
     }
   };
 
@@ -2009,11 +2027,11 @@ export default function ManualBillingForm() {
                       }))
                     }
                   >
-                    <option>CASH</option>
-                    <option>UPI</option>
-                    <option>CARD</option>
-                    <option>Bank</option>
-                    <option>Cheque</option>
+                    <option value="CASH">CASH</option>
+                    <option value="UPI">UPI</option>
+                    <option value="CARD">CARD</option>
+                    <option value="BANK">BANK</option>
+                    <option value="CHEQUE">CHEQUE</option>
                   </select>
                   <input
                     placeholder="Reference No."

@@ -185,11 +185,13 @@ export const createManualInvoice = async (req, res) => {
     let subtotal = 0
     let gst = 0
     let grandTotal = 0
+    let totalDiscount = 0
 
     items.forEach(i => {
       subtotal += Number(i.breakup?.subtotal || 0)
       gst += Number(i.breakup?.gst || 0)
       grandTotal += Number(i.breakup?.grandTotal || 0)
+      totalDiscount += Number(i.breakup?.discount || 0)
     })
 
     /* ================= ✅ PAN VALIDATION ================= */
@@ -213,13 +215,14 @@ export const createManualInvoice = async (req, res) => {
       createdAt: date ? new Date(date) : new Date(),
       totals: {
         subtotal,
+        discount: totalDiscount,
         gst,
         grandTotal,
         appliedCredit: Number(appliedCredit) || 0,
         netPayable: Math.max(0, grandTotal - (Number(appliedCredit) || 0))
       },
       payment: {
-        mode: payment?.mode || "CASH",
+        mode: payment?.mode ? String(payment.mode).toUpperCase() : "CASH",
         referenceNo: payment?.referenceNo || "",
         status: "PAID",
         ...(payment?.mode === "SPLIT" && Array.isArray(payment?.splitPayments)

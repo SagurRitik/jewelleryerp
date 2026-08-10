@@ -28,7 +28,7 @@ const STONE_OPTIONS = [
   "ruby", "pearl", "red-coral", "emerald", "yellow-sapphire",
   "diamond", "blue-sapphire", "hessonite", "cats-eye", "gemstone"
 ];
-const JEWELLERY_CATEGORIES = ["Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Other"];
+const JEWELLERY_CATEGORIES = ["Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Rakhi", "Other"];
 
 const VALID_DAYS_OPTIONS = [7, 15, 30, 60, 90];
 

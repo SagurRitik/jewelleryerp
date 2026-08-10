@@ -188,7 +188,7 @@ XLSX.utils.book_append_sheet(wb, ws, "Products");
 const guideData = [
   { Column: "sku", Required: "YES", Example: "RNG-001", Notes: "Unique product code" },
   { Column: "title", Required: "YES", Example: "Solitaire Ring", Notes: "Product name" },
-  { Column: "jewelleryCategory", Required: "YES", Example: "Ring", Notes: "Ring / Necklace / Earring / Bracelet / Pendant / Bangle" },
+  { Column: "jewelleryCategory", Required: "YES", Example: "Ring", Notes: "Ring / Necklace / Earring / Bracelet / Pendant / Bangle / Rakhi" },
   { Column: "metalType", Required: "YES", Example: "Gold", Notes: "Gold / Silver / Platinum" },
   { Column: "metalPurity", Required: "YES", Example: "18KT", Notes: "18KT / 22KT / 925 / 950" },
   { Column: "netWeight", Required: "YES", Example: "3.5", Notes: "Metal weight in grams" },

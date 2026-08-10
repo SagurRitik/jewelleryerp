@@ -23,7 +23,7 @@ const TEMPLATE_SAMPLE = [
 const FIELD_GUIDE = [
   { field: "sku", required: true, description: "Unique product code (e.g. RNG-001)" },
   { field: "title", required: true, description: "Product name" },
-  { field: "jewelleryCategory", required: true, description: "Ring, Necklace, Earring, Bracelet, Pendant, Bangle, etc." },
+  { field: "jewelleryCategory", required: true, description: "Ring, Necklace, Earring, Bracelet, Pendant, Bangle, Rakhi, etc." },
   { field: "metalType", required: true, description: "Gold, Silver, Platinum, etc." },
   { field: "metalPurity", required: true, description: "18KT, 22KT, 925, etc." },
   { field: "netWeight", required: true, description: "Metal weight in grams (number)" },

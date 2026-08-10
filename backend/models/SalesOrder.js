@@ -35,8 +35,8 @@ const SalesOrderSchema = new mongoose.Schema(
     trim: true,
     match: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
       required: function () {
-    return this.ownerDocument().totals?.subtotal > 200000;
-  },
+        return this.totals?.subtotal > 200000;
+      },
   },
     },
 

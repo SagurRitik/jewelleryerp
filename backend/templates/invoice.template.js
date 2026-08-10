@@ -1276,7 +1276,8 @@ ${invoice.items.map((item, index) => {
             c.grossWeight && c.grossWeight > 0
               ? c.grossWeight
               : (c.weight || 0) * (c.count || 1);
-          return `${gross} ct`;
+          const grossNum = Number(gross || 0);
+          return `${grossNum.toFixed(3)} ct`;
         })
         .join("<br>");
 
@@ -1359,7 +1360,11 @@ ${invoice.items.map((item, index) => {
   <tfoot>
     <tr style="background-color:#f9f3f9; font-weight:bold;">
       <td colspan="${hasAccessories ? 12 : 11}" class="td-right">Totals</td>
-      <td>${fmt(invoice.totals.discount || 0)}</td>
+      <td>${fmt(
+        Number(invoice.totals?.discount) > 0
+          ? invoice.totals.discount
+          : invoice.items.reduce((sum, item) => sum + Number(item.breakup?.discount || 0), 0)
+      )}</td>
       <td>${fmt(invoice.totals.subtotal)}</td>
     </tr>
   </tfoot>

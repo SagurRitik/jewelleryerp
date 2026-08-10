@@ -24,7 +24,7 @@ const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
 const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];
 const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 const JEWELLERY_CATEGORIES = [
-  "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Other"
+  "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Rakhi", "Other"
 ];
 
 export default function OrderForm({ onSuccess, initialProduct: propInitialProduct, initialOrder }) {
