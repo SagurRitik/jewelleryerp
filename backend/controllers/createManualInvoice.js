@@ -157,13 +157,23 @@
 import SalesOrder from "../models/SalesOrder.js"
 import CreditNote from "../models/creditnotes.js"
 import DiamondStock from "../models/DiamondStock.js"
+import MetalLedger from "../models/MetalLedger.js"
 import { generateInvoiceNo } from "../utils/generateInvoiceNo.js"
+
+const normalizeMetalType = (metal) => {
+  if (!metal) return "Gold";
+  const m = String(metal).toLowerCase();
+  if (m.includes("gold")) return "Gold";
+  if (m.includes("silver")) return "Silver";
+  if (m.includes("platinum")) return "Platinum";
+  return metal.charAt(0).toUpperCase() + metal.slice(1);
+};
 
 export const createManualInvoice = async (req, res) => {
 
   try {
 
-    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date, invoiceNo } = req.body
+    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date, invoiceNo, metalPayment } = req.body
 
     if (customer) {
       if (customer.panNumber === "") delete customer.panNumber;
@@ -206,6 +216,34 @@ export const createManualInvoice = async (req, res) => {
       customer.panNumber = customer.panNumber.toUpperCase().trim();
     }
 
+    let metalCredit = 0;
+    let metalPayments = [];
+
+    if (Number(metalPayment?.weight) > 0 && Number(metalPayment?.ratePerGram) > 0) {
+      const weight = Number(metalPayment.weight) || 0;
+      const rate = Number(metalPayment.ratePerGram) || 0;
+      metalCredit = Math.round((weight * rate) * 100) / 100;
+
+      metalPayments.push({
+        source: "INVOICE",
+        metalType: metalPayment.metalType || null,
+        purity: metalPayment.purity || null,
+        weight,
+        ratePerGram: rate,
+        totalValue: metalCredit,
+        receivedAt: new Date()
+      });
+    }
+
+    const netPayableCalculated = grandTotal - (Number(appliedCredit) || 0) - metalCredit;
+
+    if (subtotal < 0 || netPayableCalculated < -0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Invoice amount cannot be less than 0. Exchange credit (₹${metalCredit.toLocaleString('en-IN')}) or discount exceeds total bill amount (₹${grandTotal.toLocaleString('en-IN')}).`
+      });
+    }
+
     const invoiceData = {
       invoiceNo: trimmedInvoiceNo || await generateInvoiceNo(),
       customer,
@@ -213,13 +251,15 @@ export const createManualInvoice = async (req, res) => {
       salesperson,
       date: date ? new Date(date) : new Date(),
       createdAt: date ? new Date(date) : new Date(),
+      ...(metalPayments.length > 0 ? { metalPayments } : {}),
       totals: {
         subtotal,
         discount: totalDiscount,
         gst,
         grandTotal,
         appliedCredit: Number(appliedCredit) || 0,
-        netPayable: Math.max(0, grandTotal - (Number(appliedCredit) || 0))
+        metalPayment: metalCredit,
+        netPayable: Math.max(0, grandTotal - (Number(appliedCredit) || 0) - metalCredit)
       },
       payment: {
         mode: payment?.mode ? String(payment.mode).toUpperCase() : "CASH",
@@ -237,6 +277,28 @@ export const createManualInvoice = async (req, res) => {
     }
 
     const invoice = await SalesOrder.create(invoiceData)
+
+    /* ================= 📜 METAL LEDGER ENTRY ================= */
+    if (metalPayments && metalPayments.length > 0) {
+      for (const metal of metalPayments) {
+        if (metal.source !== "INVOICE") continue;
+        const metalType = normalizeMetalType(metal.metalType);
+        await MetalLedger.create({
+          type: "CREDIT",
+          source: "INVOICE",
+          referenceId: invoice._id,
+          referenceModel: "SalesOrder",
+          partyName: customer?.name || "Customer",
+          metalType: metalType,
+          purity: metal.purity || null,
+          weight: Number(metal.weight) || 0,
+          ratePerGram: Number(metal.ratePerGram) || 0,
+          value: Number(metal.totalValue) || 0,
+          notes: `Metal received during invoice ${invoice.invoiceNo}`,
+          createdAt: date ? new Date(date) : new Date()
+        });
+      }
+    }
 
     // Process multiple Credit Notes deduction
     if (creditNoteIds && Array.isArray(creditNoteIds) && creditNoteIds.length > 0 && Number(appliedCredit) > 0) {

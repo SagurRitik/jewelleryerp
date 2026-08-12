@@ -53,6 +53,8 @@ const itemSchema = new mongoose.Schema({
   fineGold: { type: Number, default: 0 },
   huid: { type: String, default: "" },
   hsnCode: { type: String, default: "" },
+  metalRate: { type: Number, default: 0 },
+  makingRate: { type: Number, default: 0 },
   discountEnabled: { type: Boolean, default: true },
   images: { type: [String], default: [] },
   components: [componentSchema],
@@ -69,6 +71,12 @@ const quotationSchema = new mongoose.Schema(
     mobile: { type: String, default: "" },
     email: { type: String, default: "" },
     address: { type: String, default: "" },
+
+    /* ===== CUSTOM RATE OVERRIDES ===== */
+    baseRates: { type: Object, default: {} },
+    makingRates: { type: Object, default: {} },
+    ratesLocked: { type: Boolean, default: false },
+    disableMinMakingRule: { type: Boolean, default: false },
 
     /* ===== ITEMS ===== */
     items: [itemSchema],

@@ -41,6 +41,15 @@ export default function ManualBillingForm() {
     { mode: "UPI", amount: 0, referenceNo: "" },
   ]);
 
+  const purityOptions = {
+    gold: ["24KT", "22KT", "18KT", "14KT", "10KT", "9KT"],
+    Gold: ["24KT", "22KT", "18KT", "14KT", "10KT", "9KT"],
+    silver: ["999", "925", "835", "800"],
+    Silver: ["999", "925", "835", "800"],
+    platinum: ["950", "900"],
+    Platinum: ["950", "900"],
+  };
+
   const emptyItem = {
     // PRODUCT
     title: "",
@@ -237,7 +246,8 @@ export default function ManualBillingForm() {
       makingRates: localStorage.getItem("billing_making_rates")
         ? JSON.parse(localStorage.getItem("billing_making_rates"))
         : { Gold: "", Silver: "", Platinum: "" },
-      ratesLocked: false,
+      ratesLocked: localStorage.getItem("billing_rates_locked") === "true",
+      disableMinMakingRule: localStorage.getItem("billing_disable_min_making") === "true",
     };
   };
 
@@ -371,9 +381,58 @@ export default function ManualBillingForm() {
       makingRates: localStorage.getItem("billing_making_rates")
         ? JSON.parse(localStorage.getItem("billing_making_rates"))
         : { Gold: "", Silver: "", Platinum: "" },
-      ratesLocked: false,
+      ratesLocked: localStorage.getItem("billing_rates_locked") === "true",
+      disableMinMakingRule: localStorage.getItem("billing_disable_min_making") === "true",
     };
   });
+
+  const [useMetalExchange, setUseMetalExchange] = useState(false);
+  const [metalExchange, setMetalExchange] = useState({
+    metalType: "gold",
+    purity: "22KT",
+    weight: 0,
+    ratePerGram: 0,
+    totalValue: 0,
+  });
+
+  useEffect(() => {
+    const metalTypeLower = (metalExchange.metalType || "gold").toLowerCase();
+    let baseKey = "gold24k";
+    let purities = {
+      "24KT": 1, "22KT": 0.916, "18KT": 0.76, "14KT": 0.6, "10KT": 0.43, "9KT": 0.39
+    };
+
+    if (metalTypeLower === "silver") {
+      baseKey = "silver999";
+      purities = { 999: 1, 950: 0.95, 925: 0.925, 900: 0.9, 800: 0.8 };
+    } else if (metalTypeLower === "platinum") {
+      baseKey = "platinum999";
+      purities = { 999: 1, 950: 0.95, 900: 0.9 };
+    }
+
+    const userBaseRate = Number(form?.baseRates?.[baseKey] || 0);
+    const factor = purities[metalExchange.purity] || 1;
+
+    let rate = 0;
+    if (userBaseRate > 0) {
+      rate = Number((userBaseRate * factor).toFixed(2));
+    } else if (rates?.helpers?.getMetalRate) {
+      rate = rates.helpers.getMetalRate(metalExchange.metalType, metalExchange.purity) || 0;
+    }
+
+    setMetalExchange((prev) => ({
+      ...prev,
+      ratePerGram: rate,
+    }));
+  }, [metalExchange.metalType, metalExchange.purity, form?.baseRates, rates]);
+
+  useEffect(() => {
+    const value = (metalExchange.weight || 0) * (metalExchange.ratePerGram || 0);
+    setMetalExchange((prev) => ({
+      ...prev,
+      totalValue: value,
+    }));
+  }, [metalExchange.weight, metalExchange.ratePerGram]);
 
   const [isScanning, setIsScanning] = useState(false);
   const aiFileInputRef = useRef(null);
@@ -388,10 +447,10 @@ export default function ManualBillingForm() {
     const netWt = (item.netWeight || item.grossWeight || "").toString();
     const mRate = item.makingRate ? item.makingRate.toString() : "";
 
-    // Making charge: use flat fee if weight is below threshold
+    // Making charge: use flat fee if weight is below threshold (unless disableMinMakingRule is active)
     const weight = Number(netWt || 0);
-    const minWeight = Number(rates?.making?.minWeight || 0);
-    const minFlat = Number(rates?.making?.flatFee || 0);
+    const minWeight = form?.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
+    const minFlat = form?.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
     let makingCharge = "";
     if (weight > 0) {
       if (minWeight > 0 && weight < minWeight) {
@@ -605,13 +664,15 @@ export default function ManualBillingForm() {
     localStorage.setItem("billing_items", JSON.stringify(form.items));
     localStorage.setItem("billing_gst", form.gstPercent);
     localStorage.setItem("billing_making_rates", JSON.stringify(form.makingRates));
-  }, [form.baseRates, form.items, form.gstPercent, form.makingRates]);
+    localStorage.setItem("billing_rates_locked", String(form.ratesLocked || false));
+    localStorage.setItem("billing_disable_min_making", String(form.disableMinMakingRule || false));
+  }, [form.baseRates, form.items, form.gstPercent, form.makingRates, form.ratesLocked, form.disableMinMakingRule]);
 
   useEffect(() => {
     if (form.ratesLocked) return;
 
-    const minWeight = Number(rates?.making?.minWeight || 0);
-    const minFlat = Number(rates?.making?.flatFee || 0);
+    const minWeight = form.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
+    const minFlat = form.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
 
     const updatedItems = form.items.map((item) => {
       const weight = Number(item.netWeight || 0);
@@ -634,7 +695,7 @@ export default function ManualBillingForm() {
     });
 
     setForm((p) => ({ ...p, items: updatedItems }));
-  }, [form.makingRates, form.items.length, form.ratesLocked, rates]);
+  }, [form.makingRates, form.items.length, form.ratesLocked, form.disableMinMakingRule, rates]);
 
   const handleItemChange = (index, field, value) => {
     const updated = [...form.items];
@@ -650,8 +711,8 @@ export default function ManualBillingForm() {
     if ((field === "netWeight" || field === "metalType" || field === "purity") && !form.ratesLocked) {
       const weight = Number(updated[index].netWeight || 0);
       const rate = Number(form.makingRates[item.metalType] || 0);
-      const minWeight = Number(rates?.making?.minWeight || 0);
-      const minFlat = Number(rates?.making?.flatFee || 0);
+      const minWeight = form.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
+      const minFlat = form.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
 
       if (weight > 0) {
         if (minWeight > 0 && weight < minWeight) {
@@ -738,6 +799,19 @@ export default function ManualBillingForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (subtotal < 0) {
+      showAlert("Invoice subtotal cannot be less than 0.");
+      return;
+    }
+
+    const currentMetalCredit = useMetalExchange ? (metalExchange.totalValue || 0) : 0;
+    const currentNetDue = grandTotal - appliedCredit - currentMetalCredit;
+
+    if (currentNetDue < -0.01 || (useMetalExchange && currentMetalCredit > grandTotal + 0.01)) {
+      showAlert(`Invoice cannot be generated: Old metal exchange credit (₹${currentMetalCredit.toLocaleString("en-IN")}) exceeds the bill total (₹${grandTotal.toLocaleString("en-IN")}). Net amount cannot be less than 0.`);
+      return;
+    }
 
     if (isSplitPayment) {
       if (Math.abs(splitTotal - maxPayable) > 0.05) {
@@ -873,9 +947,22 @@ export default function ManualBillingForm() {
       };
     });
 
+    const metalPayload =
+      useMetalExchange &&
+      Number(metalExchange.weight) > 0 &&
+      Number(metalExchange.ratePerGram) > 0
+        ? {
+            metalType: metalExchange.metalType,
+            purity: metalExchange.purity,
+            weight: Number(metalExchange.weight),
+            ratePerGram: Number(metalExchange.ratePerGram),
+          }
+        : undefined;
+
     const payload = {
       customer: form.customer,
       items: itemsPayload,
+      metalPayment: metalPayload,
       payment: isSplitPayment
         ? {
           mode: "SPLIT",
@@ -923,6 +1010,14 @@ export default function ManualBillingForm() {
         { mode: "CASH", amount: 0, referenceNo: "" },
         { mode: "UPI", amount: 0, referenceNo: "" }
       ]);
+      setUseMetalExchange(false);
+      setMetalExchange({
+        metalType: "gold",
+        purity: "22KT",
+        weight: 0,
+        ratePerGram: 0,
+        totalValue: 0,
+      });
 
       // optional: clear items cache
       localStorage.removeItem("billing_items");
@@ -997,7 +1092,8 @@ export default function ManualBillingForm() {
     totals.discount;
   const gst = subtotal * (Number(form.gstPercent || 0) / 100);
   const grandTotal = subtotal + gst;
-  const maxPayable = Math.max(0, grandTotal - appliedCredit);
+  const metalCredit = useMetalExchange ? (metalExchange.totalValue || 0) : 0;
+  const maxPayable = Math.max(0, grandTotal - appliedCredit - metalCredit);
 
   useEffect(() => {
     // Normalise: remove non-digits and take last 10 characters
@@ -2095,6 +2191,104 @@ export default function ManualBillingForm() {
               )}
 
             </div>
+
+            {/* Old Metal Exchange Box */}
+            <div className="bg-white p-5 rounded-xl border border-[#ebdbe2] shadow-sm relative mt-3">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <RotateCcw size={16} className="text-[#632f4a]" />
+                  <h2 className="text-[10px] uppercase font-bold text-[#a68e9b] tracking-wider">
+                    Old Gold / Metal Exchange
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setUseMetalExchange(!useMetalExchange)}
+                  className={`w-9 h-5 rounded-full relative transition-colors duration-300 focus:outline-none ${useMetalExchange ? 'bg-[#632f4a]' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-300 shadow-sm ${useMetalExchange ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {useMetalExchange && (
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-bold tracking-widest uppercase text-[#4a2b3d] mb-1">
+                        Metal Type
+                      </label>
+                      <select
+                        className="w-full h-9 border border-[#ebdbe2] rounded bg-white text-xs px-2 text-[#4a2b3d] outline-none focus:border-[#632f4a]"
+                        value={metalExchange.metalType}
+                        onChange={(e) => setMetalExchange({ ...metalExchange, metalType: e.target.value })}
+                      >
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold tracking-widest uppercase text-[#4a2b3d] mb-1">
+                        Purity
+                      </label>
+                      <select
+                        className="w-full h-9 border border-[#ebdbe2] rounded bg-white text-xs px-2 text-[#4a2b3d] outline-none focus:border-[#632f4a]"
+                        value={metalExchange.purity}
+                        onChange={(e) => setMetalExchange({ ...metalExchange, purity: e.target.value })}
+                      >
+                        {(purityOptions[metalExchange.metalType] || []).map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold tracking-widest uppercase text-[#4a2b3d] mb-1">
+                        Rate (₹/g)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="w-full h-9 border border-[#ebdbe2] rounded bg-white text-xs px-3 text-[#4a2b3d] outline-none focus:border-[#632f4a]"
+                        placeholder="0.00"
+                        value={metalExchange.ratePerGram || ""}
+                        onChange={(e) => setMetalExchange({ ...metalExchange, ratePerGram: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold tracking-widest uppercase text-[#4a2b3d] mb-1">
+                        Weight (g)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="w-full h-9 border border-[#ebdbe2] rounded bg-white text-xs px-3 text-[#4a2b3d] outline-none focus:border-[#632f4a]"
+                        placeholder="0.000"
+                        value={metalExchange.weight || ""}
+                        onChange={(e) => setMetalExchange({ ...metalExchange, weight: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-[#f6faf5] border border-[#e9f2e7] rounded-lg p-3.5 flex flex-col justify-center items-start">
+                    <span className="text-[9px] font-bold tracking-widest text-[#3b5b33] uppercase mb-0.5">
+                      Old Metal Credit Value
+                    </span>
+                    <span className="text-xl font-bold text-[#2a4523]">
+                      ₹{metalExchange.totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[10px] text-[#557a4c] mt-0.5 font-medium">
+                      Rate Applied: ₹{(metalExchange.ratePerGram || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / g
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Summary & Rates (Sticky layout) */}
@@ -2129,6 +2323,8 @@ export default function ManualBillingForm() {
               <div className="grid grid-cols-7 gap-2">
                 <input
                   title="Gold 24k"
+                  type="number"
+                  step="any"
                   min="0"
                   placeholder="Gold 24k"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2140,6 +2336,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="Silver 999"
+                  type="number"
+                  step="any"
                   min="0"
                   placeholder="Silver 999"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2151,6 +2349,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="Platinum 999"
+                  type="number"
+                  step="any"
                   min="0"
                   placeholder="Pt"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2162,6 +2362,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="Gold Making"
+                  type="number"
+                  step="any"
                   placeholder="Gold M"
                   min="0"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2173,6 +2375,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="Silver Making"
+                  type="number"
+                  step="any"
                   placeholder="Silver M"
                   min="0"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2184,6 +2388,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="Platinum Making"
+                  type="number"
+                  step="any"
                   placeholder="Plat M"
                   min="0"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2195,6 +2401,8 @@ export default function ManualBillingForm() {
                 />
                 <input
                   title="GST %"
+                  type="number"
+                  step="any"
                   min="0"
                   placeholder="GST %"
                   className="w-full border border-[#ebdbe2] rounded px-1 py-2 text-xs text-center text-[#4a2b3d] focus:outline-none focus:border-[#632f4a]"
@@ -2204,6 +2412,26 @@ export default function ManualBillingForm() {
                     setForm((p) => ({ ...p, gstPercent: e.target.value }))
                   }
                 />
+              </div>
+
+              {/* Option to Disable Min Making Weight & Flat Fee */}
+              <div className="mt-3 pt-2.5 border-t border-[#ebdbe2]/60 flex items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[#4a2b3d]">Disable Min Weight / Flat Fee</span>
+                  <span className="text-[10px] text-[#a68e9b]">Bypass admin minimum weight & flat fee for making</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={form.disableMinMakingRule || false}
+                    disabled={form.ratesLocked}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, disableMinMakingRule: e.target.checked }))
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4.5 bg-[#e8dde2] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#632f4a] disabled:opacity-50"></div>
+                </label>
               </div>
             </div>
 
@@ -2252,25 +2480,34 @@ export default function ManualBillingForm() {
 
                   <div className="flex justify-between items-end mb-2">
                     <span className="text-lg font-bold">Grand Total</span>
-                    <span className={appliedCredit > 0 ? "text-2xl font-bold" : "text-3xl font-bold"}>
+                    <span className={(appliedCredit > 0 || metalCredit > 0) ? "text-2xl font-bold" : "text-3xl font-bold"}>
                       ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
                   {appliedCredit > 0 && (
                     <div className="flex justify-between items-end mb-2 text-green-300">
-                      <span className="text-sm font-bold">Exchange Credit Applied</span>
+                      <span className="text-sm font-bold">Store Credit Applied</span>
                       <span className="text-xl font-bold">
                         - ₹ {appliedCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}
 
-                  {appliedCredit > 0 && (
+                  {metalCredit > 0 && (
+                    <div className="flex justify-between items-end mb-2 text-emerald-300">
+                      <span className="text-sm font-bold">Old Gold Credit</span>
+                      <span className="text-xl font-bold">
+                        - ₹ {metalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+
+                  {(appliedCredit > 0 || metalCredit > 0) && (
                     <div className="flex justify-between items-end pt-2 border-t border-[#73425d]">
                       <span className="text-lg font-bold text-yellow-500">Net Due</span>
                       <span className="text-3xl font-bold text-yellow-500">
-                        ₹ {Math.max(0, grandTotal - appliedCredit).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₹ {Math.max(0, grandTotal - appliedCredit - metalCredit).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   )}

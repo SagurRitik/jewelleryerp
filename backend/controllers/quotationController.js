@@ -40,6 +40,41 @@ const saveUploadedFile = async (file) => {
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
+/* Helper to compute effective rates with user overrides falling back to Admin RateConfig */
+const getEffectiveRates = (baseRates = {}, makingRates = {}, adminRates = {}, disableMinMaking = false) => {
+  const parseObj = (val) => {
+    if (!val) return {};
+    if (typeof val === "string") {
+      try { return JSON.parse(val); } catch (e) { return {}; }
+    }
+    return typeof val === "object" ? val : {};
+  };
+
+  const b = parseObj(baseRates);
+  const m = parseObj(makingRates);
+
+  const g24 = Number(b.gold24k) > 0 ? Number(b.gold24k) : (adminRates.gold24KT || adminRates.gold24k || 0);
+  const s999 = Number(b.silver999) > 0 ? Number(b.silver999) : (adminRates.silver999 || 0);
+  const p999 = Number(b.platinum999) > 0 ? Number(b.platinum999) : (adminRates.platinum950 || adminRates.platinum999 || 0);
+
+  const gMake = Number(m.Gold) > 0 ? Number(m.Gold) : (adminRates.goldMakingCharge ?? adminRates.makingCharge ?? 0);
+  const sMake = Number(m.Silver) > 0 ? Number(m.Silver) : (adminRates.silverMakingCharge ?? adminRates.makingCharge ?? 0);
+  const pMake = Number(m.Platinum) > 0 ? Number(m.Platinum) : (adminRates.platinumMakingCharge ?? adminRates.makingCharge ?? 0);
+
+  const isDisableMin = String(disableMinMaking) === "true" || disableMinMaking === true;
+
+  return {
+    ...adminRates,
+    gold24KT: g24,
+    silver999: s999,
+    platinum950: p999,
+    goldMakingCharge: gMake,
+    silverMakingCharge: sMake,
+    platinumMakingCharge: pMake,
+    ...(isDisableMin ? { minMakingWeight: 0, minMakingFlatFee: 0 } : {}),
+  };
+};
+
 /* ================= BUILD ITEM ==================== */
 function buildCalcItem(item) {
   return {
@@ -77,7 +112,7 @@ function buildCalcItem(item) {
 /* ================================================= */
 export const calculateQuotation = async (req, res) => {
   try {
-    let { items = [] } = req.body;
+    let { items = [], baseRates = {}, makingRates = {}, disableMinMakingRule = false } = req.body;
 
     if (typeof items === "string") {
       try { items = JSON.parse(items); } catch (e) { items = []; }
@@ -88,12 +123,27 @@ export const calculateQuotation = async (req, res) => {
       return res.status(400).json({ success: false, error: "Rate config not found. Please configure rates first." });
     }
 
+    const effectiveRates = getEffectiveRates(baseRates, makingRates, rates, disableMinMakingRule);
+
     const calculatedItems = await Promise.all(
       (items || []).map(async (item, idx) => {
         if (!item) return null;
         try {
           const calcItem = buildCalcItem(item);
-          const breakup = await calculateItem(calcItem, rates);
+          const itemRates = { ...effectiveRates };
+          if (Number(item.makingRate) > 0) {
+            const metal = (item.metalType || "").toLowerCase();
+            if (metal.includes("silver")) itemRates.silverMakingCharge = Number(item.makingRate);
+            else if (metal.includes("platinum")) itemRates.platinumMakingCharge = Number(item.makingRate);
+            else itemRates.goldMakingCharge = Number(item.makingRate);
+          }
+
+          const options = {};
+          if (Number(item.metalRate) > 0) {
+            options.lockedMetalRate = Number(item.metalRate);
+          }
+
+          const breakup = await calculateItem(calcItem, itemRates, options);
 
           const sanitizedBreakup = {
             metalRate: round2(breakup.metalRate || 0),
@@ -132,13 +182,13 @@ export const calculateQuotation = async (req, res) => {
       items: calculatedItems,
       totals: { subtotal, gstTotal, grandTotal },
       rates: {
-        gold24KT: rates.gold24KT,
-        silver999: rates.silver999,
-        platinum950: rates.platinum950,
-        makingCharge: rates.makingCharge,
-        goldMakingCharge: rates.goldMakingCharge,
-        silverMakingCharge: rates.silverMakingCharge,
-        platinumMakingCharge: rates.platinumMakingCharge,
+        gold24KT: effectiveRates.gold24KT,
+        silver999: effectiveRates.silver999,
+        platinum950: effectiveRates.platinum950,
+        makingCharge: effectiveRates.goldMakingCharge,
+        goldMakingCharge: effectiveRates.goldMakingCharge,
+        silverMakingCharge: effectiveRates.silverMakingCharge,
+        platinumMakingCharge: effectiveRates.platinumMakingCharge,
         gstRate: rates.gstRate,
       },
     });
@@ -156,7 +206,8 @@ export const createQuotation = async (req, res) => {
     console.log("📝 START: createQuotation");
     let {
       customerName, mobile, email, address,
-      items = [], validDays = 7, notes = "", status = "DRAFT"
+      items = [], validDays = 7, notes = "", status = "DRAFT",
+      baseRates = {}, makingRates = {}, ratesLocked = false, disableMinMakingRule = false
     } = req.body;
 
     console.log("📂 Files received:", req.files?.length || 0);
@@ -164,16 +215,15 @@ export const createQuotation = async (req, res) => {
       console.log("📄 Fieldnames:", req.files.map(f => f.fieldname));
     }
 
-
     if (typeof items === "string") {
-      try {
-        items = JSON.parse(items);
-      } catch (e) {
-        console.error("❌ JSON Parse Error (items):", e.message);
-        items = [];
-      }
+      try { items = JSON.parse(items); } catch (e) { items = []; }
     }
-
+    if (typeof baseRates === "string") {
+      try { baseRates = JSON.parse(baseRates); } catch (e) { baseRates = {}; }
+    }
+    if (typeof makingRates === "string") {
+      try { makingRates = JSON.parse(makingRates); } catch (e) { makingRates = {}; }
+    }
 
     // 1. Basic Validation
     if (!customerName?.trim()) {
@@ -185,6 +235,8 @@ export const createQuotation = async (req, res) => {
     if (!rates) {
       return res.status(400).json({ success: false, error: "Rate config not found." });
     }
+
+    const effectiveRates = getEffectiveRates(baseRates, makingRates, rates, disableMinMakingRule);
 
     // 3. Re-calculate server-side
     const calculatedItems = [];
@@ -199,7 +251,20 @@ export const createQuotation = async (req, res) => {
 
       try {
         const calcItem = buildCalcItem(item);
-        const breakup = await calculateItem(calcItem, rates);
+        const itemRates = { ...effectiveRates };
+        if (Number(item.makingRate) > 0) {
+          const metal = (item.metalType || "").toLowerCase();
+          if (metal.includes("silver")) itemRates.silverMakingCharge = Number(item.makingRate);
+          else if (metal.includes("platinum")) itemRates.platinumMakingCharge = Number(item.makingRate);
+          else itemRates.goldMakingCharge = Number(item.makingRate);
+        }
+
+        const options = {};
+        if (Number(item.metalRate) > 0) {
+          options.lockedMetalRate = Number(item.metalRate);
+        }
+
+        const breakup = await calculateItem(calcItem, itemRates, options);
 
         const sanitizedBreakup = {
           metalRate: s(breakup.metalRate),
@@ -245,6 +310,8 @@ export const createQuotation = async (req, res) => {
           description: item.description || "",
           huid: item.huid || "",
           hsnCode: item.hsnCode || "",
+          metalRate: s(item.metalRate),
+          makingRate: s(item.makingRate),
           quantity: Number(item.quantity || 1),
           discountEnabled: item.discountEnabled !== false,
           images: finalImages,
@@ -274,6 +341,10 @@ export const createQuotation = async (req, res) => {
       mobile: mobile?.trim() || "",
       email: email?.trim() || "",
       address: address?.trim() || "",
+      baseRates: baseRates || {},
+      makingRates: makingRates || {},
+      ratesLocked: Boolean(ratesLocked),
+      disableMinMakingRule: Boolean(disableMinMakingRule),
       items: calculatedItems,
       subtotal,
       gstTotal,
@@ -345,12 +416,18 @@ export const updateQuotation = async (req, res) => {
     const existing = await Quotation.findById(req.params.id);
     if (!existing) return res.status(404).json({ success: false, error: "Quotation not found" });
 
-    let { customerName, mobile, email, address, items = [], validDays, notes, status } = req.body;
+    let { customerName, mobile, email, address, items = [], validDays, notes, status, baseRates, makingRates, ratesLocked, disableMinMakingRule } = req.body;
 
     console.log("📂 Update Files received:", req.files?.length || 0);
 
     if (typeof items === "string") {
       try { items = JSON.parse(items); } catch (e) { items = []; }
+    }
+    if (typeof baseRates === "string") {
+      try { baseRates = JSON.parse(baseRates); } catch (e) { baseRates = {}; }
+    }
+    if (typeof makingRates === "string") {
+      try { makingRates = JSON.parse(makingRates); } catch (e) { makingRates = {}; }
     }
 
     const calculatedItems = [];
@@ -358,6 +435,13 @@ export const updateQuotation = async (req, res) => {
     if (req.body.items !== undefined) {
       const rates = await RateConfig.findOne({ active: true }).lean();
       if (!rates) return res.status(400).json({ success: false, error: "Rate config not found" });
+
+      const effectiveRates = getEffectiveRates(
+        baseRates !== undefined ? baseRates : existing.baseRates,
+        makingRates !== undefined ? makingRates : existing.makingRates,
+        rates,
+        disableMinMakingRule !== undefined ? disableMinMakingRule : existing.disableMinMakingRule
+      );
 
       const s = (val) => {
         const n = Number(val);
@@ -369,7 +453,20 @@ export const updateQuotation = async (req, res) => {
         if (!item) continue;
 
         const calcItem = buildCalcItem(item);
-        const breakup = await calculateItem(calcItem, rates);
+        const itemRates = { ...effectiveRates };
+        if (Number(item.makingRate) > 0) {
+          const metal = (item.metalType || "").toLowerCase();
+          if (metal.includes("silver")) itemRates.silverMakingCharge = Number(item.makingRate);
+          else if (metal.includes("platinum")) itemRates.platinumMakingCharge = Number(item.makingRate);
+          else itemRates.goldMakingCharge = Number(item.makingRate);
+        }
+
+        const options = {};
+        if (Number(item.metalRate) > 0) {
+          options.lockedMetalRate = Number(item.metalRate);
+        }
+
+        const breakup = await calculateItem(calcItem, itemRates, options);
 
         const sanitizedBreakup = {
           metalRate: s(breakup.metalRate),
@@ -414,6 +511,8 @@ export const updateQuotation = async (req, res) => {
           description: item.description || "",
           huid: item.huid || "",
           hsnCode: item.hsnCode || "",
+          metalRate: s(item.metalRate),
+          makingRate: s(item.makingRate),
           quantity: Number(item.quantity || 1),
           discountEnabled: item.discountEnabled !== false,
           images: finalImages,
@@ -435,6 +534,10 @@ export const updateQuotation = async (req, res) => {
     existing.mobile = mobile?.trim() ?? existing.mobile;
     existing.email = email?.trim() ?? existing.email;
     existing.address = address?.trim() ?? existing.address;
+    if (baseRates !== undefined) existing.baseRates = baseRates;
+    if (makingRates !== undefined) existing.makingRates = makingRates;
+    if (ratesLocked !== undefined) existing.ratesLocked = Boolean(ratesLocked);
+    if (disableMinMakingRule !== undefined) existing.disableMinMakingRule = Boolean(disableMinMakingRule);
 
     // Only update items if they were provided in the request
     if (req.body.items !== undefined) {

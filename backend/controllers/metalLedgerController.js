@@ -1,6 +1,7 @@
 
 
 import MetalLedger from "../models/MetalLedger.js";
+import SalesOrder from "../models/SalesOrder.js";
 
 /* ---------------- METAL NORMALIZER ---------------- */
 
@@ -305,6 +306,46 @@ error:err.message
 
 export const getMetalLedger = async (req, res) => {
   try {
+    /* ---------------- AUTO-SYNC UN-LINKED INVOICE METAL PAYMENTS ---------------- */
+    try {
+      const salesOrdersWithMetal = await SalesOrder.find({
+        "metalPayments.0": { $exists: true }
+      }).lean();
+
+      for (const order of salesOrdersWithMetal) {
+        if (!order.metalPayments || !order.metalPayments.length) continue;
+
+        for (const metal of order.metalPayments) {
+          if (!metal || Number(metal.weight || 0) <= 0 || Number(metal.totalValue || 0) <= 0) continue;
+
+          const existingLedger = await MetalLedger.findOne({
+            referenceId: order._id,
+            referenceModel: "SalesOrder"
+          });
+
+          if (!existingLedger) {
+            const metalType = normalizeMetal(metal.metalType) || "Gold";
+            await MetalLedger.create({
+              type: "CREDIT",
+              source: "INVOICE",
+              referenceId: order._id,
+              referenceModel: "SalesOrder",
+              partyName: order.customer?.name || "Customer",
+              metalType: metalType,
+              purity: metal.purity || null,
+              weight: Number(metal.weight) || 0,
+              ratePerGram: Number(metal.ratePerGram) || 0,
+              value: Number(metal.totalValue) || 0,
+              notes: `Metal received during invoice ${order.invoiceNo || ""}`,
+              createdAt: metal.receivedAt || order.createdAt || new Date()
+            });
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.error("MetalLedger Auto-sync error:", syncErr);
+    }
+
     /* ---------------- QUERY PARAMS ---------------- */
     const {
       page = 1,

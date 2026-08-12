@@ -1,8 +1,8 @@
 import API from "./index.js";
 
 // Stateless price calculation
-export const calculateEstimate = (items) =>
-  API.post("/quotation/calculate", { items });
+export const calculateEstimate = (items, baseRates = {}, makingRates = {}, disableMinMakingRule = false) =>
+  API.post("/quotation/calculate", { items, baseRates, makingRates, disableMinMakingRule });
 
 // CRUD
 export const createEstimate = (data) =>

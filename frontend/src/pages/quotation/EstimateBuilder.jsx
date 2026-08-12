@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Save, Eye,
   Calculator, Gem, Layers, RefreshCw, User, Phone,
   Mail, MapPin, Clock, AlertCircle, Sparkles, ArrowLeft,
-  Diamond
+  Diamond, Lock, Unlock
 } from "lucide-react";
 import { useRates } from "../../context/RatesContext";
 import { calculateEstimate, createEstimate, updateEstimate, getEstimate } from "../../api/quotationApi";
@@ -81,6 +81,8 @@ const defaultItem = () => ({
   netWeight: "",
   grossWeight: "",
   fineGold: "",
+  metalRate: "",
+  makingRate: "",
   huid: "",
   hsnCode: "",
   quantity: "1",
@@ -105,12 +107,35 @@ const defaultForm = () => ({
 
 
 /* ──────────────────── COMPONENT: Metal Rate Badge ──────────────────── */
-function MetalRateBadge({ metalType, metalPurity, rates }) {
-  if (!rates) return null;
-  const r = rates.helpers?.getMetalRate(metalType, metalPurity) || 0;
+function MetalRateBadge({ metalType, metalPurity, rates, baseRates, breakup }) {
+  let r = 0;
+  if (breakup && Number(breakup.metalRate || 0) > 0) {
+    r = Number(breakup.metalRate);
+  } else if (baseRates) {
+    const metalLower = (metalType || "").toLowerCase();
+    let userBase = 0;
+    if (metalLower.includes("silver")) {
+      userBase = Number(baseRates.silver999 || 0);
+    } else if (metalLower.includes("platinum")) {
+      userBase = Number(baseRates.platinum999 || 0);
+    } else {
+      userBase = Number(baseRates.gold24k || 0);
+    }
+
+    if (userBase > 0) {
+      const factor = PURITY_FACTORS[metalPurity] || 1;
+      r = Math.round(userBase * factor);
+    }
+  }
+
+  if (!r && rates) {
+    r = rates.helpers?.getMetalRate(metalType, metalPurity) || 0;
+  }
+
   if (!r) return null;
+
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 border border-yellow-200 rounded-full text-[10px] text-yellow-700 font-medium">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-50 border border-yellow-200 rounded-full text-[10px] text-yellow-700 font-medium shadow-xs">
       <Sparkles size={8} />
       ₹{fmtInt(r)}/gm
     </span>
@@ -175,11 +200,48 @@ export default function EstimateBuilder() {
 
   const [form, setForm] = useState(defaultForm());
   const [items, setItems] = useState([defaultItem()]);
+  const [baseRates, setBaseRates] = useState(() => {
+    const saved = localStorage.getItem("estimate_base_rates");
+    return saved ? JSON.parse(saved) : { gold24k: "", silver999: "", platinum999: "" };
+  });
+  const [makingRates, setMakingRates] = useState(() => {
+    const saved = localStorage.getItem("estimate_making_rates");
+    return saved ? JSON.parse(saved) : { Gold: "", Silver: "", Platinum: "" };
+  });
+  const [ratesLocked, setRatesLocked] = useState(() => {
+    return localStorage.getItem("estimate_rates_locked") === "true";
+  });
+  const [disableMinMakingRule, setDisableMinMakingRule] = useState(() => {
+    return localStorage.getItem("estimate_disable_min_making") === "true";
+  });
+  const [discountEnabled, setDiscountEnabled] = useState(() => {
+    return localStorage.getItem("estimate_discount_enabled") !== "false";
+  });
   const [totals, setTotals] = useState({ subtotal: 0, gstTotal: 0, grandTotal: 0 });
   const [saving, setSaving] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const calcTimerRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem("estimate_base_rates", JSON.stringify(baseRates));
+  }, [baseRates]);
+
+  useEffect(() => {
+    localStorage.setItem("estimate_making_rates", JSON.stringify(makingRates));
+  }, [makingRates]);
+
+  useEffect(() => {
+    localStorage.setItem("estimate_rates_locked", String(ratesLocked));
+  }, [ratesLocked]);
+
+  useEffect(() => {
+    localStorage.setItem("estimate_disable_min_making", String(disableMinMakingRule));
+  }, [disableMinMakingRule]);
+
+  useEffect(() => {
+    localStorage.setItem("estimate_discount_enabled", String(discountEnabled));
+  }, [discountEnabled]);
 
   /* ───── ITEM HANDLERS ───── */
   const addItem = () => setItems((prev) => [...prev, defaultItem()]);
@@ -396,6 +458,27 @@ export default function EstimateBuilder() {
           validDays: q.validDays || 7,
         });
 
+        if (q.baseRates) {
+          setBaseRates({
+            gold24k: q.baseRates.gold24k || "",
+            silver999: q.baseRates.silver999 || "",
+            platinum999: q.baseRates.platinum999 || "",
+          });
+        }
+        if (q.makingRates) {
+          setMakingRates({
+            Gold: q.makingRates.Gold || "",
+            Silver: q.makingRates.Silver || "",
+            Platinum: q.makingRates.Platinum || "",
+          });
+        }
+        if (q.ratesLocked !== undefined) {
+          setRatesLocked(Boolean(q.ratesLocked));
+        }
+        if (q.disableMinMakingRule !== undefined) {
+          setDisableMinMakingRule(Boolean(q.disableMinMakingRule));
+        }
+
         setItems(
           (q.items || []).map((it) => {
             const diamonds = [];
@@ -425,6 +508,8 @@ export default function EstimateBuilder() {
               netWeight: String(it.netWeight || ""),
               grossWeight: String(it.grossWeight || ""),
               fineGold: String(it.fineGold || ""),
+              metalRate: String(it.metalRate || ""),
+              makingRate: String(it.makingRate || ""),
               huid: it.huid || "",
               hsnCode: it.hsnCode || "",
               quantity: String(it.quantity || "1"),
@@ -560,8 +645,10 @@ export default function EstimateBuilder() {
           metalType: it.metalType,
           metalPurity: it.metalPurity,
           netWeight: Number(it.netWeight || 0),
+          metalRate: Number(it.metalRate || 0),
+          makingRate: Number(it.makingRate || 0),
           quantity: Number(it.quantity || 1),
-          discountEnabled: it.discountEnabled !== false,
+          discountEnabled: it.discountEnabled !== false && discountEnabled !== false,
           components
         };
       });
@@ -577,7 +664,7 @@ export default function EstimateBuilder() {
 
       try {
         setCalculating(true);
-        const res = await calculateEstimate(payloadItems);
+        const res = await calculateEstimate(payloadItems, baseRates, makingRates, disableMinMakingRule);
         const calcItems = res.data.items || [];
         setItems((prev) =>
           prev.map((item, i) => ({
@@ -592,12 +679,12 @@ export default function EstimateBuilder() {
         setCalculating(false);
       }
     }, 600);
-  }, [items]);
+  }, [items, baseRates, makingRates, disableMinMakingRule, discountEnabled]);
 
   useEffect(() => {
     if (!loadingEdit) triggerCalculate();
     return () => clearTimeout(calcTimerRef.current);
-  }, [items, loadingEdit, triggerCalculate]);
+  }, [items, baseRates, makingRates, disableMinMakingRule, discountEnabled, loadingEdit, triggerCalculate]);
 
   /* ───── SAVE ───── */
   const buildPayload = (status = "DRAFT") => ({
@@ -605,6 +692,10 @@ export default function EstimateBuilder() {
     mobile: form.mobile.trim(),
     email: form.email.trim(),
     address: form.address.trim(),
+    baseRates,
+    makingRates,
+    ratesLocked,
+    disableMinMakingRule,
     status,
     validDays: form.validDays,
     notes: form.notes,
@@ -644,6 +735,8 @@ export default function EstimateBuilder() {
         netWeight: Number(it.netWeight || 0),
         grossWeight: Number(it.grossWeight || 0),
         fineGold: Number(it.fineGold || 0),
+        metalRate: Number(it.metalRate || 0),
+        makingRate: Number(it.makingRate || 0),
         huid: it.huid,
         hsnCode: it.hsnCode,
         quantity: Number(it.quantity || 1),
@@ -691,6 +784,10 @@ export default function EstimateBuilder() {
         formData.append("notes", payload.notes || "");
         formData.append("status", payload.status);
         formData.append("validDays", payload.validDays || 7);
+        formData.append("baseRates", JSON.stringify(baseRates));
+        formData.append("makingRates", JSON.stringify(makingRates));
+        formData.append("ratesLocked", String(ratesLocked));
+        formData.append("disableMinMakingRule", String(disableMinMakingRule));
 
         // Append items as string (excluding File objects which can't be stringified)
         const itemsWithPlaceholders = payload.items.map(it => ({
@@ -767,12 +864,6 @@ export default function EstimateBuilder() {
           </div>
 
           <div className="flex items-center gap-3">
-            {calculating && (
-              <div className="flex items-center gap-2 text-xs text-indigo-600 font-bold animate-pulse mr-2">
-                <RefreshCw size={14} className="animate-spin" />
-                <span>Syncing…</span>
-              </div>
-            )}
             <button
               onClick={() => handleSave("DRAFT", false)}
               disabled={saving}
@@ -1000,19 +1091,6 @@ export default function EstimateBuilder() {
                           className={inputClass}
                         />
                       </div>
-
-                      <div className="flex items-center gap-3 pt-2">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.discountEnabled}
-                            onChange={(e) => updateItemField(itemIndex, "discountEnabled", e.target.checked)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#632947]"></div>
-                        </label>
-                        <span className="text-xs font-semibold text-slate-600">Apply Automated Discount</span>
-                      </div>
                     </div>
                   </div>
 
@@ -1047,7 +1125,7 @@ export default function EstimateBuilder() {
                       <div className="relative">
                         <label className={labelClass}>Net Weight (g)</label>
                         <div className="absolute top-0 right-0">
-                          {!ratesLoading && <MetalRateBadge metalType={item.metalType} metalPurity={item.metalPurity} rates={rates} />}
+                          {!ratesLoading && <MetalRateBadge metalType={item.metalType} metalPurity={item.metalPurity} rates={rates} baseRates={baseRates} breakup={item.breakup} />}
                         </div>
                         <input
                           type="number"
@@ -1290,13 +1368,163 @@ export default function EstimateBuilder() {
           </button>
         </div>
 
-        {/* ══════════════════ RIGHT COLUMN — SUMMARY ══════════════════ */}
+        {/* ══════════════════ RIGHT COLUMN — SUMMARY & OVERRIDES ══════════════════ */}
         <div className="sticky top-24 space-y-4">
+          {/* ===== COMPACT RATE OVERRIDES CARD (TOP RIGHT) ===== */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-amber-600" />
+                <h3 className="font-bold text-xs text-slate-800 tracking-tight">Rate Overrides (Optional)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRatesLocked(prev => !prev)}
+                className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${ratesLocked
+                  ? "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                  }`}
+                title={ratesLocked ? "Rates are locked. Click to unlock" : "Click to lock rates"}
+              >
+                {ratesLocked ? <Lock size={10} className="text-amber-700" /> : <Unlock size={10} className="text-slate-500" />}
+                <span>{ratesLocked ? "LOCKED" : "LOCK"}</span>
+              </button>
+            </div>
+
+            <div className="p-3.5 space-y-3 text-xs">
+              {/* Base Metal Rates */}
+              <div>
+                <span className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Base Metal Rates (₹/g)</span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Gold 24K</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={baseRates.gold24k}
+                      disabled={ratesLocked}
+                      onChange={(e) => setBaseRates({ ...baseRates, gold24k: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.base?.gold24k || rates?.gold24KT ? `Admin: ₹${fmtInt(rates?.base?.gold24k || rates?.gold24KT)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Silver 999</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={baseRates.silver999}
+                      disabled={ratesLocked}
+                      onChange={(e) => setBaseRates({ ...baseRates, silver999: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.base?.silver999 || rates?.silver999 ? `Admin: ₹${fmtInt(rates?.base?.silver999 || rates?.silver999)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Plat 999</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={baseRates.platinum999}
+                      disabled={ratesLocked}
+                      onChange={(e) => setBaseRates({ ...baseRates, platinum999: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.base?.platinum999 || rates?.platinum950 ? `Admin: ₹${fmtInt(rates?.base?.platinum999 || rates?.platinum950)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Making Charges */}
+              <div className="pt-2 border-t border-slate-100">
+                <span className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Making Charges (₹/g)</span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Gold Making</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={makingRates.Gold}
+                      disabled={ratesLocked}
+                      onChange={(e) => setMakingRates({ ...makingRates, Gold: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.making?.goldMakingCharge || rates?.goldMakingCharge ? `Admin: ₹${fmtInt(rates?.making?.goldMakingCharge || rates?.goldMakingCharge)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Silver Making</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={makingRates.Silver}
+                      disabled={ratesLocked}
+                      onChange={(e) => setMakingRates({ ...makingRates, Silver: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.making?.silverMakingCharge || rates?.silverMakingCharge ? `Admin: ₹${fmtInt(rates?.making?.silverMakingCharge || rates?.silverMakingCharge)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-600 font-medium text-[11px] w-20 shrink-0">Plat Making</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={makingRates.Platinum}
+                      disabled={ratesLocked}
+                      onChange={(e) => setMakingRates({ ...makingRates, Platinum: e.target.value })}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={rates?.making?.platinumMakingCharge || rates?.platinumMakingCharge ? `Admin: ₹${fmtInt(rates?.making?.platinumMakingCharge || rates?.platinumMakingCharge)}` : "Admin Rate"}
+                      className="w-full h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 font-mono font-medium disabled:opacity-60 disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Option to Disable Min Making Weight & Flat Fee */}
+              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="flex flex-col pr-2">
+                  <span className="text-[11px] font-bold text-slate-700">Disable Min Weight / Flat Fee</span>
+                  <span className="text-[9px] text-slate-400 leading-tight">Bypass admin minimum weight & flat fee for making</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={disableMinMakingRule}
+                    disabled={ratesLocked}
+                    onChange={(e) => setDisableMinMakingRule(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-600 disabled:opacity-50"></div>
+                </label>
+              </div>
+
+              {/* Option to Apply Automated Discount */}
+              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="flex flex-col pr-2">
+                  <span className="text-[11px] font-bold text-slate-700">Apply Automated Discount</span>
+                  <span className="text-[9px] text-slate-400 leading-tight">Enable automated discounts from rate config</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={discountEnabled}
+                    disabled={ratesLocked}
+                    onChange={(e) => setDiscountEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600 disabled:opacity-50"></div>
+                </label>
+              </div>
+            </div>
+          </div>
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-md">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
               <Calculator size={15} className="text-[#632947]" />
               <h3 className="font-semibold text-sm text-[#1B3B59]">Estimate Summary</h3>
-              {calculating && <RefreshCw size={12} className="animate-spin text-[#632947] ml-auto" />}
             </div>
             <div className="p-5 space-y-3">
               {items.map((item, i) => (
@@ -1343,30 +1571,67 @@ export default function EstimateBuilder() {
             </div>
           </div>
 
-          {/* Rate Info */}
+          {/* Rate Info - Applied Rates */}
           {rates && (
             <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={13} className="text-amber-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Market Rates</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={13} className="text-amber-500" />
+                  <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Applied Rates</span>
+                </div>
+                {(Number(baseRates.gold24k) > 0 || Number(baseRates.silver999) > 0 || Number(baseRates.platinum999) > 0 || Number(makingRates.Gold) > 0 || Number(makingRates.Silver) > 0 || Number(makingRates.Platinum) > 0) && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">Custom</span>
+                )}
               </div>
               <div className="space-y-1.5">
                 {[
-                  { label: "Gold 24K", value: rates.base?.gold24KT, unit: "/gm" },
-                  { label: "Silver 999", value: rates.base?.silver999, unit: "/gm" },
-                  { label: "Plat 950", value: rates.base?.platinum950, unit: "/gm" },
-                  { label: "Diamond", value: rates.base?.diamondRate, unit: "/ct" },
-                  { label: "Making", value: rates.base?.makingCharge, unit: "/gm" },
-                ].map(({ label, value, unit }) => (
-                  <div key={label} className="flex justify-between text-xs">
-                    <span className="text-slate-400">{label}</span>
-                    <span className="text-slate-600 font-mono font-medium">₹{Number(value || 0).toLocaleString("en-IN")}{unit}</span>
+                  {
+                    label: "Gold 24K",
+                    value: Number(baseRates.gold24k) > 0 ? baseRates.gold24k : rates.base?.gold24KT,
+                    isCustom: Number(baseRates.gold24k) > 0,
+                    unit: "/gm"
+                  },
+                  {
+                    label: "Silver 999",
+                    value: Number(baseRates.silver999) > 0 ? baseRates.silver999 : rates.base?.silver999,
+                    isCustom: Number(baseRates.silver999) > 0,
+                    unit: "/gm"
+                  },
+                  {
+                    label: "Plat 950",
+                    value: Number(baseRates.platinum999) > 0 ? baseRates.platinum999 : rates.base?.platinum950,
+                    isCustom: Number(baseRates.platinum999) > 0,
+                    unit: "/gm"
+                  },
+                  {
+                    label: "Diamond",
+                    value: rates.base?.diamondRate,
+                    isCustom: false,
+                    unit: "/ct"
+                  },
+                  {
+                    label: "Making (Gold)",
+                    value: Number(makingRates.Gold) > 0 ? makingRates.Gold : rates.base?.makingCharge,
+                    isCustom: Number(makingRates.Gold) > 0,
+                    unit: "/gm"
+                  },
+                ].map(({ label, value, isCustom, unit }) => (
+                  <div key={label} className="flex justify-between text-xs items-center">
+                    <span className="text-slate-500 font-medium flex items-center gap-1">
+                      {label}
+                      {isCustom && <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>}
+                    </span>
+                    <span className={`font-mono font-semibold ${isCustom ? "text-amber-700 font-bold" : "text-slate-700"}`}>
+                      ₹{Number(value || 0).toLocaleString("en-IN")}{unit}
+                    </span>
                   </div>
                 ))}
               </div>
               <p className="text-[9px] text-slate-400 mt-3 flex items-center gap-1 italic border-t border-slate-50 pt-2">
                 <AlertCircle size={9} />
-                Live pricing active
+                {(Number(baseRates.gold24k) > 0 || Number(baseRates.silver999) > 0 || Number(baseRates.platinum999) > 0 || Number(makingRates.Gold) > 0 || Number(makingRates.Silver) > 0 || Number(makingRates.Platinum) > 0)
+                  ? "Custom overridden rates applied"
+                  : "Live admin rates active"}
               </p>
             </div>
           )}

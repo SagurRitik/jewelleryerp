@@ -4,7 +4,7 @@ import {
   Route,
   Outlet,
 } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { ModalProvider } from "./context/ModalContext";
 import { ProductListProvider } from "./context/ProductListContext";
@@ -142,6 +142,17 @@ function MainLayout() {
 
 /* ================= APP COMPONENT ================= */
 export default function App() {
+  /* Prevent mouse wheel scroll from modifying numeric inputs across the application */
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (document.activeElement && document.activeElement.type === "number") {
+        document.activeElement.blur();
+      }
+    };
+    document.addEventListener("wheel", handleWheel, { passive: true });
+    return () => document.removeEventListener("wheel", handleWheel);
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>

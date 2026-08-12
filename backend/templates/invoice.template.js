@@ -782,7 +782,7 @@ export const invoiceTemplate = async (invoice) => {
 
   const invoiceMetal = (invoice.metalPayments || [])
     .filter(p => p.source === "INVOICE")
-    .reduce((s, p) => s + Number(p.totalValue || 0), 0);
+    .reduce((s, p) => s + Number(p.totalValue || 0), 0) || Number(invoice.totals?.metalPayment || 0);
 
   // --- Collect unique metal rates for the pre-table row ---
   const metalRateLines = invoice.items.map((item, index) => {
@@ -800,6 +800,9 @@ export const invoiceTemplate = async (invoice) => {
 
   const hasAdjustment =
     (invoice.totals.advancePayment || 0) > 0 ||
+    (invoice.totals.appliedCredit || 0) > 0 ||
+    invoiceMetal > 0 ||
+    orderMetal > 0 ||
     (invoice.metalPayments || []).some(p => Number(p.totalValue || 0) > 0);
 
   // --- HTML Output ---
@@ -1396,10 +1399,10 @@ ${invoice.items.map((item, index) => {
       <div class="ts-label">Less: Order Metal (₹)</div>
       <div class="ts-val">- ${fmt((invoice.metalPayments || []).filter(p => p.source === "ORDER").reduce((s, p) => s + Number(p.totalValue || 0), 0))}</div>
     </div>` : ""}
-    ${(invoice.metalPayments || []).filter(p => p.source === "INVOICE").reduce((s, p) => s + Number(p.totalValue || 0), 0) > 0 ? `
+    ${invoiceMetal > 0 ? `
     <div class="ts-row">
       <div class="ts-label">Less: Metal Payment (₹)</div>
-      <div class="ts-val">- ${fmt((invoice.metalPayments || []).filter(p => p.source === "INVOICE").reduce((s, p) => s + Number(p.totalValue || 0), 0))}</div>
+      <div class="ts-val">- ${fmt(invoiceMetal)}</div>
     </div>` : ""}
    ${hasAdjustment ? `
 <div class="ts-row last highlight">
