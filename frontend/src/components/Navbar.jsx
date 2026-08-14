@@ -276,14 +276,43 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className={`p-2.5 rounded-full transition-all duration-300 ${
+              className={`group relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-500 active:scale-90 overflow-hidden border ${
                 scrolled
-                  ? "hover:bg-stone-100 text-stone-600"
-                  : "hover:bg-white/10 text-white/90"
+                  ? isDark
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.25)]"
+                    : "bg-stone-100/90 border-stone-200 text-stone-700 hover:bg-[#5A374F] hover:text-amber-300 hover:border-[#5A374F] shadow-sm"
+                  : isDark
+                    ? "bg-amber-500/20 border-amber-400/40 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:bg-amber-500/30"
+                    : "bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 hover:text-amber-200 hover:border-white/40"
               }`}
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              {/* Radial glow background on hover */}
+              <span
+                className={`absolute inset-0 rounded-xl transition-opacity duration-500 opacity-0 group-hover:opacity-100 ${
+                  isDark
+                    ? "bg-gradient-to-tr from-amber-500/30 via-yellow-400/20 to-transparent blur-sm"
+                    : "bg-gradient-to-tr from-indigo-500/20 via-purple-400/20 to-amber-300/20 blur-sm"
+                }`}
+              />
+
+              {/* Animated Icon Container */}
+              <div className="relative z-10 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-12">
+                {isDark ? (
+                  <Sun
+                    size={21}
+                    className="text-amber-400 transition-all duration-500 drop-shadow-[0_0_8px_rgba(251,191,36,0.75)]"
+                    strokeWidth={2.2}
+                  />
+                ) : (
+                  <Moon
+                    size={20}
+                    className="transition-all duration-500 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]"
+                    strokeWidth={2.2}
+                  />
+                )}
+              </div>
             </button>
             {user && (
               <div className="relative">
