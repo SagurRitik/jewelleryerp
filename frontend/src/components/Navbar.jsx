@@ -276,25 +276,13 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className={`group relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-500 active:scale-90 overflow-hidden border ${
-                scrolled
-                  ? isDark
-                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.25)]"
-                    : "bg-stone-100/90 border-stone-200 text-stone-700 hover:bg-[#5A374F] hover:text-amber-300 hover:border-[#5A374F] shadow-sm"
-                  : isDark
-                    ? "bg-amber-500/20 border-amber-400/40 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:bg-amber-500/30"
-                    : "bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 hover:text-amber-200 hover:border-white/40"
-              }`}
+              className="group relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-90 overflow-hidden border bg-blue-600 border-blue-500 text-white hover:bg-blue-700 shadow-md shadow-blue-500/30"
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {/* Radial glow background on hover */}
               <span
-                className={`absolute inset-0 rounded-xl transition-opacity duration-500 opacity-0 group-hover:opacity-100 ${
-                  isDark
-                    ? "bg-gradient-to-tr from-amber-500/30 via-yellow-400/20 to-transparent blur-sm"
-                    : "bg-gradient-to-tr from-indigo-500/20 via-purple-400/20 to-amber-300/20 blur-sm"
-                }`}
+                className="absolute inset-0 rounded-xl transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-gradient-to-tr from-blue-400/30 via-sky-300/20 to-transparent blur-sm"
               />
 
               {/* Animated Icon Container */}
@@ -302,13 +290,13 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                 {isDark ? (
                   <Sun
                     size={21}
-                    className="text-amber-400 transition-all duration-500 drop-shadow-[0_0_8px_rgba(251,191,36,0.75)]"
+                    className="text-amber-300 transition-all duration-500 drop-shadow-[0_0_8px_rgba(252,211,77,0.8)]"
                     strokeWidth={2.2}
                   />
                 ) : (
                   <Moon
                     size={20}
-                    className="transition-all duration-500 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]"
+                    className="text-white transition-all duration-500 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
                     strokeWidth={2.2}
                   />
                 )}
