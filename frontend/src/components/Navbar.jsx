@@ -276,14 +276,10 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="group relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-90 overflow-hidden border bg-red-900 border-red-700 text-white hover:bg-red-800 shadow-md shadow-red-950/40"
+              className="group relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-90 overflow-hidden bg-transparent hover:bg-white/10 text-white"
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              {/* Radial glow background on hover */}
-              <span
-                className="absolute inset-0 rounded-xl transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-gradient-to-tr from-red-600/30 via-rose-500/20 to-transparent blur-sm"
-              />
 
               {/* Animated Icon Container */}
               <div className="relative z-10 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-12">

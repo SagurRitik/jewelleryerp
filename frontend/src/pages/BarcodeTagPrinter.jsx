@@ -8,23 +8,50 @@ import {
   ArrowUp, ArrowLeft, ZoomIn, Info,
   RotateCw, Move, Type, Eye, RefreshCcw,
   Maximize, FileText, User, List, QrCode, Plus, Trash2, Zap,
-  Upload, SlidersHorizontal
+  Upload, SlidersHorizontal, Sparkles, Save, Check
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
-const INITIAL_ELEMENTS = {
-  category: { id: "category", name: "Category Name", x: 2, y: 1.5, rotate: 0, scale: 1, visible: true },
-  metalPurity: { id: "metalPurity", name: "Metal & Purity", x: 2, y: 4.5, rotate: 0, scale: 1, visible: true },
-  gw: { id: "gw", name: "Gross Weight (GW)", x: 2, y: 7.5, rotate: 0, scale: 1, visible: true, gap: 0.5 },
-  nw: { id: "nw", name: "Net Weight (NW)", x: 2, y: 10.5, rotate: 0, scale: 1, visible: true, gap: 0.5 },
-  skuText: { id: "skuText", name: "SKU Label", x: 34, y: 1.5, rotate: 0, scale: 1, visible: true },
-  barcode: { id: "barcode", name: "Barcode/QR", x: 33, y: 4.5, rotate: 0, scale: 1, visible: true, type: "barcode" },
-  dgw: { id: "dgw", name: "Diamond GW (D.GW)", x: 48, y: 8.5, rotate: 0, scale: 1, visible: true, gap: 0.5 },
-  sgw: { id: "sgw", name: "Stone GW (S.GW)", x: 48, y: 11.5, rotate: 0, scale: 1, visible: true, gap: 0.5 },
-  fine: { id: "fine", name: "Fine Weight", x: 34, y: 11.5, rotate: 0, scale: 0.8, visible: true },
-  huid: { id: "huid", name: "HUID / Hallmark", x: 34, y: 8.5, rotate: 0, scale: 0.8, visible: true },
-  custom: { id: "custom", name: "Custom Note", x: 48, y: 1.5, rotate: 0, scale: 0.8, visible: true },
+export const FORMAT_PRESETS = {
+  compact_center: {
+    id: "compact_center",
+    name: "Standard 65×15 (Recommended)",
+    badge: "Best Fit",
+    elements: {
+      category:   { id: "category",   name: "Category Name",      x: 1.0,  y: 1.0,  rotate: 0, scale: 1,   visible: true },
+      metalPurity:{ id: "metalPurity",name: "Metal & Purity",     x: 1.0,  y: 3.8,  rotate: 0, scale: 1,   visible: true },
+      gw:         { id: "gw",         name: "Gross Weight (GW)",  x: 1.0,  y: 6.8,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
+      nw:         { id: "nw",         name: "Net Weight (NW)",    x: 1.0,  y: 9.8,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
+      skuText:    { id: "skuText",    name: "SKU Label",          x: 14.0, y: 0.5,  rotate: 0, scale: 1,   visible: true },
+      barcode:    { id: "barcode",    name: "Barcode/QR",         x: 10.4, y: 3.4,  rotate: 0, scale: 1,   visible: true, type: "barcode" },
+      fine:       { id: "fine",       name: "Fine Weight",        x: 13.5, y: 12.8, rotate: 0, scale: 0.8, visible: true },
+      dgw:        { id: "dgw",        name: "Diamond GW (D.GW)", x: 30.3, y: 4.2,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
+      sgw:        { id: "sgw",        name: "Stone GW (S.GW)",   x: 30.1, y: 6.4,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
+      huid:       { id: "huid",       name: "HUID / Hallmark",   x: 30.1, y: 8.8,  rotate: 0, scale: 0.8, visible: false },
+      custom:     { id: "custom",     name: "Custom Note",        x: 30.1, y: 1.5,  rotate: 0, scale: 0.8, visible: false },
+    }
+  },
+  dual_wing: {
+    id: "dual_wing",
+    name: "Dual Wing (Head + Flap)",
+    badge: "Wide",
+    elements: {
+      category:   { id: "category",   name: "Category Name",      x: 1.0,  y: 1.0,  rotate: 0, scale: 1,   visible: true },
+      metalPurity:{ id: "metalPurity",name: "Metal & Purity",     x: 1.0,  y: 4.0,  rotate: 0, scale: 1,   visible: true },
+      gw:         { id: "gw",         name: "Gross Weight (GW)",  x: 1.0,  y: 7.0,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
+      nw:         { id: "nw",         name: "Net Weight (NW)",    x: 1.0,  y: 10.0, rotate: 0, scale: 1,   visible: true, gap: 0.5 },
+      skuText:    { id: "skuText",    name: "SKU Label",          x: 33.0, y: 1.0,  rotate: 0, scale: 1,   visible: true },
+      barcode:    { id: "barcode",    name: "Barcode/QR",         x: 31.0, y: 4.0,  rotate: 0, scale: 1,   visible: true, type: "barcode" },
+      dgw:        { id: "dgw",        name: "Diamond GW (D.GW)", x: 49.0, y: 7.0,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
+      sgw:        { id: "sgw",        name: "Stone GW (S.GW)",   x: 49.0, y: 10.0, rotate: 0, scale: 1,   visible: true, gap: 0.4 },
+      fine:       { id: "fine",       name: "Fine Weight",        x: 33.0, y: 12.0, rotate: 0, scale: 0.8, visible: true },
+      huid:       { id: "huid",       name: "HUID / Hallmark",   x: 33.0, y: 9.0,  rotate: 0, scale: 0.8, visible: true },
+      custom:     { id: "custom",     name: "Custom Note",        x: 49.0, y: 1.0,  rotate: 0, scale: 0.8, visible: true },
+    }
+  }
 };
+
+const INITIAL_ELEMENTS = FORMAT_PRESETS.compact_center.elements;
 
 export default function BarcodeTagPrinter() {
   const location = useLocation();
@@ -32,11 +59,21 @@ export default function BarcodeTagPrinter() {
   const { isDark } = useTheme();
   const { products: initialProducts = [] } = location.state || {};
 
-  // Editor State
-  const [elements, setElements] = useState(INITIAL_ELEMENTS);
+  // Editor State with localStorage persistence
+  const [elements, setElements] = useState(() => {
+    try {
+      const saved = localStorage.getItem("barcode_tag_layout");
+      if (saved) return { ...INITIAL_ELEMENTS, ...JSON.parse(saved) };
+    } catch (e) { }
+    return INITIAL_ELEMENTS;
+  });
   const [selectedId, setSelectedId] = useState("barcode");
   const [format, setFormat] = useState("butterfly_65x15");
+  const [activePreset, setActivePreset] = useState("compact_center");
+  const [formatSavedToast, setFormatSavedToast] = useState("");
   const [zoom, setZoom] = useState(1.4);
+  const [printOrientation, setPrintOrientation] = useState("landscape"); // "landscape" or "portrait"
+  const [printRotation, setPrintRotation] = useState(0); // 0, 90, 180, 270 degrees
 
   // Sidebar Mode
   const [sidebarTab, setSidebarTab] = useState("product_list"); // "product_list", "manual", or "quick"
@@ -70,7 +107,135 @@ export default function BarcodeTagPrinter() {
   const containerRef = useRef(null);
 
   const handlePrint = () => {
-    window.print();
+    const container = containerRef.current;
+    if (!container) {
+      window.print();
+      return;
+    }
+
+    const tagElements = container.querySelectorAll(".butterfly-tag");
+    if (!tagElements || tagElements.length === 0) {
+      window.print();
+      return;
+    }
+
+    // 1. Create dedicated invisible print iframe
+    let iframe = document.getElementById("barcode-print-iframe");
+    if (iframe) {
+      iframe.remove();
+    }
+    iframe = document.createElement("iframe");
+    iframe.id = "barcode-print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+
+    // 2. Clone each tag and preserve canvas images
+    let tagsHtml = "";
+    tagElements.forEach((tag, idx) => {
+      const clone = tag.cloneNode(true);
+
+      // Remove elements that shouldn't be printed (visual center lines, tail guides, etc.)
+      const nonPrintable = clone.querySelectorAll(".print\\:hidden, [title='Physical Tag Tail']");
+      nonPrintable.forEach(el => el.remove());
+
+      // Convert any QR code canvas elements to data URL images
+      const originalCanvases = tag.querySelectorAll("canvas");
+      const clonedCanvases = clone.querySelectorAll("canvas");
+      originalCanvases.forEach((origCanvas, cIdx) => {
+        try {
+          const img = document.createElement("img");
+          img.src = origCanvas.toDataURL("image/png");
+          img.style.width = origCanvas.style.width || "45px";
+          img.style.height = origCanvas.style.height || "45px";
+          img.style.display = "block";
+          if (clonedCanvases[cIdx] && clonedCanvases[cIdx].parentNode) {
+            clonedCanvases[cIdx].parentNode.replaceChild(img, clonedCanvases[cIdx]);
+          }
+        } catch (err) {
+          console.error("Canvas export error:", err);
+        }
+      });
+
+      tagsHtml += `
+        <div class="tag-page" style="width: 65mm; height: 15mm; position: relative; overflow: hidden; page-break-after: ${idx === tagElements.length - 1 ? 'auto' : 'always'}; break-after: ${idx === tagElements.length - 1 ? 'auto' : 'page'}; page-break-inside: avoid; break-inside: avoid; background: #ffffff;">
+          ${clone.innerHTML}
+        </div>
+      `;
+    });
+
+    const iframeDoc = iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Barcode Tag Print</title>
+        <style>
+          @page {
+            size: 65mm 15mm ${printOrientation};
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 65mm !important;
+            height: 15mm !important;
+            background: #ffffff !important;
+            overflow: hidden !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .tag-page {
+            width: 65mm !important;
+            height: 15mm !important;
+            position: relative !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            ${printRotation !== 0 ? `transform: rotate(${printRotation}deg) !important; transform-origin: center center !important;` : ''}
+          }
+        </style>
+      </head>
+      <body>
+        ${tagsHtml}
+      </body>
+      </html>
+    `);
+
+    // Copy stylesheet styles into iframe head
+    const styleSheets = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+    styleSheets.forEach(style => {
+      try {
+        iframeDoc.head.appendChild(style.cloneNode(true));
+      } catch (e) { }
+    });
+
+    iframeDoc.close();
+
+    // Trigger print
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        window.print();
+      }
+    }, 200);
   };
 
   const updateElement = (id, updates) => {
@@ -80,8 +245,35 @@ export default function BarcodeTagPrinter() {
     }));
   };
 
+  const applyPreset = (presetKey) => {
+    const preset = FORMAT_PRESETS[presetKey];
+    if (!preset) return;
+    setElements(preset.elements);
+    setActivePreset(presetKey);
+    try {
+      localStorage.setItem("barcode_tag_layout", JSON.stringify(preset.elements));
+    } catch (e) {}
+    setFormatSavedToast(`✓ ${preset.name} Set Successfully!`);
+    setTimeout(() => setFormatSavedToast(""), 2500);
+  };
+
+  const saveCustomLayout = () => {
+    try {
+      localStorage.setItem("barcode_tag_layout", JSON.stringify(elements));
+      setFormatSavedToast("✓ Custom Layout Saved as Default!");
+      setTimeout(() => setFormatSavedToast(""), 2500);
+    } catch (e) {}
+  };
+
   const resetLayout = () => {
-    setElements(INITIAL_ELEMENTS);
+    const defaultElements = FORMAT_PRESETS.compact_center.elements;
+    setElements(defaultElements);
+    setActivePreset("compact_center");
+    try {
+      localStorage.removeItem("barcode_tag_layout");
+    } catch (e) {}
+    setFormatSavedToast("✓ Layout Reset to Standard 65×15!");
+    setTimeout(() => setFormatSavedToast(""), 2500);
   };
 
   const handleManualChange = (field, value) => {
@@ -213,9 +405,11 @@ export default function BarcodeTagPrinter() {
   const selected = elements[selectedId];
 
   return (
-    <div className={`h-screen w-screen overflow-hidden flex transition-colors duration-300 ${isDark ? "bg-[#0b0b0b]" : "bg-[#f8f9fa]"} print:bg-white print:h-auto print:overflow-visible`}>
+    <div className={`h-screen w-screen overflow-hidden flex transition-colors duration-300 ${isDark ? "bg-[#0b0b0b]" : "bg-[#f8f9fa]"} print:bg-white print:h-auto print:w-auto print:overflow-visible print:block`}>
       <style>{`
-        body, html { margin: 0; padding: 0; overflow: hidden !important; height: 100% !important; width: 100% !important; }
+        @media screen {
+          body, html { margin: 0; padding: 0; overflow: hidden !important; height: 100% !important; width: 100% !important; }
+        }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -257,9 +451,18 @@ export default function BarcodeTagPrinter() {
                 {sidebarTab === 'manual' ? 'Manual' : sidebarTab === 'quick' ? 'Quick Print' : 'Explorer'}
               </h2>
             </div>
-            <button onClick={resetLayout} className="p-1.5 hover:bg-slate-100 text-slate-400 rounded-lg transition-all" title="Reset Layout">
-              <RefreshCcw size={14} />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => applyPreset("compact_center")}
+                className="px-2 py-1 bg-purple-50 hover:bg-purple-100 border border-[#5A374F]/20 text-[#5A374F] rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                title="1-Click Set Standard Format"
+              >
+                <Sparkles size={10} /> Auto-Format
+              </button>
+              <button onClick={resetLayout} className="p-1.5 hover:bg-slate-100 text-slate-400 rounded-lg transition-all" title="Reset Layout to Standard Default">
+                <RefreshCcw size={14} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -645,50 +848,139 @@ export default function BarcodeTagPrinter() {
       </div>
 
       {/* 🖼️ INTERACTIVE CANVAS AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative print:h-auto print:w-auto print:overflow-visible print:block print:p-0 print:m-0">
 
         {/* Designer Top Bar */}
-        <div className={`h-16 flex justify-between items-center px-8 border-b z-10 print:hidden ${isDark ? "bg-[#111]/90 backdrop-blur border-white/5" : "bg-white/95 backdrop-blur border-slate-100 shadow-sm"}`}>
-          <div className="flex items-center gap-6">
+        <div className={`h-16 flex justify-between items-center px-6 border-b z-10 print:hidden ${isDark ? "bg-[#111]/90 backdrop-blur border-white/5" : "bg-white/95 backdrop-blur border-slate-100 shadow-sm"}`}>
+          {/* Left Title & Status */}
+          <div className="flex items-center gap-3.5">
             <button
               onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-200 text-gray-600 hover:text-[#5A374F] hover:border-[#5A374F]/20 transition-colors"
+              className="h-9 w-9 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 hover:text-[#5A374F] border border-slate-200/70 transition-all active:scale-95 shadow-sm"
+              title="Go Back"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={16} />
             </button>
-            <div className="h-4 w-[1px] bg-slate-200" />
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shadow-sm text-[#5A374F]"><FileText size={20} /></div>
+            
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100/80 text-[#5A374F] shadow-sm">
+                <FileText size={17} />
+              </div>
               <div>
-                <h1 className="font-black text-sm tracking-tight text-slate-800 uppercase leading-none mb-1">Visual Studio</h1>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">{activeProducts.length} {activeProducts.length === 1 ? 'Tag' : 'Tags'} Queued • Precision Engine</p>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-extrabold text-xs tracking-tight text-slate-800 uppercase leading-none">Tag Studio</h1>
+                  <span className="bg-purple-100/60 text-[#5A374F] text-[9px] font-black px-2 py-0.5 rounded-full border border-[#5A374F]/10">
+                    65×15mm
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-semibold tracking-wide mt-0.5">
+                  {activeProducts.length} {activeProducts.length === 1 ? 'Tag Ready' : 'Tags Ready'}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden xl:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <Info size={12} className="text-[#5A374F]" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-[#5A374F]">Auto-Calibration Active</span>
+          {/* Right Toolbar Controls */}
+          <div className="flex items-center gap-2.5">
+            {/* 1. Layout Preset Dropdown with Sparkles */}
+            <div className="flex items-center bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 h-9 gap-1.5 shadow-sm transition-all focus-within:border-[#5A374F]/40 focus-within:ring-2 focus-within:ring-[#5A374F]/10" title="Choose Tag Layout Template">
+              <Sparkles size={13} className="text-[#5A374F]" />
+              <span className="text-[10px] font-bold text-slate-400 hidden 2xl:inline">Template:</span>
+              <select
+                value={activePreset}
+                onChange={(e) => applyPreset(e.target.value)}
+                className="bg-transparent text-[10px] font-bold text-slate-800 outline-none cursor-pointer pr-1"
+              >
+                {Object.entries(FORMAT_PRESETS).map(([key, p]) => (
+                  <option key={key} value={key}>{p.name}</option>
+                ))}
+              </select>
             </div>
-            <div className="h-4 w-[1px] bg-slate-200" />
+
+            {/* 2. Save Layout Button */}
+            <button
+              onClick={saveCustomLayout}
+              className="h-9 px-3 flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 shadow-sm transition-all active:scale-95 hover:border-slate-300"
+              title="Save current layout as your default"
+            >
+              <Save size={13} className="text-[#5A374F]" />
+              <span>Save</span>
+            </button>
+
+            {/* 3. Reset Layout Button */}
+            <button
+              onClick={resetLayout}
+              className="h-9 w-9 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-slate-400 hover:text-slate-700 shadow-sm transition-all active:scale-95"
+              title="Reset to default 65x15 layout"
+            >
+              <RefreshCcw size={13} />
+            </button>
+
+            <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
+
+            {/* 4. Orientation Segmented Pill */}
+            <div className="flex items-center bg-slate-100/70 p-0.5 rounded-xl h-9 border border-slate-200/60 shadow-inner">
+              <button
+                onClick={() => setPrintOrientation("landscape")}
+                className={`h-7 px-2.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${printOrientation === 'landscape' ? "bg-white text-[#5A374F] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                title="Horizontal (Landscape) - Tag Roll"
+              >
+                Horizontal
+              </button>
+              <button
+                onClick={() => setPrintOrientation("portrait")}
+                className={`h-7 px-2.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${printOrientation === 'portrait' ? "bg-white text-[#5A374F] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                title="Vertical (Portrait)"
+              >
+                Vertical
+              </button>
+            </div>
+
+            {/* 5. Rotation Selector */}
+            <div className="flex items-center bg-slate-50/80 border border-slate-200/80 rounded-xl px-2 h-9 gap-1 shadow-sm" title="Print Rotation Angle">
+              <RotateCw size={12} className="text-[#5A374F]" />
+              <select
+                value={printRotation}
+                onChange={(e) => setPrintRotation(parseInt(e.target.value))}
+                className="bg-transparent text-[10px] font-bold text-slate-700 outline-none cursor-pointer"
+              >
+                <option value={0}>0°</option>
+                <option value={90}>90°</option>
+                <option value={180}>180°</option>
+                <option value={270}>270°</option>
+              </select>
+            </div>
+
+            <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
+
+            {/* 6. Primary Print Button */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-2 bg-[#5A374F] hover:bg-[#4a2d41] text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-[#5A374F]/20 transition-all active:scale-95"
+              className="h-9 flex items-center gap-2 bg-gradient-to-r from-[#5A374F] to-[#45273b] hover:from-[#4a2d41] hover:to-[#381f30] text-white px-5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md shadow-[#5A374F]/25 hover:shadow-lg hover:shadow-[#5A374F]/35 transition-all active:scale-95"
             >
-              <Printer size={16} /> Print All Tags
+              <Printer size={15} />
+              <span>Print Tags ({activeProducts.length})</span>
             </button>
-            <div className="h-4 w-[1px] bg-slate-200" />
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Ready</span>
+
+            {/* 7. Status Indicator */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50/80 border border-green-200/50 rounded-lg">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-green-700">Ready</span>
             </div>
           </div>
         </div>
 
+        {/* Floating Toast Notification */}
+        {formatSavedToast && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#5A374F] text-white px-5 py-2.5 rounded-2xl shadow-2xl font-black text-xs flex items-center gap-2 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-300">
+            <Sparkles size={15} className="text-amber-300 animate-pulse" />
+            <span>{formatSavedToast}</span>
+          </div>
+        )}
+
         {/* Workspace Canvas */}
         <div
-          className="flex-1 overflow-auto bg-[#f8f9fa] relative print:bg-white print:p-0 flex justify-center p-20 custom-scrollbar"
+          className="flex-1 overflow-auto bg-[#f8f9fa] relative print:bg-white print:p-0 print:m-0 flex justify-center p-20 custom-scrollbar print-workspace-canvas"
           onMouseDown={() => setSelectedId(null)}
           style={{
             backgroundImage: `radial-gradient(#d1d5db 1px, transparent 1px)`,
@@ -699,7 +991,7 @@ export default function BarcodeTagPrinter() {
           {/* Centered Desktop Area */}
           <div
             ref={containerRef}
-            className="relative flex flex-col items-center gap-12 print:gap-4 transition-transform duration-200 ease-out py-20"
+            className="relative flex flex-col items-center gap-12 print:gap-0 transition-transform duration-200 ease-out py-20 print:py-0 print:m-0 print-container"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: "center top"
@@ -711,7 +1003,7 @@ export default function BarcodeTagPrinter() {
                 return (
                   <div
                     key={index === 0 && quickCodeList.length === 0 ? "quick-tag" : `quick-tag-${index}`}
-                    className="butterfly-tag relative bg-white border border-slate-100 shadow-sm print:shadow-none mb-8 transition-all duration-500 overflow-hidden"
+                    className="butterfly-tag relative bg-white border border-slate-100 shadow-sm print:shadow-none print:border-none mb-8 print:mb-0 transition-all duration-500 overflow-hidden"
                     style={{
                       width: "65mm",
                       height: "15mm",
@@ -739,7 +1031,7 @@ export default function BarcodeTagPrinter() {
                       </div>
                     </div>
                     {/* Visual markers for center */}
-                    <div className="absolute inset-0 border-r border-dashed border-slate-100/50 left-1/2" />
+                    <div className="absolute inset-0 border-r border-dashed border-slate-100/50 left-1/2 print:hidden" />
                   </div>
                 );
               }
@@ -747,7 +1039,7 @@ export default function BarcodeTagPrinter() {
               // Standard Tag Designer Loop
               let diamondGW = 0;
               let stoneGW = 0;
-              
+
               if (p.diamondGW !== undefined || p.stoneGW !== undefined) {
                 diamondGW = Number(p.diamondGW || 0);
                 stoneGW = Number(p.stoneGW || 0);
@@ -793,16 +1085,16 @@ export default function BarcodeTagPrinter() {
                 else if (purityStr.includes("22K")) purityMultiplier = 0.916;
                 else if (purityStr.includes("18K")) purityMultiplier = 0.750;
                 else if (purityStr.includes("14K")) purityMultiplier = 0.585;
-                
+
                 if (purityMultiplier > 0) {
-                    fineGoldWeight = Number(p.netWeight) * purityMultiplier;
+                  fineGoldWeight = Number(p.netWeight) * purityMultiplier;
                 }
               }
 
               return (
                 <div
                   key={index}
-                  className="butterfly-tag relative bg-white print:border-none shadow-2xl print:shadow-none mb-12 print:mb-[3mm] overflow-visible"
+                  className="butterfly-tag relative bg-white print:border-none shadow-2xl print:shadow-none mb-12 print:mb-0 overflow-visible print:overflow-hidden"
                   style={{
                     width: `65mm`,
                     height: `15mm`,
@@ -830,7 +1122,7 @@ export default function BarcodeTagPrinter() {
                       transformOrigin: "left top"
                     }}
                   >
-                    <span className="text-[6px] font-black tracking-tight p-0.5 whitespace-nowrap block leading-none">{p.jewelleryCategory}</span>
+                     <span className="text-[7px] font-black tracking-tight p-0.5 whitespace-nowrap block leading-none">{p.jewelleryCategory}</span>
                   </div>
 
                   {/* 2. METAL & PURITY */}
@@ -896,7 +1188,7 @@ export default function BarcodeTagPrinter() {
                       transformOrigin: "left top"
                     }}
                   >
-                    <span className="text-[7.5px] font-black tracking-tight px-1 py-0.5 whitespace-nowrap leading-none block">{p.sku}</span>
+                     <span className="text-[8px] font-black tracking-tight px-1 py-0.5 whitespace-nowrap leading-none block">{p.sku}</span>
                   </div>
 
                   {/* 6. BARCODE / QR CODE */}
@@ -910,11 +1202,11 @@ export default function BarcodeTagPrinter() {
                       transformOrigin: "left top"
                     }}
                   >
-                    <div className="bg-white px-1 flex items-center justify-center">
+                    <div className="bg-white flex items-center justify-center">
                       {elements.barcode.type === 'qrcode' ? (
-                        <QRCodeCanvas value={p.sku} size={30} level="H" includeMargin={false} />
+                        <QRCodeCanvas value={p.sku} size={38} level="H" includeMargin={false} />
                       ) : (
-                        <Barcode value={p.sku} width={0.4} height={10} fontSize={0} margin={0} background="transparent" />
+                        <Barcode value={p.sku} width={0.7} height={25} fontSize={5} margin={0} background="transparent" />
                       )}
                     </div>
                   </div>
@@ -1039,14 +1331,89 @@ export default function BarcodeTagPrinter() {
       </div>
 
       <style>{`
+        @page {
+          size: 65mm 15mm ${printOrientation};
+          margin: 0;
+        }
+
         @media print {
-          @page { margin: 0; size: auto; }
-          body { margin: 0; -webkit-print-color-adjust: exact; }
+          *, *::before, *::after {
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 65mm !important;
+            height: auto !important;
+            min-height: 15mm !important;
+            overflow: visible !important;
+            background: #ffffff !important;
+          }
+
+          #root,
+          #root > div,
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 65mm !important;
+            height: auto !important;
+            min-height: 15mm !important;
+            overflow: visible !important;
+            display: block !important;
+            position: static !important;
+            background: #ffffff !important;
+          }
+
+          nav, header, aside, .navbar, .sidebar, .print-hidden {
+            display: none !important;
+            visibility: hidden !important;
+          }
+
+          .print-workspace-canvas,
+          .print-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            gap: 0 !important;
+            transform: none !important;
+            background: transparent !important;
+            width: 65mm !important;
+            height: auto !important;
+            min-height: 15mm !important;
+            display: block !important;
+            overflow: visible !important;
+            position: static !important;
+          }
+
           .butterfly-tag {
+            width: 65mm !important;
+            height: 15mm !important;
+            min-width: 65mm !important;
+            min-height: 15mm !important;
+            max-width: 65mm !important;
+            max-height: 15mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             border: none !important;
-            page-break-inside: avoid;
-            margin-bottom: 3mm !important;
             box-shadow: none !important;
+            page-break-before: auto !important;
+            break-before: auto !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            position: relative !important;
+            overflow: hidden !important;
+            display: block !important;
+            background: #ffffff !important;
+            ${printRotation !== 0 ? `transform: rotate(${printRotation}deg) !important; transform-origin: center center !important;` : ''}
+          }
+
+          .butterfly-tag:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
         }
         .animate-spin-slow { animation: spin 8s linear infinite; }
