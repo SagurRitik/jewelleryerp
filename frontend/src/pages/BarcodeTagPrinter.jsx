@@ -18,17 +18,17 @@ export const FORMAT_PRESETS = {
     name: "Standard 65×15 (Recommended)",
     badge: "Best Fit",
     elements: {
-      category:   { id: "category",   name: "Category Name",      x: 1.0,  y: 1.0,  rotate: 0, scale: 1,   visible: true },
-      metalPurity:{ id: "metalPurity",name: "Metal & Purity",     x: 1.0,  y: 3.8,  rotate: 0, scale: 1,   visible: true },
-      gw:         { id: "gw",         name: "Gross Weight (GW)",  x: 1.0,  y: 6.8,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
-      nw:         { id: "nw",         name: "Net Weight (NW)",    x: 1.0,  y: 9.8,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
-      skuText:    { id: "skuText",    name: "SKU Label",          x: 14.0, y: 0.5,  rotate: 0, scale: 1,   visible: true },
-      barcode:    { id: "barcode",    name: "Barcode/QR",         x: 10.4, y: 3.4,  rotate: 0, scale: 1,   visible: true, type: "barcode" },
-      fine:       { id: "fine",       name: "Fine Weight",        x: 13.5, y: 12.8, rotate: 0, scale: 0.8, visible: true },
-      dgw:        { id: "dgw",        name: "Diamond GW (D.GW)", x: 30.3, y: 4.2,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
-      sgw:        { id: "sgw",        name: "Stone GW (S.GW)",   x: 30.1, y: 6.4,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
-      huid:       { id: "huid",       name: "HUID / Hallmark",   x: 30.1, y: 8.8,  rotate: 0, scale: 0.8, visible: false },
-      custom:     { id: "custom",     name: "Custom Note",        x: 30.1, y: 1.5,  rotate: 0, scale: 0.8, visible: false },
+      category: { id: "category", name: "Category Name", x: 1.0, y: 1.0, rotate: 0, scale: 1, visible: true },
+      metalPurity: { id: "metalPurity", name: "Metal & Purity", x: 1.0, y: 3.8, rotate: 0, scale: 1, visible: true },
+      gw: { id: "gw", name: "Gross Weight (GW)", x: 1.0, y: 6.8, rotate: 0, scale: 1, visible: true, gap: 0.5 },
+      nw: { id: "nw", name: "Net Weight (NW)", x: 1.0, y: 9.8, rotate: 0, scale: 1, visible: true, gap: 0.5 },
+      skuText: { id: "skuText", name: "SKU Label", x: 14.0, y: 0.5, rotate: 0, scale: 1, visible: true },
+      barcode: { id: "barcode", name: "Barcode/QR", x: 10.4, y: 3.4, rotate: 0, scale: 1, visible: true, type: "barcode" },
+      fine: { id: "fine", name: "Fine Weight", x: 13.5, y: 12.8, rotate: 0, scale: 0.8, visible: true },
+      dgw: { id: "dgw", name: "Diamond GW (D.GW)", x: 30.3, y: 4.2, rotate: 0, scale: 1, visible: true, gap: 0.4 },
+      sgw: { id: "sgw", name: "Stone GW (S.GW)", x: 30.1, y: 6.4, rotate: 0, scale: 1, visible: true, gap: 0.4 },
+      huid: { id: "huid", name: "HUID / Hallmark", x: 30.1, y: 8.8, rotate: 0, scale: 0.8, visible: false },
+      custom: { id: "custom", name: "Custom Note", x: 30.1, y: 1.5, rotate: 0, scale: 0.8, visible: false },
     }
   },
   dual_wing: {
@@ -36,17 +36,17 @@ export const FORMAT_PRESETS = {
     name: "Dual Wing (Head + Flap)",
     badge: "Wide",
     elements: {
-      category:   { id: "category",   name: "Category Name",      x: 1.0,  y: 1.0,  rotate: 0, scale: 1,   visible: true },
-      metalPurity:{ id: "metalPurity",name: "Metal & Purity",     x: 1.0,  y: 4.0,  rotate: 0, scale: 1,   visible: true },
-      gw:         { id: "gw",         name: "Gross Weight (GW)",  x: 1.0,  y: 7.0,  rotate: 0, scale: 1,   visible: true, gap: 0.5 },
-      nw:         { id: "nw",         name: "Net Weight (NW)",    x: 1.0,  y: 10.0, rotate: 0, scale: 1,   visible: true, gap: 0.5 },
-      skuText:    { id: "skuText",    name: "SKU Label",          x: 33.0, y: 1.0,  rotate: 0, scale: 1,   visible: true },
-      barcode:    { id: "barcode",    name: "Barcode/QR",         x: 31.0, y: 4.0,  rotate: 0, scale: 1,   visible: true, type: "barcode" },
-      dgw:        { id: "dgw",        name: "Diamond GW (D.GW)", x: 49.0, y: 7.0,  rotate: 0, scale: 1,   visible: true, gap: 0.4 },
-      sgw:        { id: "sgw",        name: "Stone GW (S.GW)",   x: 49.0, y: 10.0, rotate: 0, scale: 1,   visible: true, gap: 0.4 },
-      fine:       { id: "fine",       name: "Fine Weight",        x: 33.0, y: 12.0, rotate: 0, scale: 0.8, visible: true },
-      huid:       { id: "huid",       name: "HUID / Hallmark",   x: 33.0, y: 9.0,  rotate: 0, scale: 0.8, visible: true },
-      custom:     { id: "custom",     name: "Custom Note",        x: 49.0, y: 1.0,  rotate: 0, scale: 0.8, visible: true },
+      category: { id: "category", name: "Category Name", x: 1.0, y: 1.0, rotate: 0, scale: 1, visible: true },
+      metalPurity: { id: "metalPurity", name: "Metal & Purity", x: 1.0, y: 4.0, rotate: 0, scale: 1, visible: true },
+      gw: { id: "gw", name: "Gross Weight (GW)", x: 1.0, y: 7.0, rotate: 0, scale: 1, visible: true, gap: 0.5 },
+      nw: { id: "nw", name: "Net Weight (NW)", x: 1.0, y: 10.0, rotate: 0, scale: 1, visible: true, gap: 0.5 },
+      skuText: { id: "skuText", name: "SKU Label", x: 33.0, y: 1.0, rotate: 0, scale: 1, visible: true },
+      barcode: { id: "barcode", name: "Barcode/QR", x: 31.0, y: 4.0, rotate: 0, scale: 1, visible: true, type: "barcode" },
+      dgw: { id: "dgw", name: "Diamond GW (D.GW)", x: 49.0, y: 7.0, rotate: 0, scale: 1, visible: true, gap: 0.4 },
+      sgw: { id: "sgw", name: "Stone GW (S.GW)", x: 49.0, y: 10.0, rotate: 0, scale: 1, visible: true, gap: 0.4 },
+      fine: { id: "fine", name: "Fine Weight", x: 33.0, y: 12.0, rotate: 0, scale: 0.8, visible: true },
+      huid: { id: "huid", name: "HUID / Hallmark", x: 33.0, y: 9.0, rotate: 0, scale: 0.8, visible: true },
+      custom: { id: "custom", name: "Custom Note", x: 49.0, y: 1.0, rotate: 0, scale: 0.8, visible: true },
     }
   }
 };
@@ -252,7 +252,7 @@ export default function BarcodeTagPrinter() {
     setActivePreset(presetKey);
     try {
       localStorage.setItem("barcode_tag_layout", JSON.stringify(preset.elements));
-    } catch (e) {}
+    } catch (e) { }
     setFormatSavedToast(`✓ ${preset.name} Set Successfully!`);
     setTimeout(() => setFormatSavedToast(""), 2500);
   };
@@ -262,7 +262,7 @@ export default function BarcodeTagPrinter() {
       localStorage.setItem("barcode_tag_layout", JSON.stringify(elements));
       setFormatSavedToast("✓ Custom Layout Saved as Default!");
       setTimeout(() => setFormatSavedToast(""), 2500);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const resetLayout = () => {
@@ -271,7 +271,7 @@ export default function BarcodeTagPrinter() {
     setActivePreset("compact_center");
     try {
       localStorage.removeItem("barcode_tag_layout");
-    } catch (e) {}
+    } catch (e) { }
     setFormatSavedToast("✓ Layout Reset to Standard 65×15!");
     setTimeout(() => setFormatSavedToast(""), 2500);
   };
@@ -861,7 +861,7 @@ export default function BarcodeTagPrinter() {
             >
               <ArrowLeft size={16} />
             </button>
-            
+
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100/80 text-[#5A374F] shadow-sm">
                 <FileText size={17} />
@@ -1122,7 +1122,7 @@ export default function BarcodeTagPrinter() {
                       transformOrigin: "left top"
                     }}
                   >
-                     <span className="text-[7px] font-black tracking-tight p-0.5 whitespace-nowrap block leading-none">{p.jewelleryCategory}</span>
+                    <span className="text-[7px] font-black tracking-tight p-0.5 whitespace-nowrap block leading-none">{p.jewelleryCategory}</span>
                   </div>
 
                   {/* 2. METAL & PURITY */}
@@ -1188,7 +1188,7 @@ export default function BarcodeTagPrinter() {
                       transformOrigin: "left top"
                     }}
                   >
-                     <span className="text-[8px] font-black tracking-tight px-1 py-0.5 whitespace-nowrap leading-none block">{p.sku}</span>
+                    <span className="text-[8px] font-black tracking-tight px-1 py-0.5 whitespace-nowrap leading-none block">{p.sku}</span>
                   </div>
 
                   {/* 6. BARCODE / QR CODE */}
