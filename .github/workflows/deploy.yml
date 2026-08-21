@@ -1,26 +1,40 @@
 name: Deploy JewelryERP
 
 # ============================================================================
-#  DEVELOPMENT deployment pipeline  (DEV ONLY)
+#  DEVELOPMENT deployment pipeline  (DEV ONLY)  —  DISABLED ON PUSH
 # ----------------------------------------------------------------------------
-#  Trigger : push to `dev`
-#  Target  : DEVELOPMENT server  (devjewelerp.nazaradiamonds.com)
+#  Target : DEVELOPMENT server (devjewelerp.nazaradiamonds.com)
 #
-#  Production lives in a separate file — deploy-production.yml — which
-#  triggers on `main`. The two workflows listen to DIFFERENT branches, so a
-#  push to one branch can never start the other's deploy:
-#      deploy.yml             -> `dev`  -> development server (this file)
-#      deploy-production.yml  -> `main` -> production server
+#  *** THE DEV SERVER NOW DEPLOYS ITSELF. THIS WORKFLOW NO LONGER RUNS ON
+#  *** PUSH. Pushing to `dev` is still all a developer has to do.
 #
-#  NOTE: GitHub reads this file from the branch that was pushed. For a `dev`
-#  push to trigger anything, THIS version of the file must exist on `dev`.
+#  Why: this job deploys by SSH-ing INTO the dev box, and that can never work
+#  for this particular server. The dev machine is on a private LAN
+#  (192.168.1.100) behind NAT on a dynamic ISP address, and the only public
+#  name it has — devjewelerp.nazaradiamonds.com — resolves to Cloudflare proxy
+#  IPs, which serve HTTP through a Cloudflare Tunnel and do not carry SSH. A
+#  GitHub-hosted runner therefore has no reachable, stable address to connect
+#  to: `Accepted publickey` has never appeared once in the server's auth logs,
+#  so this job has failed on every single dev push since it was written.
+#
+#  Replaced by a PULL-based deployer that runs on the dev box itself:
+#      script : /var/www/html/jewelleryerp/scripts/dev-autodeploy.sh
+#      timer  : jewelleryerp-dev-deploy.timer  (polls origin/dev every 60s)
+#      log    : /var/log/jewelleryerp-deploy.log
+#  It needs no inbound port, no static IP and no SSH key stored in GitHub, so
+#  it cannot break the way this job did.
+#
+#  The job below is KEPT, unchanged, behind `workflow_dispatch` only. If the
+#  dev box ever gets a reachable static address, set SERVER_HOST and run it
+#  manually from the Actions tab to confirm before restoring the push trigger.
+#
+#  PRODUCTION is untouched: deploy-production.yml still triggers on `main` and
+#  deploys to 52.27.144.75, which is a genuinely reachable public host.
 # ============================================================================
 
 on:
-  push:
-    branches:
-      - dev    # Development ONLY (production is handled by deploy-production.yml)
-  workflow_dispatch:   # allow a manual re-deploy from the Actions tab
+  # No `push:` trigger on purpose — see the note above. The dev server pulls.
+  workflow_dispatch:   # manual-only re-deploy from the Actions tab
 
 # Least privilege: deployment happens over SSH, so the workflow token only
 # needs read access to the repository. Nothing here writes back to GitHub.
