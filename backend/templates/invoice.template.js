@@ -1148,7 +1148,8 @@ export const invoiceTemplate = async (invoice) => {
     <div class="header-divider"></div>
     <div class="company-info">
       Store Address: 106, ShivOm Complex, M.G. Road, Opposite TI Mall, Indore, 452001<br>
-      GSTIN: 23AAKCN6666JIZO | CIN: U47733MP2025PTC077889
+      GSTIN: 23AAKCN6666JIZO | CIN: U47733MP2025PTC077889<br>
+      Email: support@nazaradiamonds.com | Phone: +91-9174803003
     </div>
   </div>
 </div>
@@ -1470,7 +1471,7 @@ ${invoice.items.map((item, index) => {
 
 <div class="registered-address">
   <strong>Registered office & correspondence:</strong><br>
-  Nazara Diamonds, 402, Vibrant Business Centre, Manormaganj, Indore · Email: support@nazaradiamonds.com · Phone: +91-9174803003
+  Nazara Diamonds, 402, Vibrant Business Centre, Manormaganj, Indore
 </div>
 
 <div class="terms-card">

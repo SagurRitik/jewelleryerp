@@ -214,6 +214,24 @@ export default function App() {
                     <Route path="/catalogues" element={<CataloguePage />} />
                     <Route path="/catalogues/:id" element={<CatalogueViewPage />} />
                     <Route path="/customers" element={<CustomerListPage />} />
+                    {/* Inquiries / Enquiries */}
+                    <Route path="/inquiries" element={<InquiryList />} />
+                    <Route path="/inquiries/bulk" element={<BulkUploadInquiries />} />
+                    <Route path="/inquiries/new" element={<AddInquiryPage />} />
+                    <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
+
+                    {/* Quotation / Estimates */}
+                    <Route path="/quotation" element={<QuotationPage />} />
+                    <Route path="/quotations" element={<EstimateList />} />
+                    <Route path="/quotations/new" element={<EstimateBuilder />} />
+                    <Route path="/quotations/:id" element={<EstimatePreview />} />
+                    <Route path="/quotations/:id/edit" element={<EstimateBuilder />} />
+
+                    {/* Diamond Inventory / Stock */}
+                    <Route path="/diamonds" element={<DiamondStockPage />} />
+                    <Route path="/diamonds/new" element={<AddDiamondStock />} />
+                    <Route path="/diamonds/edit/:id" element={<AddDiamondStock />} />
+                    <Route path="/diamonds/:id" element={<DiamondDetailsPage />} />
                   </Route>
 
 
@@ -238,10 +256,6 @@ export default function App() {
                     <Route path="/expenses" element={<ExpensePage />} />
                     <Route path="/expenses/new" element={<AddExpensePage />} />
                     <Route path="/expenses/edit/:id" element={<AddExpensePage />} />
-                    <Route path="/inquiries" element={<InquiryList />} />
-                    <Route path="/inquiries/bulk" element={<BulkUploadInquiries />} />
-                    <Route path="/inquiries/new" element={<AddInquiryPage />} />
-                    <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                     <Route path="/sales-breakdown" element={<SalesBreakdown />} />
                     <Route path="/reports/metals" element={<MetalReportPage />} />
                     <Route path="/reports/diamonds" element={<DiamondReportPage />} />
@@ -254,18 +268,6 @@ export default function App() {
                     <Route path="/suppliers/edit/:id" element={<SupplierForm />} />
                     <Route path="/suppliers/:id" element={<SupplierLedger />} />
                     <Route path="/purchases/new" element={<PurchaseEntry />} />
-                    <Route path="/quotation" element={<QuotationPage />} />
-                    {/* ===== ESTIMATES ===== */}
-                    <Route path="/quotations" element={<EstimateList />} />
-                    <Route path="/quotations/new" element={<EstimateBuilder />} />
-                    <Route path="/quotations/:id" element={<EstimatePreview />} />
-                    <Route path="/quotations/:id/edit" element={<EstimateBuilder />} />
-
-                    {/* DIAMOND STOCK */}
-                    <Route path="/diamonds" element={<DiamondStockPage />} />
-                    <Route path="/diamonds/new" element={<AddDiamondStock />} />
-                    <Route path="/diamonds/edit/:id" element={<AddDiamondStock />} />
-                    <Route path="/diamonds/:id" element={<DiamondDetailsPage />} />
                   </Route>
 
                 </Route>

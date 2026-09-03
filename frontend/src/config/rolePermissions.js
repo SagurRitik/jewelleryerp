@@ -23,6 +23,7 @@ export const rolePermissions = {
      "suppliers",
      "catalogues",
     "customers",
+    "diamonds",
   ],
 
   admin: [
@@ -50,6 +51,7 @@ export const rolePermissions = {
     "suppliers",
     "catalogues",
     "customers",
+    "diamonds",
   ],
 
 
@@ -76,6 +78,7 @@ export const rolePermissions = {
     "quotation",
     "catalogues",
     "customers",
+    "diamonds",
   ],
 
 

@@ -18,7 +18,7 @@ const STONE_OPTIONS = [
 ];
 
 const SHAPE_OPTIONS = ["Round", "Princess", "Cushion", "Oval", "Emerald", "Pear",
-  "Marquise", "Asscher", "Radiant", "Heart", "Baguette", "Funcy"];
+  "Marquise", "Asscher", "Radiant", "Heart", "Baguette", "Funcy", "Portuguese Cut"];
 const CLARITY_OPTIONS = ["FL", "IF", "VVS-VS", "VVS1", "VVS2", "VS1", "VS2", "SI", "I"];
 const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
 const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];

@@ -155,6 +155,8 @@ export default function AddDiamondStock() {
                     <option>Radiant</option>
                     <option>Pear</option>
                     <option>Heart</option>
+                    <option>Fancy</option>
+                    <option>Portuguese Cut</option>
                   </select>
                 </div>
                 <div>
