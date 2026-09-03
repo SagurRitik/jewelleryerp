@@ -20,6 +20,6 @@ export const DIAMOND_CLARITIES = [
 ];
 
 export const DIAMOND_SHAPES = [
-  "Round", "Princess", "Oval", "Fancy", "Marquise", "Pear", "Cushion", "Emerald", "Asscher", "Radiant", "Heart",
-  "Baguette", "Trillion", "Rose Cut", "Briolette",
+  "Round", "Princess", "Oval", "Funcy", "Marquise", "Pear", "Cushion", "Emerald", "Asscher", "Radiant", "Heart",
+  "Baguette", "Trillion", "Rose Cut", "Briolette", "Portuguese Cut",
 ];

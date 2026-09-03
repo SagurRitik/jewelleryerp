@@ -292,7 +292,7 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                 ) : (
                   <Moon
                     size={20}
-                    className="text-green-500 transition-all duration-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]"
+                    className="text-white transition-all duration-500 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
                     strokeWidth={2.2}
                   />
                 )}

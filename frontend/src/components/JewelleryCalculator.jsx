@@ -34,6 +34,7 @@ const DIAMOND_SHAPES = [
   "Pear",
   "Radiant",
   "Fancy",
+  "Portuguese Cut",
 ];
 
 const STONE_TYPES = [
