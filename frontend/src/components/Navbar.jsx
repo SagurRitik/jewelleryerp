@@ -2,12 +2,13 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Menu, User, ChevronDown, LogOut, Settings as SettingsIcon, Sun, Moon } from "lucide-react"; // ✅ Icons Import
+import { Menu, User, ChevronDown, LogOut, Settings as SettingsIcon, Sun, Moon, ShoppingCart } from "lucide-react"; // ✅ Icons Import
 import logoDark from "../assets/NazaraPurple.png";
 import logoLight from "../assets/NazaraWhite.png";
 import { useAuth } from "../context/AuthContext"; // ✅ Auth Context Import
 import { useProductList } from "../context/ProductListContext"; // ✅ Import ProductListContext
 import { useTheme } from "../context/ThemeContext"; // ✅ Import ThemeContext
+import { useCart } from "../context/CartContext"; // ✅ Import CartContext
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
@@ -18,7 +19,17 @@ export default function Navbar({ toggleSidebar, isOpen }) {
   const { user, logout } = useAuth(); // ✅ Get User Data
   const { clearFilters } = useProductList(); // ✅ Get clearFilters action
   const { isDark, toggleTheme } = useTheme(); // ✅ Get Theme State
+  const { cart, openCart } = useCart(); // ✅ Cart Context
   const navigate = useNavigate();
+
+  const isCartAllowedPage =
+    location.pathname === "/" ||
+    location.pathname === "/home" ||
+    location.pathname === "/products" ||
+    location.pathname.startsWith("/diamonds");
+
+  const totalCartItems =
+    cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
 
   // ... (navigation array same as before)
   const navigation = [
@@ -74,31 +85,28 @@ export default function Navbar({ toggleSidebar, isOpen }) {
         sticky top-0 z-50 transition-all duration-300 w-full
         ${scrolled
           ? "bg-[var(--navbar-scrolled)]/95 backdrop-blur-md border-b border-[var(--navbar-scrolled-border)] shadow-sm"
-          : "bg-[#5A374F]"
+          : isDark
+            ? "bg-[#111215] border-b border-white/10"
+            : "bg-[#5A374F]"
         }
       `}
     >
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20">
 
           {/* ================= LEFT: HAMBURGER + LOGO ================= */}
-          <div className="flex items-center gap-4">
-            {/* <button 
-              onClick={toggleSidebar}
-              className={`p-2 rounded-lg transition-colors ${
-                scrolled ? "text-stone-600 hover:bg-stone-100" : "text-white/90 hover:bg-white/10"
-              }`}
-            >
-              <Menu size={28} strokeWidth={2} />
-            </button> */}
-
+          <div className="flex items-center gap-2.5 sm:gap-4">
             {/* ================= PREMIUM ANIMATED HAMBURGER ================= */}
             <button
               onClick={toggleSidebar}
-              className={`group relative h-11 w-11 flex items-center justify-center rounded-xl transition-all duration-500 active:scale-90 overflow-hidden ${scrolled
-                ? "bg-stone-100 text-stone-700 hover:bg-[#5A374F] hover:text-white shadow-sm"
-                : "bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20"
-                }`}
+              className={`group relative h-9 w-9 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-500 active:scale-90 overflow-hidden ${
+                scrolled
+                  ? isDark
+                    ? "bg-stone-800 text-stone-200 hover:bg-amber-500 hover:text-stone-950 shadow-sm"
+                    : "bg-stone-100 text-stone-700 hover:bg-[#5A374F] hover:text-white shadow-sm"
+                  : "bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20"
+              }`}
+              aria-label="Toggle Menu"
             >
               {/* Inner Bars Container */}
               <div className="relative w-5 h-4 flex flex-col justify-between items-center z-10">
@@ -130,11 +138,11 @@ export default function Navbar({ toggleSidebar, isOpen }) {
               className="flex-shrink-0 flex items-center gap-2"
             >
               <img
-                src={scrolled ? logoDark : logoLight}
+                src={isDark ? logoLight : (scrolled ? logoDark : logoLight)}
                 alt="Nazara Jewellery"
                 className={`
                   transition-all duration-300 select-none object-contain
-                  ${scrolled ? "h-9 md:h-11" : "h-9 md:h-11"}
+                  ${scrolled ? "h-8 sm:h-9 md:h-11" : "h-8 sm:h-9 md:h-11"}
                 `}
                 draggable={false}
               />
@@ -143,9 +151,12 @@ export default function Navbar({ toggleSidebar, isOpen }) {
 
           {/* Center: Desktop Menu */}
           <div className={`hidden xl:flex items-center gap-1 px-2 py-1.5 rounded-full transition-all duration-300 ${
-            scrolled ? "bg-[var(--card-bg)] border border-[var(--card-border)] shadow-sm" : "bg-white/10 backdrop-blur-sm"
+            scrolled
+              ? isDark
+                ? "bg-[#18191e] border border-stone-800 shadow-sm"
+                : "bg-[var(--card-bg)] border border-[var(--card-border)] shadow-sm"
+              : "bg-white/10 backdrop-blur-sm"
           }`}>
-            {/* ... (Existing Navigation Map Logic) ... */}
             {navigation.map((item) => (
               <div key={item.name} className="relative group">
                 {item.type === "link" ? (
@@ -154,8 +165,18 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                     className={`
                       px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap block
                       ${isActive(item)
-                        ? scrolled ? "bg-[var(--accent-primary)] text-white shadow-md" : "bg-white text-[#5A374F]"
-                        : scrolled ? "text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-primary)]" : "text-white/90 hover:bg-white/10"
+                        ? scrolled
+                          ? isDark
+                            ? "bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-bold shadow-md shadow-amber-500/20"
+                            : "bg-[var(--accent-primary)] text-white shadow-md"
+                          : isDark
+                            ? "bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-bold shadow-md shadow-amber-500/20"
+                            : "bg-white text-[#5A374F] font-bold"
+                        : scrolled
+                          ? isDark
+                            ? "text-stone-300 hover:text-amber-300 hover:bg-stone-800"
+                            : "text-[var(--text-muted)] hover:text-[var(--accent-primary)] hover:bg-[var(--bg-primary)]"
+                          : "text-white/90 hover:bg-white/10"
                       }
                     `}
                   >
@@ -167,8 +188,16 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                       className={`
                         px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap flex items-center gap-1 group
                         ${isActive(item)
-                          ? scrolled ? "text-[#5A374F] bg-gray-100" : "bg-white/20 text-white"
-                          : scrolled ? "text-gray-600 hover:text-[#5A374F] hover:bg-gray-50" : "text-white/90 hover:bg-white/10"
+                          ? scrolled
+                            ? isDark
+                              ? "text-amber-400 bg-stone-800"
+                              : "text-[#5A374F] bg-gray-100"
+                            : "bg-white/20 text-white"
+                          : scrolled
+                            ? isDark
+                              ? "text-stone-400 hover:text-amber-300 hover:bg-stone-800"
+                              : "text-gray-600 hover:text-[#5A374F] hover:bg-gray-50"
+                            : "text-white/90 hover:bg-white/10"
                         }
                       `}
                     >
@@ -177,15 +206,24 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                     </button>
                     {/* DROPDOWN MENU */}
                     <div className="absolute top-full right-0 mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right z-50 pt-2">
-                      <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden py-1">
+                      <div className={`rounded-xl shadow-xl border overflow-hidden py-1 ${
+                        isDark ? "bg-[#18191e] border-stone-800" : "bg-white border-gray-100"
+                      }`}>
                         {item.children.map((subItem) => (
                           <Link
                             key={subItem.name}
                             to={subItem.path}
                             className={`
-                                block px-4 py-3 text-sm transition-colors hover:bg-gray-50
-                                ${location.pathname === subItem.path ? "text-[#5A374F] font-semibold bg-gray-50" : "text-gray-600"}
-                              `}
+                              block px-4 py-3 text-sm transition-colors
+                              ${location.pathname === subItem.path
+                                ? isDark
+                                  ? "text-amber-400 font-semibold bg-white/5"
+                                  : "text-[#5A374F] font-semibold bg-gray-50"
+                                : isDark
+                                  ? "text-stone-300 hover:bg-white/5 hover:text-amber-300"
+                                  : "text-gray-600 hover:bg-gray-50"
+                              }
+                            `}
                           >
                             {subItem.name}
                           </Link>
@@ -198,79 +236,6 @@ export default function Navbar({ toggleSidebar, isOpen }) {
             ))}
           </div>
 
-
-          {/* <div 
-            className={`xl:hidden border-t px-3 py-2 overflow-x-auto transition-all duration-300 ${
-    scrolled
-      ? "bg-[#FCFAF7] border-[#e7e2d8] text-black"
-      : "bg-[#5A374F] border-white/10"
-  }`}
-          //className="xl:hidden border-t border-white/10 bg-[#5A374F] px-3 py-2 overflow-x-auto"
-          >
-  <div className="flex gap-2">
-
-    <Link
-      to="/"
-      className="px-4 py-2 rounded-full text-xs whitespace-nowrap bg-white text-[#5A374F] font-medium"
-    >
-      Home
-    </Link>
-
-    <Link
-      to="/add"
-      className="px-4 py-2 rounded-full text-xs whitespace-nowrap bg-white/10 text-white"
-    >
-      Add Product
-    </Link>
-
-    <Link
-      to="/orders"
-      className="px-4 py-2 rounded-full text-xs whitespace-nowrap bg-white/10 text-white"
-    >
-      Orders
-    </Link>
-
-    <Link
-      to="/calculator"
-      className="px-4 py-2 rounded-full text-xs whitespace-nowrap bg-white/10 text-white"
-    >
-      Calc
-    </Link>
-
-  </div>
-</div> */}
-
-          <div
-            className={`xl:hidden border-t px-3 py-2 overflow-x-auto transition-all duration-300 ${scrolled
-              ? "bg-[var(--navbar-scrolled)] border-[var(--navbar-scrolled-border)]"
-              : "bg-[#5A374F] border-white/10"
-              }`}
-          >
-            <div className="flex gap-2">
-              {navigation.map((item) =>
-                item.type === "link" ? (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`
-            px-4 py-2 rounded-full text-xs whitespace-nowrap font-medium transition-all
-            ${isActive(item)
-                        ? scrolled
-                          ? "bg-[#5A374F] text-white"
-                          : "bg-white text-[#5A374F]"
-                        : scrolled
-                          ? "bg-gray-200 text-gray-700"
-                          : "bg-white/10 text-white"
-                      }
-          `}
-                  >
-                    {item.name}
-                  </Link>
-                ) : null
-              )}
-            </div>
-          </div>
-
           {/* ================= RIGHT: PROFILE + THEME TOGGLE ================= */}
           <div className="flex items-center gap-2 md:gap-4 relative">
             {/* Theme Toggle Button */}
@@ -280,7 +245,6 @@ export default function Navbar({ toggleSidebar, isOpen }) {
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-
               {/* Animated Icon Container */}
               <div className="relative z-10 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-12">
                 {isDark ? (
@@ -298,41 +262,77 @@ export default function Navbar({ toggleSidebar, isOpen }) {
                 )}
               </div>
             </button>
+
+            {/* Shopping Cart Button */}
+            {isCartAllowedPage && (
+              <button
+                onClick={openCart}
+                className={`relative h-10 w-10 sm:h-11 sm:w-11 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-90 overflow-visible ${
+                  scrolled
+                    ? isDark
+                      ? "bg-transparent hover:bg-stone-800 text-stone-200 hover:text-amber-300"
+                      : "bg-transparent hover:bg-stone-100 text-stone-700 hover:text-[#5A374F]"
+                    : "bg-transparent hover:bg-white/10 text-white"
+                }`}
+                title="View Cart"
+                aria-label="View Cart"
+              >
+                <ShoppingCart size={20} strokeWidth={2.2} />
+                {totalCartItems > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-stone-900 shadow-md animate-in zoom-in-50 duration-200">
+                    {totalCartItems}
+                  </span>
+                )}
+              </button>
+            )}
             {user && (
               <div className="relative">
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}
-                  className={`flex items-center gap-2 p-1.5 rounded-full transition-all ${scrolled ? "hover:bg-gray-100" : "hover:bg-white/10"
-                    }`}
+                  className={`flex items-center gap-2 p-1.5 rounded-full transition-all ${
+                    scrolled
+                      ? isDark ? "hover:bg-stone-800" : "hover:bg-gray-100"
+                      : "hover:bg-white/10"
+                  }`}
                 >
-                  <div className="h-9 w-9 rounded-full bg-pink-600 flex items-center justify-center text-white font-bold border-2 border-white/20 shadow-sm">
+                  <div className={`h-9 w-9 rounded-full ${
+                    isDark
+                      ? "bg-gradient-to-tr from-amber-400 to-amber-600 text-stone-950 shadow-md shadow-amber-500/20"
+                      : "bg-[#6A3D55] text-white"
+                  } flex items-center justify-center font-bold border-2 border-white/20 shadow-sm`}>
                     {user.name ? user.name.charAt(0).toUpperCase() : "U"}
                   </div>
-                  <ChevronDown size={16} className={scrolled ? "text-gray-600" : "text-white/70"} />
+                  <ChevronDown size={16} className={scrolled && !isDark ? "text-gray-600" : "text-white/70"} />
                 </button>
 
                 {/* Profile Dropdown */}
                 {profileOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)}></div>
-                    <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-20 animate-in fade-in zoom-in duration-200">
-                      <div className="px-4 py-3 border-b border-gray-50 mb-1">
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Signed in as</p>
-                        <p className="text-sm font-bold text-gray-800 truncate">{user.name}</p>
+                    <div className={`absolute right-0 mt-3 w-56 rounded-xl shadow-2xl py-2 z-20 animate-in fade-in zoom-in duration-200 ${
+                      isDark ? "bg-[#18191e] border border-stone-800 text-stone-200" : "bg-white border border-gray-100 text-gray-800"
+                    }`}>
+                      <div className={`px-4 py-3 border-b ${isDark ? "border-stone-800" : "border-gray-50"} mb-1`}>
+                        <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider">Signed in as</p>
+                        <p className={`text-sm font-bold truncate ${isDark ? "text-amber-300" : "text-gray-800"}`}>{user.name}</p>
                       </div>
 
-                      <Link to="/profile" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                      <Link to="/profile" onClick={() => setProfileOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        isDark ? "text-stone-300 hover:bg-white/5 hover:text-amber-300" : "text-gray-600 hover:bg-gray-50"
+                      }`}>
                         <User size={18} /> My Profile
                       </Link>
 
-                      <Link to="/rates" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                      <Link to="/rates" onClick={() => setProfileOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        isDark ? "text-stone-300 hover:bg-white/5 hover:text-amber-300" : "text-gray-600 hover:bg-gray-50"
+                      }`}>
                         <SettingsIcon size={18} /> Settings
                       </Link>
 
-                      <div className="border-t border-gray-50 mt-1 pt-1">
+                      <div className={`border-t ${isDark ? "border-stone-800" : "border-gray-50"} mt-1 pt-1`}>
                         <button
                           onClick={() => { logout(); setProfileOpen(false); }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors font-medium"
                         >
                           <LogOut size={18} /> Logout
                         </button>
@@ -343,7 +343,50 @@ export default function Navbar({ toggleSidebar, isOpen }) {
               </div>
             )}
           </div>
+        </div>
 
+        {/* ================= MOBILE SUB-NAV PILLS STRIP ================= */}
+        <div
+          className={`xl:hidden border-t px-1 sm:px-3 py-2 overflow-x-auto scrollbar-none transition-all duration-300 ${
+            scrolled
+              ? isDark
+                ? "bg-[#111215] border-white/10"
+                : "bg-[var(--navbar-scrolled)] border-[var(--navbar-scrolled-border)]"
+              : isDark
+                ? "bg-[#111215] border-white/10"
+                : "bg-[#5A374F] border-white/10"
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-max">
+            {navigation.map((item) =>
+              item.type === "link" ? (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`
+                    px-3.5 py-1.5 rounded-full text-xs whitespace-nowrap font-medium transition-all
+                    ${
+                      isActive(item)
+                        ? scrolled
+                          ? isDark
+                            ? "bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 shadow-sm font-bold"
+                            : "bg-[#5A374F] text-white shadow-sm font-bold"
+                          : isDark
+                            ? "bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 shadow-sm font-bold"
+                            : "bg-white text-[#5A374F] shadow-sm font-bold"
+                        : scrolled
+                          ? isDark
+                            ? "bg-stone-800 text-stone-300 hover:bg-stone-700"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          : "bg-white/10 text-white/90 hover:bg-white/20"
+                    }
+                  `}
+                >
+                  {item.name}
+                </Link>
+              ) : null
+            )}
+          </div>
         </div>
       </div>
     </nav>

@@ -3,8 +3,10 @@ import { useCart } from "../context/CartContext";
 import { resolveImage } from "../utils/resolveImage";
 import { Plus, Minus, X, Gem, Weight } from "lucide-react";
 import { useModal } from "../context/ModalContext";
+import { useNavigate } from "react-router-dom";
 
 export default function CartItems({ compact = false }) {
+  const navigate = useNavigate();
   const { cart, updateQty, removeItem } = useCart();
   const { showAlert, showConfirm } = useModal();
   if (!cart?.items?.length) {
@@ -43,6 +45,11 @@ export default function CartItems({ compact = false }) {
         // "JEWELRY PIECE";
 
         const title = snap.title || "JEWELLERY ITEM";
+
+        const isLoose = item.itemType === "LOOSE_DIAMOND" || pd.jewelleryCategory === "Loose Diamond" || snap.isLooseDiamond || snap.diamondId;
+        const maxStock = item.availableStock ?? snap.stock ?? pd.stock;
+        const targetId = isLoose ? (snap.diamondId || item.diamond) : (item.product || pd._id);
+        const detailPath = isLoose ? (targetId ? `/diamonds/${targetId}` : null) : (targetId ? `/product/${targetId}` : null);
 
         return (
           <div
@@ -100,7 +107,10 @@ export default function CartItems({ compact = false }) {
               {/* Header: Image + Info + Delete */}
               <div className="flex gap-3 sm:gap-3.5">
                 {/* Product Image - Compact */}
-                <div className="flex-shrink-0">
+                <div
+                  className={`flex-shrink-0 ${detailPath ? "cursor-pointer hover:opacity-90 transition-opacity" : ""}`}
+                  onClick={() => detailPath && navigate(detailPath)}
+                >
                   <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden transition-all duration-300 shadow-sm">
                     {snap.productImage ? (
                       <img
@@ -110,7 +120,12 @@ export default function CartItems({ compact = false }) {
                         loading="lazy"
                       />
                     ) : (
-                      <span className="text-2xl sm:text-3xl">💎</span>
+                      <img
+                        src="/placeholder.svg"
+                        alt={title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     )}
                   </div>
                 </div>
@@ -120,11 +135,13 @@ export default function CartItems({ compact = false }) {
                   {/* Title Row */}
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-serif text-sm sm:text-base text-gray-600 tracking-tight truncate leading-snug">
-                        {/* {(snap.title || "PIECE").toUpperCase()} */}
-                        {/* {resolveTitle(snap).toUpperCase()} */}
+                      <h3
+                        onClick={() => detailPath && navigate(detailPath)}
+                        className={`font-serif text-sm sm:text-base text-gray-600 tracking-tight truncate leading-snug ${
+                          detailPath ? "cursor-pointer hover:text-[#714760] transition-colors" : ""
+                        }`}
+                      >
                         {title.toUpperCase()}
-
                       </h3>
                     </div>
 
@@ -141,17 +158,38 @@ export default function CartItems({ compact = false }) {
                   {/* Details - Compact Single Line for Desktop, Multi-line for Mobile */}
                   <div className="space-y-1">
                     {/* Weight + Metal + Purity */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-medium text-amber-700 bg-[#5A374F]-50/80 px-2 py-0.5 rounded-md border border-[#5A374F]-100/50">
-                        {pd.metalType || "Gold"}
-                      </span>
-                      <span className="text-xs font-semibold text-yellow-700 bg-[#5A374F]-50/80 px-2 py-0.5 rounded-md border border-[#5A374F]-100/50">
-                        {pd.metalPurity || "22K"}
-                      </span>
-                      <span className="text-xs text-gray-600 font-medium hidden sm:inline">
-                        {pd.netWeight || "0"}g
-                      </span>
-                    </div>
+                    {isLoose ? (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                          Loose Diamond
+                        </span>
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {snap.weight || pd.components?.[0]?.weight || 0} ct
+                        </span>
+                        {(snap.shape || pd.components?.[0]?.shape) && (
+                          <span className="text-xs text-gray-600 font-medium hidden sm:inline">
+                            {snap.shape || pd.components?.[0]?.shape}
+                          </span>
+                        )}
+                        {(snap.color || snap.clarity) && (
+                          <span className="text-xs text-gray-500 font-medium hidden sm:inline">
+                            {snap.color}/{snap.clarity}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium text-amber-700 bg-[#5A374F]-50/80 px-2 py-0.5 rounded-md border border-[#5A374F]-100/50">
+                          {pd.metalType || "Gold"}
+                        </span>
+                        <span className="text-xs font-semibold text-yellow-700 bg-[#5A374F]-50/80 px-2 py-0.5 rounded-md border border-[#5A374F]-100/50">
+                          {pd.metalPurity || "22K"}
+                        </span>
+                        <span className="text-xs text-gray-600 font-medium hidden sm:inline">
+                          {pd.netWeight || "0"}g
+                        </span>
+                      </div>
+                    )}
 
                     {/* Stones + QTY Price Row */}
                     <div className="flex items-center justify-between gap-1 text-xs">
@@ -166,28 +204,45 @@ export default function CartItems({ compact = false }) {
 
                       {/* QTY Compact Controls */}
                       <div className="flex items-center gap-2.5">
-                        <div className="flex items-center border border-gray-250 rounded-md bg-white">
-                          <button
-                            onClick={() => updateQty(item._id, -1)}
-                            disabled={item.quantity <= 1}
-                            className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center hover:bg-gray-50 disabled:opacity-25 disabled:cursor-not-allowed transition-colors text-gray-600 font-semibold text-xs"
-                            title="Decrease"
-                          >
-                            <Minus className="w-2.5 h-2.5" />
-                          </button>
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center border border-gray-250 rounded-md bg-white">
+                            <button
+                              onClick={() => updateQty(item._id, -1)}
+                              disabled={item.quantity <= 1}
+                              className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center hover:bg-gray-50 disabled:opacity-25 disabled:cursor-not-allowed transition-colors text-gray-600 font-semibold text-xs"
+                              title="Decrease"
+                            >
+                              <Minus className="w-2.5 h-2.5" />
+                            </button>
 
-                          <span className="px-2 py-0.5 font-bold text-gray-900 text-xs quantity-input bg-gradient-to-b from-gray-50 to-white">
-                            {item.quantity}
-                          </span>
+                            <span className="px-2 py-0.5 font-bold text-gray-900 text-xs quantity-input bg-gradient-to-b from-gray-50 to-white">
+                              {item.quantity}
+                            </span>
 
-                          <button
-                            onClick={() => updateQty(item._id, +1)}
-                            className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600 font-semibold text-xs"
-                            title="Increase"
-                          >
-                            <Plus className="w-2.5 h-2.5" />
-                          </button>
-
+                            <button
+                              onClick={() => updateQty(item._id, +1)}
+                              disabled={maxStock !== undefined && maxStock > 0 && item.quantity >= maxStock}
+                              className={`w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center transition-colors text-gray-600 font-semibold text-xs ${
+                                maxStock !== undefined && maxStock > 0 && item.quantity >= maxStock
+                                  ? "opacity-25 cursor-not-allowed bg-gray-100"
+                                  : "hover:bg-gray-50"
+                              }`}
+                              title={
+                                maxStock !== undefined && maxStock > 0 && item.quantity >= maxStock
+                                  ? `Maximum available stock reached (${maxStock})`
+                                  : "Increase"
+                              }
+                            >
+                              <Plus className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                          {maxStock !== undefined && maxStock > 0 && (
+                            <span className={`text-[10px] font-medium leading-none ${
+                              item.quantity >= maxStock ? "text-amber-600 font-bold" : "text-gray-400"
+                            }`}>
+                              Max: {maxStock}
+                            </span>
+                          )}
                         </div>
                         {/* Price - Right Aligned */}
                         <div className="flex flex-col items-end justify-center gap-0.5 min-w-fit">

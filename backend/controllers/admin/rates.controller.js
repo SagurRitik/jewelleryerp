@@ -27,6 +27,7 @@ export const createRateConfig = async (req, res) => {
 
       /* ===== TAX ===== */
       gstRate = 3,
+      looseDiamondGstRate = 1.5,
 
       /* ===== DISCOUNTS ===== */
       makingDiscountType = "none",
@@ -98,6 +99,7 @@ export const createRateConfig = async (req, res) => {
       minMakingFlatFee,
 
       gstRate,
+      looseDiamondGstRate,
 
       makingDiscountType,
       makingDiscountValue,

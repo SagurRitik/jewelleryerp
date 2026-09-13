@@ -1,9 +1,9 @@
 
 
-// CartContext.js
 import { createContext, useContext, useEffect, useState } from "react";
 import API from "../api";
 import axios from "axios";
+import { toast } from "sonner";
 
 const CartContext = createContext(null);
 
@@ -83,19 +83,29 @@ const addCustomOrder = async ({ sessionId, orderId }) => {
 
   /* ================= UPDATE QTY ================= */
   const updateQty = async (itemId, delta) => {
+    const item = cart.items.find((i) => i._id === itemId);
+    if (!item) return;
+
+    const maxStock = item.availableStock ?? item.customSnapshot?.stock ?? item.customSnapshot?.productDetails?.stock;
+    if (delta > 0 && maxStock !== undefined && item.quantity >= maxStock) {
+      toast.error(`Cannot add more. Available stock is ${maxStock}.`);
+      return;
+    }
+
+    const newQty = Math.max(1, item.quantity + delta);
+    if (maxStock !== undefined && newQty > maxStock) {
+      toast.error(`Cannot add more. Available stock is ${maxStock}.`);
+      return;
+    }
+
     setCart((prev) => ({
       ...prev,
       items: prev.items.map((i) =>
         i._id === itemId
-          ? { ...i, quantity: Math.max(1, i.quantity + delta) }
+          ? { ...i, quantity: newQty }
           : i
       ),
     }));
-
-    const item = cart.items.find((i) => i._id === itemId);
-    if (!item) return;
-
-    const newQty = Math.max(1, item.quantity + delta);
 
     try {
       await API.patch("/cart/update-qty", {
@@ -104,7 +114,8 @@ const addCustomOrder = async ({ sessionId, orderId }) => {
         quantity: newQty,
       });
       await fetchCartSummary();
-    } catch {
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update quantity");
       await fetchCartSummary(); // rollback
     }
   };
@@ -114,6 +125,20 @@ const addCustomOrder = async ({ sessionId, orderId }) => {
     await API.delete(`/cart/${sessionId}/item/${itemId}`);
     await fetchCartSummary();
   };
+
+  const addLooseDiamond = async (diamondData) => {
+    const res = await API.post("/cart/loose-diamond", {
+      sessionId,
+      ...diamondData,
+    });
+    await fetchCartSummary();
+    return res.data;
+  };
+
+  /* ================= DRAWER STATE ================= */
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
 
   /* ================= CLEAR ================= */
   const clearCart = async () => {
@@ -126,13 +151,18 @@ const addCustomOrder = async ({ sessionId, orderId }) => {
       value={{
         cart,
         loading,
-        sessionId, // ✅ THIS WAS MISSING
+        sessionId,
+        isCartOpen,
+        setIsCartOpen,
+        openCart,
+        closeCart,
         addProduct,
+        addLooseDiamond,
         updateQty,
         removeItem,
         clearCart,
         fetchCartSummary,
-          addCustomOrder,
+        addCustomOrder,
       }}
     >
       {children}

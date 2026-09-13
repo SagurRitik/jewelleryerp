@@ -150,6 +150,7 @@ export default function TotalsBar({ totals }) {
   const {
     subtotal = 0,
     gst = 0,
+    roundOff = 0,
     grandTotal = 0,
     grossTotal ,
 
@@ -174,10 +175,10 @@ export default function TotalsBar({ totals }) {
   const hasDiscount = totalDiscount > 0;
 
   return (
-    <div className="bg-[#5D2B46] text-white p-6 md:p-8 rounded-xl shadow-sm w-full font-sans">
+    <div className="bg-[#5D2B46] text-white p-4 sm:p-6 md:p-8 rounded-xl shadow-sm w-full font-sans">
       
       {/* HEADER */}
-      <div className="flex items-center gap-2.5 mb-7">
+      <div className="flex items-center gap-2 sm:gap-2.5 mb-4 sm:mb-7">
         <Receipt size={16} strokeWidth={2.5} className="text-white" />
         <h3 className="text-[11px] font-bold tracking-[0.15em] uppercase text-white">
           Order Summary
@@ -185,7 +186,7 @@ export default function TotalsBar({ totals }) {
       </div>
 
       {/* LINE ITEMS */}
-      <div className="space-y-4">
+      <div className="space-y-3.5 sm:space-y-4">
         
       <Row className="space-y-1" label="Total Value" value={grossTotal} bold />
 
@@ -212,6 +213,11 @@ export default function TotalsBar({ totals }) {
         {/* GST */}
         <Row label="GST" value={gst} />
 
+        {/* ROUND OFF */}
+        {Number(roundOff || 0) !== 0 && (
+          <Row label="Round Off" value={roundOff} showPlus />
+        )}
+
         {/* GRAND TOTAL (Only show if there are subsequent adjustments) */}
         {(advancePayment > 0 || metalPayment > 0) && (
           <Row label="Grand Total" value={grandTotal} bold />
@@ -219,7 +225,7 @@ export default function TotalsBar({ totals }) {
 
         {/* 🔥 PAYMENT ADJUSTMENTS */}
         {(advancePayment > 0 || metalPayment > 0) && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {advancePayment > 0 && (
               <Row label="Advance Payment" value={-advancePayment} />
             )}
@@ -230,7 +236,7 @@ export default function TotalsBar({ totals }) {
         )}
       </div>
 
-      <div className="my-6 border-t border-white/10" />
+      <div className="my-5 sm:my-6 border-t border-white/10" />
 
       {/* ✅ FINAL PAYABLE */}
       <div className="flex justify-between items-center">
@@ -238,7 +244,7 @@ export default function TotalsBar({ totals }) {
           Total Payable
         </span>
 
-        <span className="text-2xl md:text-[28px] font-bold text-white tracking-tight">
+        <span className="text-xl sm:text-2xl md:text-[28px] font-bold text-white tracking-tight">
           ₹{format(payable)}
         </span>
       </div>
@@ -248,7 +254,7 @@ export default function TotalsBar({ totals }) {
 }
 
 /* ================= ROW ================= */
-const Row = ({ label, value, bold }) => {
+const Row = ({ label, value, bold, showPlus }) => {
   const isNegative = value < 0;
   const absValue = Math.abs(value);
 
@@ -267,7 +273,7 @@ const Row = ({ label, value, bold }) => {
           bold ? "text-white font-bold" : "text-white font-medium"
         } tracking-wide`}
       >
-        {isNegative ? "-" : ""}₹{format(absValue)}
+        {isNegative ? "-" : showPlus && value > 0 ? "+" : ""}₹{format(absValue)}
       </span>
     </div>
   );

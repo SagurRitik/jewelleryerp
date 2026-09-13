@@ -90,24 +90,24 @@ export default function AddExpensePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F5F3F0] py-8 px-4">
+    <div className="min-h-screen bg-[#F5F3F0] py-4 sm:py-8 px-2.5 sm:px-4">
       <div className="max-w-xl mx-auto">
 
         {/* Header */}
-        <div className="bg-[#6B2E4A] text-white px-6 py-4 rounded-t-lg flex items-center gap-3">
+        <div className="bg-[#6B2E4A] text-white px-4 sm:px-6 py-3.5 sm:py-4 rounded-t-xl flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+            className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors shrink-0"
           >
             <ArrowLeft size={16} />
           </button>
-          <h1 className="text-lg font-semibold">{id ? "Edit Expense" : "Add Expense"}</h1>
+          <h1 className="text-base sm:text-lg font-semibold">{id ? "Edit Expense" : "Add Expense"}</h1>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white p-6 space-y-5 rounded-b-lg shadow-sm"
+          className="bg-white p-4 sm:p-6 space-y-4 sm:space-y-5 rounded-b-xl shadow-sm"
         >
           {/* Amount */}
           <div>

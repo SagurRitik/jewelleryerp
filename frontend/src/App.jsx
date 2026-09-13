@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from "./context/ThemeContext";
 // COMPONENTS
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import CartDrawer from "./components/CartDrawer";
 import PrivateRoute from "./components/PrivateRoute";
 import { Toaster } from "sonner";
 
@@ -129,13 +130,14 @@ function MainLayout() {
 
   return (
     <div className={`min-h-screen flex flex-col w-full m-0 p-0 relative transition-colors duration-300 ${
-      isDark ? "bg-[#121212] text-[#e0e0e0]" : "bg-[#faf9f6] text-[#1a1a1a]"
+      isDark ? "bg-[#0e0f12] text-[#f3f4f6]" : "bg-[#faf9f6] text-[#1a1a1a]"
     }`}>
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <Navbar toggleSidebar={() => setIsSidebarOpen(true)} />
       <main className="flex-1 w-full m-0 p-0">
         <Outlet />
       </main>
+      <CartDrawer />
     </div>
   );
 }

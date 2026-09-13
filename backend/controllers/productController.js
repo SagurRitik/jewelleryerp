@@ -134,11 +134,19 @@ const sanitizeProductData = (data) => {
   }
 
 
-  /* ---------- 6. CATEGORY BACKWARD COMPAT ---------- */
+  /* ---------- 6. CATEGORY BACKWARD COMPAT & LOOSE DIAMOND DEFAULTS ---------- */
   if (sanitized.category && !sanitized.jewelleryCategory) {
     sanitized.jewelleryCategory = sanitized.category;
   }
   delete sanitized.category;
+
+  if (sanitized.jewelleryCategory === "Loose Diamond") {
+    sanitized.metalType = sanitized.metalType || "LooseDiamond";
+    sanitized.metalPurity = sanitized.metalPurity || "NA";
+    sanitized.netWeight = Number(sanitized.netWeight || 0);
+    sanitized.grossWeight = Number(sanitized.grossWeight || 0);
+    sanitized.hsnCode = sanitized.hsnCode || "7102";
+  }
 
   /* ---------- 7. TARGET AUDIENCE ---------- */
   if (sanitized.targetAudience) {

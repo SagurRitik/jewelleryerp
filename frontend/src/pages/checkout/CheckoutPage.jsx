@@ -177,12 +177,14 @@ export default function CheckoutPage() {
 
     const gstRate = rates?.gstRate ? Number(rates.gstRate) : (baseSubtotal > 0 ? (Number(cart.totals.gst || 0) / baseSubtotal) * 100 : 3);
     const newGst = Number(((newSubtotal * gstRate) / 100).toFixed(2));
-    const newGrandTotal = Number((newSubtotal + newGst).toFixed(2));
+    const unroundedGrandTotal = Number((newSubtotal + newGst).toFixed(2));
+    const newGrandTotal = Math.round(unroundedGrandTotal);
+    const newRoundOff = Number((newGrandTotal - unroundedGrandTotal).toFixed(2));
 
     const totalDiscount = Number(((cart.totals.discount || 0) + discountAmount).toFixed(2));
     const advancePayment = Number(cart.totals.advancePayment || 0);
     const metalPayment = Number(cart.totals.metalPayment || 0);
-    const newPayable = Math.max(0, Number((newGrandTotal - advancePayment - metalPayment).toFixed(2)));
+    const newPayable = Math.max(0, Math.round(newGrandTotal - advancePayment - metalPayment));
 
     let discountMaking = cart.totals.discountMaking || 0;
     let discountDiamond = cart.totals.discountDiamond || 0;
@@ -196,6 +198,7 @@ export default function CheckoutPage() {
       ...cart.totals,
       subtotal: newSubtotal,
       gst: newGst,
+      roundOff: newRoundOff,
       grandTotal: newGrandTotal,
       discount: totalDiscount,
       discountMaking,
@@ -288,40 +291,40 @@ export default function CheckoutPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex-1 w-full max-w-[1400px] mx-auto px-6 md:px-10 py-10"
+        className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 md:px-10 py-5 sm:py-10"
       >
         {/* HEADER SECTION */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 sm:mb-10 gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[10px] font-bold tracking-[0.15em] text-gray-400 uppercase mb-3">
+            <div className="flex items-center gap-2 text-[10px] font-bold tracking-[0.15em] text-gray-400 uppercase mb-2 sm:mb-3">
               <button
-  onClick={() => navigate("/cart")}
-  className="hover:text-[#462434]"
->
-  Cart
-</button>
-<ChevronRight size={10} />
+                onClick={() => navigate("/cart")}
+                className="hover:text-[#462434]"
+              >
+                Cart
+              </button>
+              <ChevronRight size={10} />
               
               <button onClick={() => navigate("/")} className="hover:text-[#462434] transition-colors">Home</button>
               <ChevronRight size={10} />
               <span className="text-gray-800">Checkout</span>
             </div>
-            <h1 className="text-[32px] md:text-[40px] font-bold text-[#462434] uppercase tracking-wide leading-none">
+            <h1 className="text-2xl sm:text-[32px] md:text-[40px] font-bold text-[#462434] uppercase tracking-wide leading-none">
               Checkout
             </h1>
           </div>
           
           {/* Live Gold Rate Component rendered here to match the pill in the screenshot */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 w-full md:w-auto">
              <RatesSnapshot referenceRate={referenceMetalRate} />
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 xl:gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 xl:gap-16">
           
           {/* ================= LEFT COLUMN (ITEMS) ================= */}
           <div className="lg:col-span-7 flex flex-col h-full">
-            <div className="flex-1 space-y-6">
+            <div className="flex-1 space-y-4 sm:space-y-6">
               {cart.items.map((item) => (
                 <CheckoutItem key={item._id} item={item}  
                    isExpanded={!!expandedItems[item._id]}
@@ -330,11 +333,11 @@ export default function CheckoutPage() {
             </div>
 
             {/* SUB-PAYABLE AMOUNT FOOTER */}
-            <div className="bg-[#462434] mt-10 pt-8 pb-8 border-t border-b border-gray-100 flex justify-between items-center">
-               <span className="text-lg font-bold text-white uppercase tracking-widest ml-2">
+            <div className="bg-[#462434] mt-6 sm:mt-10 p-4 sm:p-6 sm:pt-8 sm:pb-8 border-t border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 rounded-lg sm:rounded-none">
+               <span className="text-xs sm:text-base md:text-lg font-bold text-white uppercase tracking-widest sm:ml-2">
                  Sub-Payable Amount
                </span>
-               <span className="text-3xl font-bold text-white tracking-widest">
+               <span className="text-2xl sm:text-3xl font-bold text-white tracking-widest">
                  ₹{format(effectiveTotals?.payable || cart.totals?.payable || 0)}
                </span>
             </div>

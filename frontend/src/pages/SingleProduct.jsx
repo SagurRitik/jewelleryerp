@@ -269,11 +269,11 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
       {/* Decorative Blur Background Element */}
       <div className="absolute top-0 left-0 w-full h-[60vh] bg-gradient-to-b from-[#FFFFF] to-[#FFFFFF]/0 pointer-events-none z-0" />
 
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-12 relative z-10">
-              <div className="mb-8">
+      <div className="max-w-[1100px] mx-auto px-3 sm:px-6 py-4 sm:py-12 relative z-10">
+        <div className="mb-4 sm:mb-8">
            <Link
             to="/"
-            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-800 font-serif transition-colors duration-300"
+            className="inline-flex items-center text-xs sm:text-sm text-gray-500 hover:text-gray-800 font-serif transition-colors duration-300"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
@@ -282,24 +282,18 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
           </Link>
         </div>
         
-        <div className="grid lg:grid-cols-12 gap-12 lg:gap-16">
-
-          
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-16">
           
           {/* ================= LEFT COLUMN ================= */}
           <div
-          // className="lg:col-span-5 flex flex-col gap-6"
-         // className="lg:col-span-5 flex flex-col gap-6 sticky top-24 self-start h-fit"
-         className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-24 self-start h-fit"
-           >
+            className="lg:col-span-5 flex flex-col gap-4 sm:gap-6 lg:sticky lg:top-24 self-start h-fit w-full"
+          >
 
-
-
-<div className="flex gap-4 items-start">
-  
-  {/* Left Column: Vertical Thumbnails Slider */}
-  {product?.images?.length > 0 && (
-    <div className="flex flex-col gap-2 w-[72px] flex-shrink-0">
+            <div className="flex gap-4 items-start w-full">
+              
+              {/* Left Column: Vertical Thumbnails Slider (Desktop/Tablet only) */}
+              {product?.images?.length > 0 && (
+                <div className="hidden sm:flex flex-col gap-2 w-[72px] flex-shrink-0">
       
       {/* Up Arrow */}
       <button
@@ -429,10 +423,8 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
 
   
             {/* Thumbnails */}
-
-      
             {product?.images?.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-1 ml-20">
+              <div className="flex gap-2 sm:gap-3 overflow-x-auto no-scrollbar pb-2 px-1 ml-0 sm:ml-20">
                 {product.images.map((img, index) => {
                   const imgUrl = resolveImage(img);
                   const isSelected = selectedImage === imgUrl;
@@ -440,11 +432,11 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
                     <button
                       key={index}
                       onClick={() => setSelectedImage(imgUrl)}
-                      className={`w-[72px] h-[72px] shrink-0 rounded-2xl overflow-hidden border-2 transition-all ${
+                      className={`w-14 h-14 sm:w-[72px] sm:h-[72px] shrink-0 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all ${
                         isSelected ? "border-[#B89047] p-0.5" : "border-transparent bg-white shadow-sm hover:shadow-md"
                       }`}
                     >
-                      <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover rounded-xl" />
+                      <img src={imgUrl} alt="Thumbnail" className="w-full h-full object-cover rounded-lg sm:rounded-xl" />
                     </button>
                   );
                 })}
@@ -452,27 +444,27 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
             )}
 
             
-                        {/* Select Metal Color */}
+            {/* Select Metal Color */}
             <div className="mt-2">
               <h3 className="font-serif text-lg text-[#3A332C] mb-1">Select Metal Color</h3>
               <p className="text-xs text-[#8A8178] mb-4">Available colors based on your preference</p>
               
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
                 {availableMetalColors.map((color) => {
                   const isSelected = selectedMetalColor === color.value;
                   return (
                     <button
                       key={color.value}
                       onClick={() => setSelectedMetalColor(color.value)}
-                      className={`flex flex-col items-center py-4 px-2 rounded-2xl border transition-all ${
+                      className={`flex flex-col items-center py-2.5 sm:py-4 px-1.5 sm:px-2 rounded-xl sm:rounded-2xl border transition-all ${
                         isSelected ? "border-[#D4AF37] bg-[#FAF8F5] shadow-sm" : "border-[#EAE3D9] bg-white hover:bg-[#FAF8F5]"
                       }`}
                     >
                       <div 
-                        className="w-10 h-10 rounded-full mb-3 shadow-sm border border-black/5" 
+                        className="w-7 h-7 sm:w-10 sm:h-10 rounded-full mb-2 sm:mb-3 shadow-sm border border-black/5" 
                         style={{ background: getMetalColorHex(color.value) }}
                       />
-                      <span className={`text-[11px] font-medium ${isSelected ? "text-[#B89047]" : "text-[#3A332C]"}`}>
+                      <span className={`text-[10px] sm:text-[11px] font-medium text-center ${isSelected ? "text-[#B89047]" : "text-[#3A332C]"}`}>
                         {color.name}
                       </span>
                     </button>
@@ -481,7 +473,7 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
               </div>
 
               {/* Selection Status Note */}
-              <div className={`${isDark ? "bg-[#1f1f1f] border-[#333333]" : "bg-[#FAF8F5] border-[#EAE3D9]"} border rounded-xl p-4 flex gap-3 items-center transition-colors`}>
+              <div className={`${isDark ? "bg-[#1f1f1f] border-[#333333]" : "bg-[#FAF8F5] border-[#EAE3D9]"} border rounded-xl p-3 sm:p-4 flex gap-3 items-center transition-colors`}>
                 <div 
                   className="w-6 h-6 rounded-full shrink-0 shadow-sm border border-black/5"
                   style={{ background: getMetalColorHex(selectedMetalColor) }}
@@ -500,7 +492,7 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
                   title="Compliance & Certification" 
                   icon={<ShieldCheck className="w-4 h-4" />}
                 >
-                  <div className="grid grid-cols-3 gap-y-4 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-y-4 pt-2">
                     {product.huid && (
                       <div>
                         <div className="flex items-center gap-2 text-xs text-[#8A8178] mb-1">
@@ -600,21 +592,21 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
           <div className="lg:col-span-7 flex flex-col pt-2 lg:pl-4">
             
             {/* Header Area */}
-            <div className="flex justify-between items-start mb-2">
-              <h1 className={`text-[40px] font-serif leading-tight rounded-md font-sans transition-colors ${isDark ? "text-pink-400" : "text-[#6B3151]"}`}>
-                {displayValue(product.title)}
-              </h1>
-
-              {product.targetAudience && (
-                <div className="mt-2">
-                  <span className="px-3 py-1 bg-[#6B3151]/10 text-[#6B3151] text-[10px] font-bold uppercase tracking-widest rounded-full">
-                    {product.targetAudience}
-                  </span>
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h1 className={`text-2xl sm:text-3xl md:text-[38px] font-serif font-semibold leading-tight rounded-md transition-colors ${isDark ? "text-amber-300" : "text-[#6B3151]"}`}>
+                    {displayValue(product.title)}
+                  </h1>
+                  {product.targetAudience && (
+                    <span className="px-2.5 py-0.5 bg-[#6B3151]/10 text-[#6B3151] text-[10px] font-bold uppercase tracking-widest rounded-full shrink-0">
+                      {product.targetAudience}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
 
-
-              <div className="flex justify-between items-start mb-2 gap-5">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
 
 <button
   type="button"
@@ -1054,7 +1046,7 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
 
 
               {diamonds.length > 0 && (
-  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-6 shadow-sm font-serif mb-6 relative ">
+  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-4 sm:p-6 shadow-sm font-serif mb-6 relative ">
     {/* Header */}
     <div className="flex justify-between items-center mb-6 ">
       <div className="flex items-center gap-3">
@@ -1244,20 +1236,20 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
     </div>
 
     {/* Totals Summary (Refined Height) */}
-    <div className="flex justify-end border-t border-gray-100 pt-6">
-      <div className="bg-[#6B3151] rounded-xl px-6 py-4 flex items-center gap-8 border border-[#F0EDEA]">
+    <div className="flex sm:justify-end border-t border-gray-100 pt-4 sm:pt-6">
+      <div className="w-full sm:w-auto bg-[#6B3151] rounded-xl px-4 sm:px-6 py-3 sm:py-4 flex justify-around sm:justify-center items-center gap-4 sm:gap-8 border border-[#F0EDEA]">
         <div className="flex flex-col items-center">
-          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-400 mb-1">Total Count</span>
-          <span className="text-xl text-white font-light">
+          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-300 mb-1">Total Count</span>
+          <span className="text-lg sm:text-xl text-white font-light">
             {totalDiamondCount} <span className="text-xs italic text-white ml-1">pcs</span>
           </span>
         </div>
         
-        <div className="h-8 w-px bg-[#EAE3D9]"></div>
+        <div className="h-8 w-px bg-white/20"></div>
 
         <div className="flex flex-col items-center">
-          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-400 mb-1">Total Weight</span>
-          <span className="text-xl text-white font-semibold">
+          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-300 mb-1">Total Weight</span>
+          <span className="text-lg sm:text-xl text-white font-semibold">
            {totalDiamondWeight.toFixed(3)}  <span className="text-xs font-light ml-1">ct</span>
           </span>
         </div>
@@ -1307,7 +1299,7 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
               {/* // final */}
               
 {(gemstones.length > 0) && (
-  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-6 shadow-sm font-serif">
+  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-4 sm:p-6 shadow-sm font-serif">
     {/* Header Section */}
     <div className="flex justify-between items-center mb-8">
       <div className="flex items-center gap-3">
@@ -1533,20 +1525,20 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
   {/* </div> */}
 {/* </div> */}
 
-<div className="flex justify-end border-t border-gray-100 pt-6">
-      <div className="bg-[#6B3151] rounded-xl px-6 py-4 flex items-center gap-8 border border-[#F0EDEA]">
+<div className="flex sm:justify-end border-t border-gray-100 pt-4 sm:pt-6">
+      <div className="w-full sm:w-auto bg-[#6B3151] rounded-xl px-4 sm:px-6 py-3 sm:py-4 flex justify-around sm:justify-center items-center gap-4 sm:gap-8 border border-[#F0EDEA]">
         <div className="flex flex-col items-center">
-          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-400 mb-1">Total Count</span>
-          <span className="text-xl text-white font-light">
+          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-300 mb-1">Total Count</span>
+          <span className="text-lg sm:text-xl text-white font-light">
             {totalGemstoneCount} <span className="text-xs italic text-white ml-1">pcs</span>
           </span>
         </div>
         
-        <div className="h-8 w-px bg-[#EAE3D9]"></div>
+        <div className="h-8 w-px bg-white/20"></div>
 
         <div className="flex flex-col items-center">
-          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-400 mb-1">Total Weight</span>
-          <span className="text-xl text-white font-semibold">
+          <span className="text-[8px] uppercase tracking-[0.2em] text-gray-300 mb-1">Total Weight</span>
+          <span className="text-lg sm:text-xl text-white font-semibold">
            {totalGemstoneWeight.toFixed(3)} <span className="text-xs font-light ml-1 ">ct</span>
           </span>
         </div>
@@ -1557,7 +1549,7 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
 )}
 
 {belts.length > 0 && (
-  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-6 shadow-sm font-serif mb-6 relative">
+  <div className="bg-[#FAF8F5] border border-gray-100 rounded-2xl p-4 sm:p-6 shadow-sm font-serif mb-6 relative">
     <div className="flex justify-between items-center mb-8">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 italic">
@@ -1616,30 +1608,29 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
             {/* ================= PURCHASE BLOCK ================= */}
             <div className="mt-8 pt-6 border-t border-[#EAE3D9]">
               
-              <div className="flex items-end gap-3 mb-6 ml-5">
-                <span className="text-2xl font-serif text-[#3A332C]">Total</span>
-                <span className="text-[32px] font-serif text-[#3A332C] leading-none">
-                  {product?.pricing?.grandTotal != null ? `₹${Number(product.pricing.grandTotal * quantity).toLocaleString("en-IN")}` : "Calculating..."}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <div className="flex items-baseline gap-2 sm:gap-3">
+                  <span className="text-xl sm:text-2xl font-serif text-[#3A332C]">Total</span>
+                  <span className="text-2xl sm:text-[32px] font-serif font-bold text-[#3A332C] leading-none">
+                    {product?.pricing?.grandTotal != null ? `₹${Number(product.pricing.grandTotal * quantity).toLocaleString("en-IN")}` : "Calculating..."}
+                  </span>
+                </div>
                 
-                    
-                          {/* Left: Quantity */}
-                <div className="flex items-center border border-gray-300 rounded-full h-7 w-[120px] bg-transparent] ml-5">
-                   <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-12 h-full flex items-center justify-center text-gray-400 hover:text-black transition-colors rounded-l-full disabled:opacity-50" disabled={product.stock <= 0}>−</button>
+                {/* Quantity */}
+                <div className="flex items-center border border-gray-300 rounded-full h-8 w-[120px] bg-white">
+                   <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-10 h-full flex items-center justify-center text-gray-500 hover:text-black transition-colors rounded-l-full disabled:opacity-50" disabled={product.stock <= 0}>−</button>
                    <input type="number" min="1" max={product.stock} value={quantity} onChange={(e) => setQuantity(Math.min(Math.max(1, +e.target.value || 1), product.stock))} className="w-full h-full text-center bg-transparent border-none focus:ring-0 text-sm font-bold text-gray-800 p-0" disabled={product.stock <= 0} />
-                   <button onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))} className="w-12 h-full flex items-center justify-center text-gray-400 hover:text-black transition-colors rounded-r-full disabled:opacity-50" disabled={product.stock <= 0}>+</button>
-                 </div>
-                
-                 {/* Inclusive of GST */}
+                   <button onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))} className="w-10 h-full flex items-center justify-center text-gray-500 hover:text-black transition-colors rounded-r-full disabled:opacity-50" disabled={product.stock <= 0}>+</button>
+                </div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button
                   onClick={handleAddToCart}
                   disabled={Number(product?.stock || 0) <= 0}
-                  className="flex-1 h-14 bg-gradient-to-r from-[#6B3151] to-[#5A374F] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50 disabled:bg-gray-300 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed"
+                  className="flex-1 h-12 sm:h-14 bg-gradient-to-r from-[#6B3151] to-[#5A374F] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50 disabled:bg-gray-300 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
-                  <ShoppingBag className="w-5 h-5" />
+                  <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
                   {Number(product?.stock || 0) > 0 ? "Add to Cart" : "Out of Stock"}
                 </button>
                 <button
@@ -1650,11 +1641,11 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
                     }
                   }}
                   disabled={Number(product?.stock || 0) <= 0}
-                  className="flex-1 h-14 bg-gradient-to-r from-[#6B3151] to-[#5A374F] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50 disabled:bg-gray-300 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed shadow-md shadow-[#C29B57]/20"
+                  className="flex-1 h-12 sm:h-14 bg-gradient-to-r from-[#6B3151] to-[#5A374F] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50 disabled:bg-gray-300 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed shadow-md shadow-[#C29B57]/20 text-sm sm:text-base"
                 >
                   {Number(product?.stock || 0) > 0 ? (
                     <>
-                      Buy Now <ChevronRight className="w-5 h-5" />
+                      Buy Now <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </>
                   ) : (
                     "Sold Out"
@@ -1663,14 +1654,14 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
               </div>
 
               {/* Trust Badges */}
-              <div className="flex items-center justify-center gap-6 mt-8 text-xs text-[#8A8178] font-medium">
-                <div className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-[#C29B57]" /> 100% Authentication,</div>
+              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mt-6 sm:mt-8 text-xs text-[#8A8178] font-medium">
+                <div className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-[#C29B57]" /> 100% Authentication</div>
                 <div className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-[#C29B57]" /> Best Price</div>
                 <div className="flex items-center gap-1.5"><Headset className="w-4 h-4 text-[#C29B57]" /> Dedicated Support</div>
               </div>
 
               {/* Footer row */}
-              <div className="flex justify-between items-center mt-6 text-sm">
+              <div className="flex flex-wrap justify-between items-center gap-3 mt-6 text-sm">
                 <div className="text-[#328D4D] font-medium flex items-center gap-1">
                   <Check className="w-4 h-4" /> {product.stock > 0 ? `${product.stock} available in stock` : 'Out of stock'}
                 </div>

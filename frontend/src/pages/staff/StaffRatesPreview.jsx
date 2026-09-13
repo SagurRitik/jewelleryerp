@@ -31,6 +31,7 @@ export default function StaffRatesPreview() {
       <hr />
 
       <Row label="GST (Metal)" value={`${rates.gstRate}%`} />
+      <Row label="GST (Loose Diamond)" value={`${rates.looseDiamondGstRate ?? 1.5}%`} />
       <Row label="GST (Making)" value={`${rates.gstMakingRate}%`} />
 
       <hr />

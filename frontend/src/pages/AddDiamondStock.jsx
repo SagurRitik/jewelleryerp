@@ -21,11 +21,13 @@ export default function AddDiamondStock() {
     color: "",
     clarity: "",
     cut: "",
-    labNatural: "Natural",
+    labNatural: "Lab Grown",
     lab: "",
     certificateNo: "",
     costPrice: "",
+    costRate: "",
     sellingPrice: "",
+    sellingRate: "",
     stock: 1,
     status: "AVAILABLE",
     notes: "",
@@ -41,7 +43,18 @@ export default function AddDiamondStock() {
     try {
       setFetching(true);
       const res = await API.get(`/diamonds/${id}`);
-      setFormData(res.data.diamond);
+      const d = res.data.diamond;
+      const weight = Number(d.weight || 0);
+      const sellingPrice = Number(d.sellingPrice || 0);
+      const costPrice = Number(d.costPrice || 0);
+      const sellingRate = d.sellingRate || (weight > 0 && sellingPrice > 0 ? Math.round(sellingPrice / weight) : "");
+      const costRate = d.costRate || (weight > 0 && costPrice > 0 ? Math.round(costPrice / weight) : "");
+
+      setFormData({
+        ...d,
+        sellingRate: sellingRate || "",
+        costRate: costRate || "",
+      });
     } catch (error) {
       toast.error("Failed to fetch diamond details");
       navigate("/diamonds");
@@ -52,6 +65,79 @@ export default function AddDiamondStock() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "weight") {
+      const w = Number(value || 0);
+      const sRate = Number(formData.sellingRate || 0);
+      const cRate = Number(formData.costRate || 0);
+
+      setFormData((prev) => ({
+        ...prev,
+        weight: value,
+        sellingPrice: sRate > 0 && w > 0 ? Math.round(sRate * w) : prev.sellingPrice,
+        costPrice: cRate > 0 && w > 0 ? Math.round(cRate * w) : prev.costPrice,
+      }));
+      return;
+    }
+
+    if (name === "sellingRate") {
+      const rate = Number(value || 0);
+      const w = Number(formData.weight || 0);
+
+      setFormData((prev) => ({
+        ...prev,
+        sellingRate: value,
+        sellingPrice: w > 0 && rate > 0 ? Math.round(rate * w) : (value === "" ? "" : prev.sellingPrice),
+      }));
+      return;
+    }
+
+    if (name === "sellingPrice") {
+      const price = Number(value || 0);
+      const w = Number(formData.weight || 0);
+
+      setFormData((prev) => ({
+        ...prev,
+        sellingPrice: value,
+        sellingRate: w > 0 && price > 0 ? Math.round(price / w) : (value === "" ? "" : prev.sellingRate),
+      }));
+      return;
+    }
+
+    if (name === "costRate") {
+      const rate = Number(value || 0);
+      const w = Number(formData.weight || 0);
+
+      setFormData((prev) => ({
+        ...prev,
+        costRate: value,
+        costPrice: w > 0 && rate > 0 ? Math.round(rate * w) : (value === "" ? "" : prev.costPrice),
+      }));
+      return;
+    }
+
+    if (name === "costPrice") {
+      const price = Number(value || 0);
+      const w = Number(formData.weight || 0);
+
+      setFormData((prev) => ({
+        ...prev,
+        costPrice: value,
+        costRate: w > 0 && price > 0 ? Math.round(price / w) : (value === "" ? "" : prev.costRate),
+      }));
+      return;
+    }
+
+    if (name === "stock") {
+      const num = Number(value || 0);
+      setFormData((prev) => ({
+        ...prev,
+        stock: value,
+        status: num === 0 ? "SOLD" : (prev.status === "SOLD" ? "AVAILABLE" : prev.status),
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -131,7 +217,7 @@ export default function AddDiamondStock() {
                     onChange={handleChange}
                     placeholder="DIA-001"
                     className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all ${
-                      isDark ? "bg-[#252525] border-white/10 text-white focus:border-pink-500" : "bg-white border-[#ebdbe2] focus:border-[#714760]"
+                      isDark ? "bg-[#252525] border-white/10 text-white focus:border-amber-400" : "bg-white border-[#ebdbe2] focus:border-[#714760]"
                     }`}
                   />
                 </div>
@@ -221,14 +307,14 @@ export default function AddDiamondStock() {
                   <label className="block text-sm font-semibold mb-2">Lab / Natural</label>
                   <select
                     name="labNatural"
-                    value={formData.labNatural || "Natural"}
+                    value={formData.labNatural || "Lab Grown"}
                     onChange={handleChange}
                     className={`w-full px-4 py-3 rounded-2xl border outline-none appearance-none transition-all ${
                       isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
                     }`}
                   >
-                    <option value="Natural">Natural</option>
                     <option value="Lab Grown">Lab Grown</option>
+                    <option value="Natural">Natural</option>
                   </select>
                 </div>
                 <div>
@@ -264,37 +350,85 @@ export default function AddDiamondStock() {
                 <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Pricing & Status</h3>
                 <div className="h-px flex-1 bg-[#f0e6e9]"></div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Cost Price</label>
+                  <label className="block text-sm font-semibold mb-2">Cost Rate (/ Carat)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
+                    <input
+                      name="costRate"
+                      type="number"
+                      placeholder="e.g. 20000"
+                      value={formData.costRate || ""}
+                      onChange={handleChange}
+                      className={`w-full pl-8 pr-4 py-3 rounded-2xl border outline-none transition-all ${
+                        isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 mt-1 block">Cost per carat</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Total Cost Price</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                     <input
                       name="costPrice"
                       type="number"
-                      value={formData.costPrice}
+                      placeholder="0"
+                      value={formData.costPrice || ""}
                       onChange={handleChange}
                       className={`w-full pl-8 pr-4 py-3 rounded-2xl border outline-none transition-all ${
                         isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
                       }`}
                     />
                   </div>
+                  <span className="text-[10px] text-gray-400 mt-1 block">Weight × Cost Rate</span>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Selling Price</label>
+                  <label className="block text-sm font-bold mb-2 text-[#714760] dark:text-amber-300">
+                    Selling Rate (/ Carat) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#714760] font-bold">₹</span>
+                    <input
+                      name="sellingRate"
+                      type="number"
+                      required={!formData.sellingPrice}
+                      placeholder="e.g. 25000"
+                      value={formData.sellingRate || ""}
+                      onChange={handleChange}
+                      className={`w-full pl-8 pr-4 py-3 rounded-2xl border-2 outline-none font-semibold transition-all ${
+                        isDark ? "bg-[#252525] border-amber-500/50 text-white" : "bg-white border-[#714760] text-[#714760]"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-500 mt-1 block font-medium">Selling rate per ct</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-2">Total Selling Price *</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                     <input
                       name="sellingPrice"
                       type="number"
-                      value={formData.sellingPrice}
+                      required
+                      placeholder="0"
+                      value={formData.sellingPrice || ""}
                       onChange={handleChange}
-                      className={`w-full pl-8 pr-4 py-3 rounded-2xl border outline-none transition-all ${
+                      className={`w-full pl-8 pr-4 py-3 rounded-2xl border outline-none transition-all font-bold ${
                         isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
                       }`}
                     />
                   </div>
+                  <span className="text-[10px] text-gray-400 mt-1 block">Weight × Selling Rate</span>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                 <div>
                   <label className="block text-sm font-semibold mb-2">Stock Status</label>
                   <select
@@ -309,6 +443,18 @@ export default function AddDiamondStock() {
                     <option value="SOLD">Sold</option>
                     <option value="RESERVED">Reserved</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Stock Quantity</label>
+                  <input
+                    name="stock"
+                    type="number"
+                    value={formData.stock}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all ${
+                      isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
+                    }`}
+                  />
                 </div>
               </div>
             </section>

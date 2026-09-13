@@ -10,15 +10,19 @@ import {
   Trash2,
   Edit,
   ShoppingBag,
+  ShoppingCart,
+  FileText,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { useCart } from "../context/CartContext";
 
 export default function DiamondStockPage() {
   const [diamonds, setDiamonds] = useState([]);
@@ -62,11 +66,32 @@ export default function DiamondStockPage() {
     }
   };
 
+  const { addLooseDiamond, openCart } = useCart();
+  const [addingToCartId, setAddingToCartId] = useState(null);
+
+  const handleAddToCart = async (diamond, directCheckout = false) => {
+    try {
+      setAddingToCartId(diamond._id);
+      await addLooseDiamond({ diamondId: diamond._id, diamondData: diamond });
+      toast.success("Loose Diamond added to Cart!");
+      if (directCheckout) {
+        navigate("/checkout/calculate");
+      } else {
+        openCart(); // 🔥 Opens the slide-over cart drawer immediately right here!
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || "Failed to add to cart");
+    } finally {
+      setAddingToCartId(null);
+    }
+  };
+
   const handleSell = (diamond) => {
     // Redirect to manual billing with diamond info
     // We'll pass state to ManualBillingForm to pre-fill it
     navigate("/manual-billing", {
       state: {
+        isLooseDiamond: true,
         prefillDiamond: {
           title: `Loose Diamond - ${diamond.shape} ${diamond.weight}ct`,
           qty: 1,
@@ -79,7 +104,8 @@ export default function DiamondStockPage() {
           clarity: diamond.clarity,
           lab: diamond.lab,
           labNatural: diamond.labNatural,
-          diamondId: diamond._id
+          diamondId: diamond._id,
+          hsnCode: "7102"
         }
       }
     });
@@ -189,12 +215,13 @@ export default function DiamondStockPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {diamonds.map((diamond) => (
-                    <tr key={diamond._id} className={`group transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-[#faf9f6]"
-                      }`}>
-                      <td
-                        className="px-6 py-5 cursor-pointer group/cell transition-colors"
-                        onClick={() => navigate(`/diamonds/${diamond._id}`)}
-                      >
+                    <tr
+                      key={diamond._id}
+                      onClick={() => navigate(`/diamonds/${diamond._id}`)}
+                      className={`group cursor-pointer transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-[#faf9f6]"
+                      }`}
+                    >
+                      <td className="px-6 py-5 group/cell transition-colors">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-xl transition-colors ${isDark ? "bg-white/5 group-hover/cell:bg-white/10" : "bg-[#f7f0f3] group-hover/cell:bg-[#ebdbe2]"
                             }`}>
@@ -202,7 +229,7 @@ export default function DiamondStockPage() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-bold group-hover/cell:text-[#714760] dark:group-hover/cell:text-pink-400 transition-colors">{diamond.shape || "Loose Diamond"}</p>
+                              <p className="font-bold group-hover/cell:text-[#714760] dark:group-hover/cell:text-amber-400 transition-colors">{diamond.shape || "Loose Diamond"}</p>
                               {diamond.labNatural && (
                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${diamond.labNatural === "Lab Grown"
                                   ? "bg-amber-100 text-amber-700 border border-amber-200"
@@ -229,35 +256,79 @@ export default function DiamondStockPage() {
                       </td>
                       <td className="px-6 py-5">
                         <p className="font-bold text-[#714760]">₹{(diamond.sellingPrice || 0).toLocaleString('en-IN')}</p>
+                        {diamond.weight > 0 && (
+                          <p className="text-[11px] font-medium text-gray-500 mt-0.5">
+                            ₹{(diamond.sellingRate || Math.round((diamond.sellingPrice || 0) / diamond.weight)).toLocaleString('en-IN')}/ct
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-5">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${diamond.status === "AVAILABLE" ? "bg-green-100 text-green-700" :
-                          diamond.status === "SOLD" ? "bg-red-100 text-red-700" :
-                            "bg-amber-100 text-amber-700"
-                          }`}>
-                          {diamond.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${diamond.status === "AVAILABLE" ? "bg-green-100 text-green-700" :
+                            diamond.status === "SOLD" ? "bg-red-100 text-red-700" :
+                              "bg-amber-100 text-amber-700"
+                            }`}>
+                            {diamond.status}
+                          </span>
+                          {diamond.stock !== undefined && (
+                            <span className="text-[11px] text-gray-500 font-medium">
+                              Qty: <b className={diamond.stock > 0 ? (isDark ? "text-white" : "text-gray-700") : "text-red-500"}>{diamond.stock}</b>
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-6 py-5 text-right">
+                      <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {diamond.status === "AVAILABLE" && (
-                            <button
-                              onClick={() => handleSell(diamond)}
-                              className="p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
-                              title="Sell Now"
-                            >
-                              <ShoppingBag size={18} />
-                            </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/diamonds/${diamond._id}`);
+                            }}
+                            className="p-2 rounded-lg hover:bg-purple-50 text-purple-600 transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          {diamond.status !== "SOLD" && Number(diamond.stock ?? 1) > 0 && (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddToCart(diamond);
+                                }}
+                                disabled={addingToCartId === diamond._id}
+                                className="p-2 rounded-lg hover:bg-amber-50 text-amber-600 transition-colors"
+                                title="Add to Cart / Direct Bill"
+                              >
+                                {addingToCartId === diamond._id ? <Loader2 size={18} className="animate-spin" /> : <ShoppingCart size={18} />}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSell(diamond);
+                                }}
+                                className="p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
+                                title="Manual Bill"
+                              >
+                                <FileText size={18} />
+                              </button>
+                            </>
                           )}
                           <button
-                            onClick={() => navigate(`/diamonds/edit/${diamond._id}`)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/diamonds/edit/${diamond._id}`);
+                            }}
                             className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
                             title="Edit"
                           >
                             <Edit size={18} />
                           </button>
                           <button
-                            onClick={() => handleDelete(diamond._id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(diamond._id);
+                            }}
                             className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
                             title="Delete"
                           >

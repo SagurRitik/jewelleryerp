@@ -39,6 +39,8 @@ const handleQty = (delta) => {
   const title = snap.title || snap.productDetails?.title || snap.orderNo || "Jewelry Piece";
   const category = snap.productDetails?.jewelleryCategory || "FINE JEWELRY";
 
+  const isLoose = item.itemType === "LOOSE_DIAMOND" || pd.jewelleryCategory === "Loose Diamond" || snap.isLooseDiamond || snap.diamondId;
+
   // Build the text strings for the layout
   const metalText = `${pd.metalPurity || "18K"} ${pd.metalType || "Solid Gold"}`;
   
@@ -50,6 +52,9 @@ const handleQty = (delta) => {
     ? `${stones[0].shape || "Brilliant Cut"} ${stones[0].weight || "1.2"}ct` 
     : "-";
 
+  const maxStock = item.availableStock ?? snap.stock ?? pd.stock;
+  const isMax = maxStock !== undefined && maxStock > 0 && item.quantity >= maxStock;
+
   return (
     <motion.div
     
@@ -58,22 +63,22 @@ const handleQty = (delta) => {
       // animate={{ opacity: 1, y: 0 }}
       // exit={{ opacity: 0, scale: 0.95 }}
       // transition={{ duration: 0.25 }}
-      className="flex flex-col sm:flex-row gap-8 py-8 border-b border-gray-100 bg-white group relative"
+      className="flex flex-col sm:flex-row gap-4 sm:gap-8 py-5 sm:py-8 border-b border-gray-100 bg-white group relative"
     >
       {/* Remove Button (Top Right) */}
       <button
-       // onClick={() => { if(window.confirm("Remove item?")) removeItem(item._id) }}
        onClick={async () => {
-  const ok = await showConfirm("Remove item?");
-  if (ok) removeItem(item._id);
-}}
-        className="absolute top-8 right-0 text-gray-300 hover:text-red-400 transition-colors"
+         const ok = await showConfirm("Remove item?");
+         if (ok) removeItem(item._id);
+       }}
+        className="absolute top-4 sm:top-8 right-0 text-gray-300 hover:text-red-400 transition-colors p-1"
+        aria-label="Remove item"
       >
         <Trash2 size={18} strokeWidth={1.5} />
       </button>
 
       {/* IMAGE */}
-      <div className="w-full sm:w-[240px] h-[240px] shrink-0 bg-black flex items-center justify-center overflow-hidden">
+      <div className="w-full sm:w-[200px] md:w-[240px] h-[180px] sm:h-[200px] md:h-[240px] shrink-0 bg-black flex items-center justify-center overflow-hidden rounded-lg sm:rounded-none">
         <img
           src={imageSrc}
           alt={title}
@@ -85,36 +90,59 @@ const handleQty = (delta) => {
       <div className="flex-1 flex flex-col pt-2">
         
         {/* Category & Title */}
-        <div className="mb-8">
-          <p className="text-[10px] tracking-[0.15em] text-gray-400 uppercase mb-2">
-            {category}
+        <div className="mb-4 sm:mb-8 pr-8 sm:pr-0">
+          <p className="text-[10px] tracking-[0.15em] text-gray-400 uppercase mb-1 sm:mb-2">
+            {isLoose ? "LOOSE DIAMOND" : category}
           </p>
-          <h3 className="text-[28px] font-serif italic text-[#6B3151] font-light">
+          <h3 className="text-xl sm:text-2xl md:text-[28px] font-serif italic text-[#6B3151] font-light">
             {title}
           </h3>
         </div>
 
         {/* Specs Grid */}
         <div className="grid grid-cols-2 gap-y-6 gap-x-12 mb-8">
-          <div>
-            <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Metal</p>
-            <p className="text-[13px] text-gray-800 font-light">{metalText}</p>
-          </div>
-          
-          <div>
-            <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Diamond</p>
-            <p className="text-[13px] text-gray-800 font-light">{diamondText}</p>
-          </div>
+          {isLoose ? (
+            <>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Carat Weight</p>
+                <p className="text-[13px] text-gray-800 font-light">{snap.weight || pd.components?.[0]?.weight || 0} ct</p>
+              </div>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Color & Clarity</p>
+                <p className="text-[13px] text-gray-800 font-light">{snap.color || pd.components?.[0]?.color || "—"} / {snap.clarity || pd.components?.[0]?.clarity || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Shape & Cut</p>
+                <p className="text-[13px] text-gray-800 font-light">{snap.shape || pd.components?.[0]?.shape || "Round"} {snap.cut ? `• ${snap.cut}` : ""}</p>
+              </div>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Cert / HSN</p>
+                <p className="text-[13px] text-gray-800 font-light">{snap.certificateNo || snap.lab || snap.sku || "HSN 7102"}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Metal</p>
+                <p className="text-[13px] text-gray-800 font-light">{metalText}</p>
+              </div>
+              
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Diamond</p>
+                <p className="text-[13px] text-gray-800 font-light">{diamondText}</p>
+              </div>
 
-          <div>
-            <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Stone</p>
-            <p className="text-[13px] text-gray-800 font-light">{stoneText}</p>
-          </div>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Stone</p>
+                <p className="text-[13px] text-gray-800 font-light">{stoneText}</p>
+              </div>
 
-          <div>
-            <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Net Weight</p>
-            <p className="text-[13px] text-gray-800 font-light">{(pd.netWeight || 0).toFixed(2)} Grams</p>
-          </div>
+              <div>
+                <p className="text-[9px] tracking-[0.1em] text-gray-400 uppercase mb-1">Net Weight</p>
+                <p className="text-[13px] text-gray-800 font-light">{(pd.netWeight || 0).toFixed(2)} Grams</p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* QTY CONTROL */}
@@ -137,11 +165,25 @@ const handleQty = (delta) => {
 
     <button
        onClick={() => updateQty(item._id, +1)}
-      className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100"
+      disabled={isMax}
+      title={isMax ? `Maximum stock (${maxStock}) reached` : undefined}
+      className={`w-8 h-8 flex items-center justify-center text-gray-500 transition-all ${
+        isMax
+          ? "opacity-25 cursor-not-allowed bg-gray-100 text-gray-300"
+          : "hover:bg-gray-100"
+      }`}
     >
       +
     </button>
   </div>
+
+  {maxStock !== undefined && maxStock > 0 && (
+    <span className={`text-[10px] font-medium tracking-wider uppercase px-2 py-0.5 rounded ${
+      isMax ? "bg-amber-50 text-amber-700 font-semibold border border-amber-200" : "text-gray-400"
+    }`}>
+      Max: {maxStock}
+    </span>
+  )}
 
      
         <div className="mt-auto">
@@ -233,30 +275,29 @@ export default function CartPage() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 pb-20">
       
-      <div className="max-w-[1300px] mx-auto px-6 lg:px-12 pt-12">
+      <div className="max-w-[1300px] mx-auto px-4 sm:px-6 lg:px-12 pt-6 sm:pt-12">
 
         <button
-  onClick={() => navigate(-1)}
-  className="mb-6 text-sm text-gray-500 hover:text-[#6B3151] transition-colors"
->
-  ← Back
-</button>
+          onClick={() => navigate(-1)}
+          className="mb-4 sm:mb-6 text-xs sm:text-sm text-gray-500 hover:text-[#6B3151] transition-colors"
+        >
+          ← Back
+        </button>
         
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12 border-b border-gray-100 pb-6 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-12 border-b border-gray-100 pb-4 sm:pb-6 gap-3 sm:gap-4">
           <div>
-            <h1 className="text-[42px] font-serif italic text-[#6B3151] leading-tight">Your Selections</h1>
-            <p className="text-[10px] tracking-[0.15em] text-gray-400 uppercase mt-2">
+            <h1 className="text-2xl sm:text-3xl md:text-[42px] font-serif italic text-[#6B3151] leading-tight">Your Selections</h1>
+            <p className="text-[10px] tracking-[0.15em] text-gray-400 uppercase mt-1 sm:mt-2">
               Review your curated pieces before finalization
             </p>
           </div>
           
           <button 
-           // onClick={() => { if(window.confirm("Clear all items?")) clearCart() }}
-           onClick={async () => {
-  const ok = await showConfirm("Clear all items?");
-  if (ok) clearCart();
-}}
+            onClick={async () => {
+              const ok = await showConfirm("Clear all items?");
+              if (ok) clearCart();
+            }}
             className="flex items-center gap-2 text-[10px] tracking-[0.1em] uppercase text-gray-400 hover:text-[#6B3151] transition-colors pb-1"
           >
             <Trash2 size={12} /> Clear All
@@ -264,33 +305,31 @@ export default function CartPage() {
         </div>
 
         {/* CONTENT LAYOUT */}
-        <div className="flex flex-col lg:flex-row gap-16">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-16">
           
           {/* LEFT: ITEM LIST */}
           <div className="flex-1">
-          {/*  <AnimatePresence > */}
-              {cart.items.map((item) => (
-                <CartItemRow 
-                  key={item._id} 
-                  item={item} 
-                  removeItem={removeItem} 
-                  showConfirm={showConfirm} 
-                    updateQty={updateQty}
-                />
-              ))}
-            {/* </AnimatePresence> */}
+            {cart.items.map((item) => (
+              <CartItemRow 
+                key={item._id} 
+                item={item} 
+                removeItem={removeItem} 
+                showConfirm={showConfirm} 
+                updateQty={updateQty}
+              />
+            ))}
           </div>
 
           {/* RIGHT: SUMMARY PANEL */}
           <div className="w-full lg:w-[380px] shrink-0">
-            <div className="bg-[#6B3151] text-white p-10 sticky top-10">
+            <div className="bg-[#6B3151] text-white p-5 sm:p-8 md:p-10 rounded-xl sm:rounded-none sticky top-10 shadow-sm">
               
-              <h2 className="text-2xl font-serif font-light mb-10">Order Summary</h2>
+              <h2 className="text-xl sm:text-2xl font-serif font-light mb-6 sm:mb-10">Order Summary</h2>
               
-              <div className="space-y-6 mb-10 text-[11px] tracking-wide font-light border-b border-white/20 pb-10">
+              <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-10 text-[11px] tracking-wide font-light border-b border-white/20 pb-6 sm:pb-10">
                 <div className="flex justify-between items-center">
                   <span className="uppercase tracking-[0.1em] text-white/70">Subtotal</span>
-                  <span className="text-[13px]">${totals.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[13px]">₹{totals.value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
                 
                 <div className="flex justify-between items-center">
@@ -304,9 +343,9 @@ export default function CartPage() {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center mb-10">
-                <span className="text-2xl font-serif italic">Total</span>
-                <span className="text-2xl font-light">
+              <div className="flex justify-between items-center mb-6 sm:mb-10">
+                <span className="text-xl sm:text-2xl font-serif italic">Total</span>
+                <span className="text-xl sm:text-2xl font-light">
                   ₹{totals.value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </span>
               </div>

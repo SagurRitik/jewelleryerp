@@ -13,10 +13,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { createManualInvoice } from "../api/invoiceApi";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+import API from "../api";
+import { resolveImage } from "../utils/resolveImage";
 import { toast } from "sonner";
-import { ArrowLeft, RotateCcw, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, RotateCcw, Sparkles, Loader2, PackageSearch, Search, X, Gem, Barcode, Check, Heart, LayoutGrid, Coins, Shield, Globe, MapPin } from "lucide-react";
 import { useModal } from "../context/ModalContext";
 import { useRates } from "../context/RatesContext";
+import { INDIAN_STATE_CODES, INDIAN_STATE_OPTIONS, determineTaxType, validateGSTIN, normalizeStateCode } from "../utils/gstStateHelper";
 
 export default function ManualBillingForm() {
   const navigate = useNavigate();
@@ -248,6 +251,7 @@ export default function ManualBillingForm() {
         : { Gold: "", Silver: "", Platinum: "" },
       ratesLocked: localStorage.getItem("billing_rates_locked") === "true",
       disableMinMakingRule: localStorage.getItem("billing_disable_min_making") === "true",
+      taxTypeOverride: "AUTO",
     };
   };
 
@@ -334,10 +338,11 @@ export default function ManualBillingForm() {
     } else if (prefill) {
       initialItems = [{
         ...emptyItem,
+        isLooseDiamond: true,
         title: prefill.sku
           ? `Loose Diamond: ${prefill.labNatural || "Natural"} ${prefill.shape || ""} ${prefill.weight || ""}ct ${prefill.color || ""}/${prefill.clarity || ""} ${prefill.lab ? `(${prefill.lab})` : ""} [SKU: ${prefill.sku}]`
           : `Loose Diamond: ${prefill.labNatural || "Natural"} ${prefill.shape || ""} ${prefill.weight || ""}ct`,
-        hsnCode: prefill.hsnCode || "",
+        hsnCode: prefill.hsnCode || "7102",
         netWeight: 0,
         grossWeight: 0,
         metalType: "Gold",
@@ -365,6 +370,8 @@ export default function ManualBillingForm() {
       }));
     }
 
+    const isLooseDiamondInitial = Boolean(location.state?.isLooseDiamond || location.state?.prefillDiamond);
+
     return {
       date: initialDate,
       invoiceDatePart: initialDate.replace(/-/g, "/"),
@@ -377,7 +384,9 @@ export default function ManualBillingForm() {
         mode: "CASH",
         referenceNo: "",
       },
-      gstPercent: savedGST ? Number(savedGST) : 3,
+      gstPercent: isLooseDiamondInitial
+        ? (rates?.tax?.looseDiamondGst ?? 1.5)
+        : (savedGST ? Number(savedGST) : (rates?.tax?.gst ?? 3)),
       makingRates: localStorage.getItem("billing_making_rates")
         ? JSON.parse(localStorage.getItem("billing_making_rates"))
         : { Gold: "", Silver: "", Platinum: "" },
@@ -385,6 +394,321 @@ export default function ManualBillingForm() {
       disableMinMakingRule: localStorage.getItem("billing_disable_min_making") === "true",
     };
   });
+
+  /* ================= PICKUP BY SKU FEATURE ================= */
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [pickupSearch, setPickupSearch] = useState("");
+  const [pickupTab, setPickupTab] = useState("ALL"); // "ALL", "PRODUCT", "DIAMOND"
+  const [pickupResults, setPickupResults] = useState([]);
+  const [pickupLoading, setPickupLoading] = useState(false);
+  const [targetItemIndex, setTargetItemIndex] = useState(null);
+
+  const fetchPickupResults = async (query = "") => {
+    try {
+      setPickupLoading(true);
+      const [prodRes, diaRes] = await Promise.all([
+        API.get("/products", { params: { search: query, limit: 20 } }).catch(() => ({ data: { products: [] } })),
+        API.get("/diamonds", { params: { search: query, limit: 20 } }).catch(() => ({ data: { diamonds: [] } }))
+      ]);
+
+      const prods = (prodRes.data?.products || []).map((p) => {
+        const calculatedPrice = Number(
+          p.pricing?.grandTotal ??
+          p.pricing?.payable ??
+          p.pricing?.grossTotal ??
+          p.price ??
+          p.sellingPrice ??
+          0
+        );
+
+        return {
+          id: `prod_${p._id}`,
+          sku: p.sku || "N/A",
+          title: p.title || "Jewellery Product",
+          subtitle: `${p.metalPurity || ""} ${p.metalType || ""} • Net Wt: ${p.netWeight || 0}g`,
+          category: p.jewelleryCategory || "Fine Jewellery",
+          price: Math.round(calculatedPrice),
+          image: resolveImage(p.images?.[0]),
+          stock: p.stock !== undefined ? p.stock : 0,
+          metalType: p.metalType || "Gold",
+          type: "PRODUCT",
+          raw: p,
+        };
+      });
+
+      const dias = (diaRes.data?.diamonds || []).map((d) => {
+        const diaPrice = Number(
+          d.sellingPrice ||
+          (Number(d.weight || 0) * Number(d.sellingRate || 0)) ||
+          0
+        );
+
+        return {
+          id: `dia_${d._id}`,
+          sku: d.sku || "N/A",
+          title: `Loose Diamond: ${d.labNatural || "Natural"} ${d.shape || ""} ${d.weight || 0}ct`,
+          subtitle: `${d.color || ""}/${d.clarity || ""} • ${d.lab ? `${d.lab} ` : ""}${d.certificateNo || "No Cert"}`,
+          category: "Loose Diamond",
+          price: Math.round(diaPrice),
+          image: null,
+          stock: d.stock !== undefined ? d.stock : 0,
+          metalType: null,
+          type: "DIAMOND",
+          raw: d,
+        };
+      });
+
+      setPickupResults([...prods, ...dias]);
+    } catch (err) {
+      console.error("Pickup search error:", err);
+    } finally {
+      setPickupLoading(false);
+    }
+  };
+
+  const openPickupModal = (itemIndex = null) => {
+    setTargetItemIndex(itemIndex);
+    setPickupSearch("");
+    setPickupTab("ALL");
+    setIsPickupModalOpen(true);
+    fetchPickupResults("");
+  };
+
+  const convertProductToBillingItem = (p, pricing = null, currentForm = null) => {
+    const pr = pricing || p.pricing || {};
+
+    // If Loose Diamond from DiamondStock model
+    if (p.shape && !p.components && (p.labNatural !== undefined || p.weight > 0)) {
+      const diaRate = p.weight > 0 ? (Number(p.sellingPrice || 0) / Number(p.weight)) : Number(p.sellingRate || 0);
+      return {
+        ...emptyItem,
+        isLooseDiamond: true,
+        sku: p.sku || "",
+        title: p.sku
+          ? `Loose Diamond: ${p.labNatural || "Natural"} ${p.shape || ""} ${p.weight || ""}ct ${p.color || ""}/${p.clarity || ""} ${p.lab ? `(${p.lab})` : ""} [SKU: ${p.sku}]`
+          : `Loose Diamond: ${p.labNatural || "Natural"} ${p.shape || ""} ${p.weight || ""}ct`,
+        hsnCode: "7102",
+        netWeight: 0,
+        grossWeight: 0,
+        metalType: "Gold",
+        metalRate: 0,
+        makingRate: 0,
+        makingCharge: 0,
+        diamonds: [{
+          qty: 1,
+          grossWeight: p.weight || 0,
+          netWeight: p.weight || 0,
+          rate: Math.round(diaRate || 0),
+          shape: p.shape || "",
+          color: p.color || "",
+          clarity: p.clarity || "",
+          diamondId: p._id
+        }],
+        stones: [{ qty: "", grossWeight: "", netWeight: "", rate: "" }],
+        belts: [{ material: "", color: "", size: "", qty: "", rate: "" }],
+        certificates: p.certificateNo ? [{ lab: p.lab || "Cert", certificateNo: p.certificateNo }] : []
+      };
+    }
+
+    // Regular Jewellery Product
+    const isLooseCategory = p.jewelleryCategory === "Loose Diamond";
+    const netWt = Number(p.netWeight || p.grossWeight || 0);
+
+    // 1. Resolve metalRate (from pricing, baseRates, or rates helper)
+    let metalRate = pr.metalRate || "";
+    if (!metalRate && pr.metalValue > 0 && netWt > 0) {
+      metalRate = (pr.metalValue / netWt).toFixed(2);
+    }
+    if (!metalRate && currentForm) {
+      const config = METAL_CONFIG[p.metalType || "Gold"];
+      if (config) {
+        const baseRate = Number(currentForm.baseRates?.[config.baseKey] || 0);
+        const factor = config.purities[p.metalPurity || "18KT"] || 1;
+        if (baseRate > 0) metalRate = (baseRate * factor).toFixed(2);
+      }
+    }
+    if (!metalRate && rates?.helpers?.getMetalRate) {
+      const fetchedRate = rates.helpers.getMetalRate(p.metalType || "Gold", p.metalPurity || "18KT");
+      if (fetchedRate > 0) metalRate = fetchedRate.toFixed(2);
+    }
+
+    // 2. Resolve makingRate & makingCharge
+    let makingRate = pr.makingRate || p.makingRate || "";
+    let makingCharge = pr.makingCharge !== undefined && pr.makingCharge !== null && pr.makingCharge !== "" ? String(pr.makingCharge) : "";
+
+    if (!makingCharge && currentForm) {
+      const mRate = Number(makingRate || currentForm.makingRates?.[p.metalType || "Gold"] || 0);
+      const minWeight = currentForm.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
+      const minFlat = currentForm.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
+      if (netWt > 0) {
+        if (minWeight > 0 && netWt < minWeight) {
+          makingCharge = minFlat.toFixed(2);
+        } else if (mRate > 0) {
+          makingCharge = (netWt * mRate).toFixed(2);
+        }
+      }
+      if (!makingRate && mRate > 0) makingRate = mRate.toString();
+    }
+    if (!makingRate && Number(makingCharge) > 0 && netWt > 0) {
+      makingRate = (Number(makingCharge) / netWt).toFixed(2);
+    }
+
+    // 3. Map Diamonds & Stones with calculated rates from pricing.componentBreakup
+    const componentBreakup = pr.componentBreakup || [];
+    const diamondBreakups = componentBreakup.filter(c => c.pricingRef === "DIAMOND" || ["Diamond", "Polki", "Moissanite"].includes(c.type));
+    const stoneBreakups = componentBreakup.filter(c => c.pricingRef === "STONE" || (!["Diamond", "Polki", "Moissanite"].includes(c.type) && c.pricingRef !== "BELT"));
+    const beltBreakups = componentBreakup.filter(c => c.pricingRef === "BELT");
+
+    const rawDiamonds = (p.components || []).filter(c => ["Diamond", "Polki", "Moissanite"].includes(c.type));
+    const rawStones = (p.components || []).filter(c => !["Diamond", "Polki", "Moissanite"].includes(c.type) && c.pricingRef !== "BELT");
+
+    const mappedDiamonds = (diamondBreakups.length > 0 ? diamondBreakups : rawDiamonds).map((d, idx) => {
+      const rawMatch = rawDiamonds[idx] || {};
+      const count = Number(rawMatch.count || d.count || 1);
+      // Total carats: prioritize rawMatch.weight (which represents total diamond carats e.g. 2.46) or d.weight
+      const totalCarats = Number(rawMatch.weight || d.weight || (d.grossWeight && d.grossWeight < 100 ? d.grossWeight : 0) || 0);
+      const pieceCarats = count > 0 && totalCarats > 0 ? Number((totalCarats / count).toFixed(3)) : totalCarats;
+      let rate = Number(d.rate || rawMatch.rateOverride || rawMatch.rate || 0);
+
+      // Fallback if rate is 0 but diamond values exist
+      if (rate <= 0 && pr.diamondValue > 0 && totalCarats > 0) {
+        rate = Math.round(pr.diamondValue / totalCarats);
+      } else if (rate <= 0 && d.value > 0 && totalCarats > 0) {
+        rate = Math.round(d.value / totalCarats);
+      }
+
+      return {
+        qty: count,
+        grossWeight: totalCarats,
+        netWeight: pieceCarats,
+        rate: rate,
+        shape: d.shape || rawMatch.shape || "",
+        color: d.color || rawMatch.color || "",
+        clarity: d.clarity || rawMatch.clarity || ""
+      };
+    });
+
+    const mappedStones = (stoneBreakups.length > 0 ? stoneBreakups : rawStones).map((s, idx) => {
+      const rawMatch = rawStones[idx] || {};
+      const count = Number(rawMatch.count || s.count || 1);
+      const totalWeight = Number(rawMatch.weight || s.weight || s.grossWeight || 0);
+      const pieceWeight = count > 0 && totalWeight > 0 ? Number((totalWeight / count).toFixed(3)) : totalWeight;
+      let rate = Number(s.rate || rawMatch.rateOverride || rawMatch.rate || 0);
+
+      if (rate <= 0 && pr.stoneValue > 0 && totalWeight > 0) {
+        rate = Math.round(pr.stoneValue / totalWeight);
+      } else if (rate <= 0 && s.value > 0 && totalWeight > 0) {
+        rate = Math.round(s.value / totalWeight);
+      }
+
+      return {
+        qty: count,
+        grossWeight: totalWeight,
+        netWeight: pieceWeight,
+        rate: rate,
+        shape: s.shape || rawMatch.shape || ""
+      };
+    });
+
+    const mappedBelts = beltBreakups.length > 0
+      ? beltBreakups.map(b => ({
+          material: b.category || b.description || "",
+          color: b.color || "",
+          size: b.size || "",
+          qty: b.count || 1,
+          rate: b.rate || 0
+        }))
+      : [{ material: "", color: "", size: "", qty: "", rate: "" }];
+
+    return {
+      ...emptyItem,
+      isLooseDiamond: isLooseCategory,
+      sku: p.sku || "",
+      title: p.title || "",
+      hsnCode: p.hsnCode || (isLooseCategory ? "7102" : "7113"),
+      metalType: p.metalType || "Gold",
+      purity: p.metalPurity || "18KT",
+      grossWeight: p.grossWeight !== undefined && p.grossWeight !== null ? p.grossWeight.toString() : "",
+      netWeight: p.netWeight !== undefined && p.netWeight !== null ? p.netWeight.toString() : "",
+      metalRate: metalRate ? String(metalRate) : "",
+      makingRate: makingRate ? String(makingRate) : "",
+      makingCharge: makingCharge ? String(makingCharge) : "",
+      diamonds: mappedDiamonds.length > 0 ? mappedDiamonds : [{ qty: "", grossWeight: "", netWeight: "", rate: "" }],
+      stones: mappedStones.length > 0 ? mappedStones : [{ qty: "", grossWeight: "", netWeight: "", rate: "" }],
+      belts: mappedBelts,
+      certificates: p.certificateNo
+        ? [{ lab: p.lab || "Cert", certificateNo: p.certificateNo }]
+        : (Array.isArray(p.certificates) && p.certificates.length > 0
+            ? p.certificates.map(c => ({ lab: c.lab || "", certificateNo: c.certificateNo || "" }))
+            : [])
+    };
+  };
+
+  const handleSelectPickupProduct = async (res) => {
+    let rawProduct = res.raw;
+    let pricing = rawProduct.pricing;
+
+    // If regular product and pricing is missing or incomplete, fetch detailed product by SKU:
+    if (res.type === "PRODUCT" && res.sku && (!pricing || !pricing.componentBreakup || !pricing.metalRate)) {
+      try {
+        const skuRes = await API.get(`/products/sku/${encodeURIComponent(res.sku)}`);
+        if (skuRes.data?.product) {
+          rawProduct = skuRes.data.product;
+          pricing = skuRes.data.product.pricing;
+        }
+      } catch (err) {
+        console.warn("Could not fetch product details by SKU:", err);
+      }
+    }
+
+    const newBillingItem = convertProductToBillingItem(rawProduct, pricing, form);
+
+    setForm((prev) => {
+      const updatedItems = [...prev.items];
+      if (targetItemIndex !== null && targetItemIndex >= 0 && targetItemIndex < updatedItems.length) {
+        updatedItems[targetItemIndex] = newBillingItem;
+      } else {
+        if (
+          updatedItems.length === 1 &&
+          !updatedItems[0].title &&
+          !updatedItems[0].sku &&
+          !updatedItems[0].grossWeight
+        ) {
+          updatedItems[0] = newBillingItem;
+        } else {
+          updatedItems.push(newBillingItem);
+        }
+      }
+
+      // If current form base rate for this metal is empty, prefill from metalRate
+      const config = METAL_CONFIG[newBillingItem.metalType || "Gold"];
+      const updatedBaseRates = { ...prev.baseRates };
+      if (config && (!updatedBaseRates[config.baseKey] || Number(updatedBaseRates[config.baseKey]) === 0)) {
+        const factor = config.purities[newBillingItem.purity || "18KT"] || 1;
+        if (Number(newBillingItem.metalRate) > 0 && factor > 0) {
+          updatedBaseRates[config.baseKey] = Math.round(Number(newBillingItem.metalRate) / factor).toString();
+        }
+      }
+
+      // If current form making rate is empty, prefill from makingRate
+      const updatedMakingRates = { ...prev.makingRates };
+      if (newBillingItem.metalType && (!updatedMakingRates[newBillingItem.metalType] || Number(updatedMakingRates[newBillingItem.metalType]) === 0)) {
+        if (Number(newBillingItem.makingRate) > 0) {
+          updatedMakingRates[newBillingItem.metalType] = Number(newBillingItem.makingRate).toString();
+        }
+      }
+
+      return {
+        ...prev,
+        items: updatedItems,
+        baseRates: updatedBaseRates,
+        makingRates: updatedMakingRates,
+      };
+    });
+
+    setIsPickupModalOpen(false);
+    toast.success(`Picked up SKU: ${res.sku} with rates & specifications!`);
+  };
 
   const [useMetalExchange, setUseMetalExchange] = useState(false);
   const [metalExchange, setMetalExchange] = useState({
@@ -566,8 +890,13 @@ export default function ManualBillingForm() {
 
   // Handle Prefill from Diamond Inventory & AI Scanner
   useEffect(() => {
-    if (location.state?.prefillDiamond) {
-      toast.success("Diamond details auto-filled from stock!");
+    if (location.state?.prefillDiamond || location.state?.isLooseDiamond) {
+      const looseRate = rates?.tax?.looseDiamondGst ?? rates?.base?.looseDiamondGstRate ?? 1.5;
+      setForm((p) => ({
+        ...p,
+        gstPercent: looseRate,
+      }));
+      toast.success(`Loose Diamond auto-filled! GST set to ${looseRate}%.`);
     } else if (location.state?.parsedInvoice) {
       const data = location.state.parsedInvoice;
 
@@ -597,10 +926,41 @@ export default function ManualBillingForm() {
   }, [location.state]);
 
   const handleCustomerChange = (field, value) => {
-    setForm((p) => ({
-      ...p,
-      customer: { ...p.customer, [field]: value },
-    }));
+    setForm((p) => {
+      let finalVal = value;
+      if (field === "stateCode" && value.includes(" - ")) {
+        finalVal = value.split(" - ")[0].trim();
+      }
+
+      const updatedCustomer = { ...p.customer, [field]: finalVal };
+
+      // Auto-extract state code from GSTIN if stateCode is empty or default
+      if (field === "gstin") {
+        const cleanGst = (value || "").trim().toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+        updatedCustomer.gstin = cleanGst;
+        if (cleanGst.length >= 2) {
+          const code = cleanGst.slice(0, 2);
+          if (INDIAN_STATE_CODES[code]) {
+            updatedCustomer.stateCode = code;
+          }
+        } else if (cleanGst.length === 0) {
+          updatedCustomer.stateCode = "23";
+        }
+
+        // Auto-populate PAN if empty
+        if (cleanGst.length >= 12 && (!updatedCustomer.panNumber || updatedCustomer.panNumber.length !== 10)) {
+          const potPan = cleanGst.slice(2, 12);
+          if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(potPan)) {
+            updatedCustomer.panNumber = potPan;
+          }
+        }
+      }
+
+      return {
+        ...p,
+        customer: updatedCustomer,
+      };
+    });
   };
 
   const handleDiscountChange = (index, field, subField, value) => {
@@ -678,18 +1038,18 @@ export default function ManualBillingForm() {
       const weight = Number(item.netWeight || 0);
       const rate = Number(form.makingRates[item.metalType] || 0);
 
-      let makingCharge = "0.00";
+      let makingCharge = item.makingCharge || "0.00";
       if (weight > 0) {
         if (minWeight > 0 && weight < minWeight) {
           makingCharge = minFlat.toFixed(2);
-        } else {
+        } else if (rate > 0) {
           makingCharge = (weight * rate).toFixed(2);
         }
       }
 
       return {
         ...item,
-        makingRate: rate,
+        makingRate: rate > 0 ? rate : (item.makingRate || 0),
         makingCharge,
       };
     });
@@ -799,6 +1159,14 @@ export default function ManualBillingForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (form.customer?.gstin) {
+      const gCheck = validateGSTIN(form.customer.gstin, form.customer.stateCode);
+      if (!gCheck.isValid) {
+        showAlert(`GSTIN Error: ${gCheck.error}`);
+        return;
+      }
+    }
 
     if (subtotal < 0) {
       showAlert("Invoice subtotal cannot be less than 0.");
@@ -933,6 +1301,7 @@ export default function ManualBillingForm() {
         },
         breakup: {
           subtotal,
+          gstPercent: Number(form.gstPercent || 0),
           gst,
           grandTotal,
           metalRate,
@@ -960,7 +1329,12 @@ export default function ManualBillingForm() {
         : undefined;
 
     const payload = {
-      customer: form.customer,
+      customer: {
+        ...form.customer,
+        stateCode: taxCalculation.stateCode || form.customer.stateCode,
+      },
+      taxTypeOverride: form.taxTypeOverride || "AUTO",
+      taxType: taxCalculation.taxType,
       items: itemsPayload,
       metalPayment: metalPayload,
       payment: isSplitPayment
@@ -1094,6 +1468,13 @@ export default function ManualBillingForm() {
   const grandTotal = subtotal + gst;
   const metalCredit = useMetalExchange ? (metalExchange.totalValue || 0) : 0;
   const maxPayable = Math.max(0, grandTotal - appliedCredit - metalCredit);
+
+  /* ================= 🌐 TAX DETERMINATION (INTER-STATE vs INTRA-STATE) ================= */
+  const taxCalculation = determineTaxType(form.customer, form.taxTypeOverride || "AUTO");
+  const isInterState = taxCalculation.isInterState;
+  const gstRate = Number(form.gstPercent || 0);
+  const halfGstRate = Math.round((gstRate / 2) * 100) / 100;
+  const halfGstAmount = Math.round((gst / 2) * 100) / 100;
 
   useEffect(() => {
     // Normalise: remove non-digits and take last 10 characters
@@ -1245,24 +1626,28 @@ export default function ManualBillingForm() {
     return Math.max(0, subtotalBeforeDiscount - totalDiscount);
   };
 
+  const gstinValidation = validateGSTIN(form.customer?.gstin, form.customer?.stateCode);
+
   return (
-    <div className="min-h-screen bg-[#fafbfc] p-6 font-sans text-[#4a2b3d]">
+    <div className="min-h-screen bg-[#fafbfc] p-3 sm:p-6 font-sans text-[#4a2b3d]">
 
       <div className="max-w-[1400px] mx-auto">
         {/* Header Section */}
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5c2b41] hover:border-[#5c2b41]/20 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-[#5c2b41] leading-none mb-1">Manual Billing</h1>
-            <p className="text-xs text-gray-400">Create client invoices manually</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#5c2b41] hover:border-[#5c2b41]/20 transition-colors shrink-0"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#5c2b41] leading-none mb-1">Manual Billing</h1>
+              <p className="text-[11px] sm:text-xs text-gray-400">Create client invoices manually</p>
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* AI Scan Button */}
             <input
               type="file"
@@ -1392,22 +1777,85 @@ export default function ManualBillingForm() {
                     handleCustomerChange("address", e.target.value)
                   }
                 />
-                <input
-                  placeholder="GSTIN"
-                  className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] placeholder-[#c3b1bc] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                  value={form.customer.gstin}
-                  onChange={(e) =>
-                    handleCustomerChange("gstin", e.target.value)
-                  }
-                />
-                <input
-                  placeholder="State Code"
-                  className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] placeholder-[#c3b1bc] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                  value={form.customer.stateCode}
-                  onChange={(e) =>
-                    handleCustomerChange("stateCode", e.target.value)
-                  }
-                />
+                <div className="relative">
+                  <input
+                    placeholder="GSTIN (15 characters)"
+                    maxLength={15}
+                    className={`w-full border rounded text-sm px-3 py-2.5 text-[#4a2b3d] placeholder-[#c3b1bc] uppercase font-mono transition-colors focus:outline-none focus:ring-1 ${
+                      !gstinValidation.isEmpty && !gstinValidation.isValid
+                        ? gstinValidation.stateMismatch
+                          ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500 bg-amber-50/20"
+                          : form.customer.gstin?.length === 15
+                            ? "border-red-400 focus:border-red-500 focus:ring-red-500 bg-red-50/20"
+                            : "border-[#ebdbe2] focus:border-[#632f4a] focus:ring-[#632f4a]"
+                        : !gstinValidation.isEmpty && gstinValidation.isValid
+                          ? "border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500 bg-emerald-50/20 font-bold"
+                          : "border-[#ebdbe2] focus:border-[#632f4a] focus:ring-[#632f4a]"
+                    }`}
+                    value={form.customer.gstin}
+                    onChange={(e) =>
+                      handleCustomerChange("gstin", e.target.value)
+                    }
+                  />
+                  {gstinValidation.isEmpty ? (
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Optional. Auto-syncs State & PAN
+                    </span>
+                  ) : form.customer.gstin?.length < 15 ? (
+                    <span className="text-[10px] text-amber-600 font-mono mt-1 block font-semibold">
+                      {form.customer.gstin?.length}/15 chars • State: {INDIAN_STATE_CODES[form.customer.gstin.slice(0, 2)] || "Entering..."}
+                    </span>
+                  ) : gstinValidation.isValid ? (
+                    <span className="text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1">
+                      ✓ Valid GSTIN ({gstinValidation.stateName})
+                    </span>
+                  ) : gstinValidation.stateMismatch ? (
+                    <div className="mt-1 p-1 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] flex items-center justify-between gap-1">
+                      <span>⚠️ Starts with {gstinValidation.stateCode} ({gstinValidation.stateName})</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCustomerChange("stateCode", gstinValidation.stateCode)}
+                        className="px-1.5 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold transition shrink-0"
+                      >
+                        Sync {gstinValidation.stateCode}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-red-600 font-semibold mt-1 block">
+                      ⚠️ {gstinValidation.error}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    list="indian-state-codes"
+                    placeholder="State Code (e.g. 23, 27)"
+                    className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] placeholder-[#c3b1bc] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                    value={form.customer.stateCode}
+                    onChange={(e) =>
+                      handleCustomerChange("stateCode", e.target.value)
+                    }
+                  />
+                  <datalist id="indian-state-codes">
+                    {INDIAN_STATE_OPTIONS.map((st) => (
+                      <option key={st.code} value={`${st.code} - ${st.name}`} />
+                    ))}
+                  </datalist>
+                  {taxCalculation.stateCode && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] px-0.5">
+                      <span className="text-[#8b7280] font-semibold truncate max-w-[140px]">
+                        📍 {taxCalculation.stateName}
+                      </span>
+                      <span className={`px-1.5 py-0.2 rounded font-bold ${
+                        taxCalculation.isInterState
+                          ? "bg-blue-50 text-blue-700 border border-blue-200"
+                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      }`}>
+                        {taxCalculation.isInterState ? "IGST" : "CGST+SGST"}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <input
                   placeholder="PAN Number (If > 2L)"
                   className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2.5 text-[#4a2b3d] placeholder-[#c3b1bc] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
@@ -1444,13 +1892,23 @@ export default function ManualBillingForm() {
                 <h2 className="text-[10px] uppercase font-bold text-[#a68e9b] tracking-wider">
                   Bill Items
                 </h2>
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="text-[#632f4a] font-bold text-sm flex items-center gap-1 hover:text-[#4a2b3d] transition-colors"
-                >
-                  <span className="text-lg leading-none">+</span> Add Item
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openPickupModal(null)}
+                    className="bg-[#f7eff3] text-[#632f4a] hover:bg-[#ebdbe2] border border-[#ebdbe2] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                    title="Pickup product or diamond by SKU"
+                  >
+                    <PackageSearch size={15} /> Pickup by SKU
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="text-[#632f4a] font-bold text-sm flex items-center gap-1 hover:text-[#4a2b3d] transition-colors"
+                  >
+                    <span className="text-lg leading-none">+</span> Add Item
+                  </button>
+                </div>
               </div>
 
               {form.items.map((item, i) => (
@@ -1461,11 +1919,23 @@ export default function ManualBillingForm() {
                   {/* Left part of the item card */}
                   <div className="flex-1 p-5 space-y-5">
                     <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="font-bold text-[#4a2b3d] text-base">
                           Item {i + 1}
                         </h3>
-
+                        {item.sku && (
+                          <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-mono font-bold">
+                            SKU: {item.sku}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openPickupModal(i)}
+                          className="text-[11px] font-bold text-[#632f4a] bg-[#f7eff3] hover:bg-[#ebdbe2] px-2.5 py-1 rounded-md border border-[#ebdbe2] flex items-center gap-1 transition-colors"
+                          title="Search & Pickup specs by SKU for this item"
+                        >
+                          <PackageSearch size={13} /> Pickup Product
+                        </button>
                       </div>
                       {form.items.length > 1 && (
                         <button
@@ -2414,6 +2884,8 @@ export default function ManualBillingForm() {
                 />
               </div>
 
+
+
               {/* Option to Disable Min Making Weight & Flat Fee */}
               <div className="mt-3 pt-2.5 border-t border-[#ebdbe2]/60 flex items-center justify-between gap-2">
                 <div className="flex flex-col">
@@ -2468,9 +2940,83 @@ export default function ManualBillingForm() {
                   <span className="text-base">- ₹ {totals.discount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
-                <div className="flex justify-between items-center pb-4 border-b border-[#73425d]">
-                  <span className="text-[#d8c5cf]">Tax (GST {form.gstPercent}%)</span>
-                  <span>₹ {gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {/* Dynamic Tax Breakdown & Override Toggle */}
+                <div className="pb-4 border-b border-[#73425d] space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isInterState
+                          ? "bg-blue-500/30 text-blue-200 border border-blue-400/40"
+                          : "bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
+                      }`}>
+                        {isInterState ? `🌐 IGST (${taxCalculation.stateName})` : "🏠 CGST + SGST (MP)"}
+                      </span>
+                    </div>
+
+                    {/* Tax Override Selector */}
+                    <div className="flex bg-[#52253e] rounded p-0.5 border border-[#7a4163]">
+                      <button
+                        type="button"
+                        title="Auto-detect based on State Code / GSTIN"
+                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "AUTO" }))}
+                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
+                          (!form.taxTypeOverride || form.taxTypeOverride === "AUTO")
+                            ? "bg-[#cda44b] text-white shadow-xs"
+                            : "text-[#d8c5cf] hover:text-white"
+                        }`}
+                      >
+                        Auto
+                      </button>
+                      <button
+                        type="button"
+                        title="Force CGST + SGST (MP Intra-State)"
+                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "INTRA_STATE" }))}
+                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
+                          form.taxTypeOverride === "INTRA_STATE"
+                            ? "bg-[#cda44b] text-white shadow-xs"
+                            : "text-[#d8c5cf] hover:text-white"
+                        }`}
+                      >
+                        CGST+SGST
+                      </button>
+                      <button
+                        type="button"
+                        title="Force IGST (Out-of-State)"
+                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "INTER_STATE" }))}
+                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
+                          form.taxTypeOverride === "INTER_STATE"
+                            ? "bg-[#cda44b] text-white shadow-xs"
+                            : "text-[#d8c5cf] hover:text-white"
+                        }`}
+                      >
+                        IGST
+                      </button>
+                    </div>
+                  </div>
+
+                  {isInterState ? (
+                    <div className="flex justify-between items-center text-sm pt-1">
+                      <span className="text-[#d8c5cf]">
+                        IGST ({form.gstPercent}%{Number(form.gstPercent) === Number(rates?.tax?.looseDiamondGst ?? 1.5) ? " · Loose Dia" : ""})
+                      </span>
+                      <span className="font-semibold">₹ {gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 pt-1 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#d8c5cf]">CGST ({halfGstRate}%)</span>
+                        <span>₹ {halfGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#d8c5cf]">SGST ({halfGstRate}%)</span>
+                        <span>₹ {halfGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-[#73425d]/50 text-[#e2d4dc] font-semibold">
+                        <span>Total GST ({form.gstPercent}%)</span>
+                        <span>₹ {gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3">
@@ -2530,6 +3076,237 @@ export default function ManualBillingForm() {
             </p> */}
           </div>
         </form>
+
+        {/* ================= PICKUP BY SKU MODAL ================= */}
+        {isPickupModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full p-3.5 sm:p-6 shadow-2xl border border-[#ebdbe2]/80 flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in zoom-in-95 duration-200 overflow-hidden">
+              
+              {/* Modal Header */}
+              <div className="flex justify-between items-start pb-3 sm:pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#fbf4f7] to-[#f2e2ec] border border-[#ebdbe2] text-[#632f4a] flex items-center justify-center shadow-xs shrink-0">
+                    <PackageSearch className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-[#3a1a2b] text-base sm:text-xl tracking-tight">
+                        Product Pickup by SKU
+                      </h3>
+                      {targetItemIndex !== null && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#fbf4f7] text-[#632f4a] border border-[#ebdbe2]">
+                          Item {targetItemIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
+                      Search inventory or loose diamonds to auto-fill metal, making rates, diamonds, and prices.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPickupModalOpen(false)}
+                  className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0 ml-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search Bar & Filter Tabs */}
+              <div className="py-3 sm:py-4 space-y-2.5 sm:space-y-3">
+                <div className="relative flex items-center">
+                  <Search size={16} className="absolute left-3.5 sm:left-4 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search by SKU (e.g. NDNK0001, RK-001) or Product Name..."
+                    value={pickupSearch}
+                    onChange={(e) => {
+                      setPickupSearch(e.target.value);
+                      fetchPickupResults(e.target.value);
+                    }}
+                    className="w-full pl-9 sm:pl-11 pr-10 sm:pr-12 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-200 text-xs sm:text-sm focus:outline-none focus:border-[#632f4a] focus:ring-4 focus:ring-[#632f4a]/10 transition-all font-medium text-gray-800 placeholder-gray-400 shadow-xs"
+                  />
+                  <div className="absolute right-3 sm:right-3.5 flex items-center gap-1.5">
+                    {pickupLoading && (
+                      <Loader2 size={16} className="text-[#632f4a] animate-spin" />
+                    )}
+                    {pickupSearch && !pickupLoading && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickupSearch("");
+                          fetchPickupResults("");
+                        }}
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 no-scrollbar sm:scrollbar-none -mx-1 px-1">
+                  {[
+                    { key: "ALL", label: "All Items", icon: LayoutGrid, count: pickupResults.length },
+                    { key: "PRODUCT", label: "Jewellery", icon: Gem, count: pickupResults.filter(r => r.type === "PRODUCT").length },
+                    { key: "DIAMOND", label: "Loose Diamonds", icon: Sparkles, count: pickupResults.filter(r => r.type === "DIAMOND").length },
+                    { key: "GOLD", label: "Gold", icon: Coins, count: pickupResults.filter(r => r.type === "PRODUCT" && (r.metalType || "").toLowerCase().includes("gold")).length },
+                    { key: "SILVER", label: "Silver", icon: Shield, count: pickupResults.filter(r => r.type === "PRODUCT" && (r.metalType || "").toLowerCase().includes("silver")).length },
+                  ].map((tab) => {
+                    const isActive = pickupTab === tab.key;
+                    const IconComponent = tab.icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setPickupTab(tab.key)}
+                        className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 ${
+                          isActive
+                            ? "bg-[#4a2037] text-white shadow-sm"
+                            : "bg-[#f4eff3] text-[#4a2b3d] hover:bg-[#ebdbe2]"
+                        }`}
+                      >
+                        <IconComponent size={13} className={isActive ? "text-white" : "text-[#7a4b67]"} />
+                        <span>{tab.label}</span>
+                        <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                          isActive ? "bg-white/20 text-white" : "bg-[#e5dce2] text-[#4a2b3d]"
+                        }`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Results List */}
+              <div className="flex-1 overflow-y-auto space-y-2 sm:space-y-2.5 pr-0.5 sm:pr-1 min-h-[260px] max-h-[58vh]">
+                {pickupLoading && pickupResults.length === 0 ? (
+                  <div className="py-16 text-center text-gray-400 flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-[#fbf4f7] flex items-center justify-center mb-3">
+                      <Loader2 size={24} className="animate-spin text-[#632f4a]" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-700">Searching inventory & diamond stock...</p>
+                    <p className="text-xs text-gray-400 mt-1">Fetching live rates, breakdown, and product pricing</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const filtered = pickupResults.filter((res) => {
+                      if (pickupTab === "ALL") return true;
+                      if (pickupTab === "PRODUCT") return res.type === "PRODUCT";
+                      if (pickupTab === "DIAMOND") return res.type === "DIAMOND";
+                      if (pickupTab === "GOLD") return res.type === "PRODUCT" && (res.metalType || "").toLowerCase().includes("gold");
+                      if (pickupTab === "SILVER") return res.type === "PRODUCT" && (res.metalType || "").toLowerCase().includes("silver");
+                      return true;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-16 text-center text-gray-400 flex flex-col items-center justify-center">
+                          <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-150 flex items-center justify-center mb-3 text-gray-300">
+                            <Barcode size={32} />
+                          </div>
+                          <p className="text-sm font-bold text-gray-700">No matching items found</p>
+                          <p className="text-xs text-gray-400 mt-1">Try entering a different SKU number or keyword</p>
+                        </div>
+                      );
+                    }
+
+                    return filtered.map((res, idx) => {
+                      const isDiamond = res.type === "DIAMOND";
+                      return (
+                        <div
+                          key={res.id}
+                          onClick={() => handleSelectPickupProduct(res)}
+                          className="group p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-[#efe9ed] hover:border-[#632f4a] bg-white hover:bg-[#fffcfd] shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5"
+                        >
+                          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                            {/* Image Thumbnail with Heart Icon */}
+                            <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-[#f5f1f4] border border-[#ebdbe2] overflow-hidden relative shrink-0 flex items-center justify-center">
+                              {res.image ? (
+                                <img src={res.image} alt={res.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                  <Gem size={22} className={isDiamond ? "text-purple-600" : "text-amber-600"} />
+                                </div>
+                              )}
+                              <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/85 backdrop-blur-xs flex items-center justify-center text-gray-400 shadow-xs">
+                                <Heart size={10} className="sm:w-3 sm:h-3" strokeWidth={2} />
+                              </div>
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              {/* Badges row */}
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1">
+                                <span className="font-mono text-[10px] sm:text-[11px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-[#fbf0f5] text-[#82335b] rounded-md border border-[#f0dce7]">
+                                  {res.sku}
+                                </span>
+                                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-[#fef4e8] text-[#9b5c2a] border border-[#fae2cb]">
+                                  {isDiamond ? "Loose Diamond" : res.category || "Jewellery"}
+                                </span>
+                                {res.stock !== undefined && (
+                                  res.stock > 2 ? (
+                                    <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-[#eafaf1] text-[#229954] border border-[#cceeda] flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#229954]"></span>
+                                      In Stock ({res.stock})
+                                    </span>
+                                  ) : res.stock > 0 ? (
+                                    <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-[#fef0ee] text-[#e74c3c] border border-[#fbcfca] flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#e74c3c]"></span>
+                                      Low Stock ({res.stock})
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                      Out of Stock
+                                    </span>
+                                  )
+                                )}
+                              </div>
+
+                              <h4 className="font-extrabold text-xs sm:text-base text-[#1f242e] truncate group-hover:text-[#632f4a] transition-colors leading-tight">
+                                {res.title}
+                              </h4>
+                              <p className="text-[10px] sm:text-xs text-gray-500 truncate mt-0.5 sm:mt-1 font-medium">
+                                {res.subtitle}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                            <div className="text-left sm:text-right">
+                              <span className="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-[#8b99a6] block leading-none mb-0.5">
+                                LIVE VALUE
+                              </span>
+                              <p className="text-sm sm:text-lg font-black text-[#1c222c] tracking-tight">
+                                ₹{(res.price || 0).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              className={`px-3.5 sm:px-4 py-1.5 sm:py-2 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1 shrink-0 ${
+                                idx === 0
+                                  ? "bg-[#5c2644] text-white hover:bg-[#431b31]"
+                                  : "bg-[#f7edf3] text-[#5c2644] group-hover:bg-[#5c2644] group-hover:text-white"
+                              }`}
+                            >
+                              + Add
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

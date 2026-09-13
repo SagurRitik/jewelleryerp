@@ -838,6 +838,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRates } from "../../context/RatesContext";
 import { toast } from "sonner";
 import CelebrationDiscountModal from "../../components/checkout/CelebrationDiscountModal";
+import { INDIAN_STATE_CODES, INDIAN_STATE_OPTIONS, determineTaxType, validateGSTIN, normalizeStateCode } from "../../utils/gstStateHelper";
 
 // --- CONSTANTS ---
 const COUNTRY_CODES = [
@@ -845,13 +846,6 @@ const COUNTRY_CODES = [
   { code: "+1", country: "US", flag: "🇺🇸" },
   { code: "+44", country: "UK", flag: "🇬🇧" },
   { code: "+971", country: "UAE", flag: "🇦🇪" },
-];
-
-const INDIAN_STATE_CODES = [
-  "01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-  "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
-  "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
-  "31", "32", "33", "34", "35", "36", "37"
 ];
 
 const purityOptions = {
@@ -901,7 +895,7 @@ export default function InvoiceConfirmPanel({
   const basePayable = cartTotals?.payable !== undefined
     ? cartTotals.payable
     : (cart?.totals ? cart.totals.grandTotal - (cart.totals.advancePayment || 0) - (cart.totals.metalPayment || 0) : 0);
-  const maxPayable = Math.max(0, basePayable - (metalExchange.totalValue || 0));
+  const maxPayable = Math.max(0, Math.round(basePayable - (metalExchange.totalValue || 0)));
 
   useEffect(() => {
     if (!rates) return;
@@ -927,6 +921,37 @@ export default function InvoiceConfirmPanel({
     name: "", countryCode: "+91", mobile: "", email: "",
     address: "", gstin: "", stateCode: "", panNumber: "",
   });
+
+  const gstinValidation = validateGSTIN(customer.gstin, customer.stateCode);
+
+  const handleGSTINChange = (e) => {
+    const rawVal = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15);
+    let newCode = customer.stateCode;
+    let newPan = customer.panNumber;
+
+    // Auto-extract state code if valid
+    if (rawVal.length >= 2) {
+      const pot = rawVal.slice(0, 2);
+      if (INDIAN_STATE_CODES[pot]) newCode = pot;
+    } else if (rawVal.length === 0) {
+      newCode = "23";
+    }
+
+    // Auto-extract PAN if valid PAN pattern and panNumber is empty
+    if (rawVal.length >= 12) {
+      const potPan = rawVal.slice(2, 12);
+      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(potPan) && (!newPan || newPan.length !== 10)) {
+        newPan = potPan;
+      }
+    }
+
+    setCustomer(prev => ({
+      ...prev,
+      gstin: rawVal,
+      stateCode: newCode,
+      panNumber: newPan
+    }));
+  };
 
   const [celebrationAlert, setCelebrationAlert] = useState(null);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
@@ -1178,6 +1203,15 @@ export default function InvoiceConfirmPanel({
       return;
     }
 
+    if (customer.gstin) {
+      const gCheck = validateGSTIN(customer.gstin, customer.stateCode);
+      if (!gCheck.isValid) {
+        setErrors({ submit: gCheck.error, gstin: gCheck.error });
+        if (!expandedSections.customer) toggleSection("customer");
+        toast.error(gCheck.error);
+        return;
+      }
+    }
 
     const newErrors = {};
     if (customer.mobile.length < 5) newErrors.mobile = "Invalid mobile number";
@@ -1490,30 +1524,96 @@ export default function InvoiceConfirmPanel({
               />
 
               <div className="grid grid-cols-2 gap-4">
-                <ModernInput
-                  label="GSTIN"
-                  icon={<Building size={14} className="text-[#462434]" />}
-                  value={customer.gstin}
-                  onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })}
-                  placeholder="GSTIN Code"
-                  className="uppercase"
-                />
                 <div>
-                  <label className="block text-[9px] font-bold tracking-[0.1em] uppercase text-[#462434] mb-1.5">STATE CODE</label>
+                  <ModernInput
+                    label="GSTIN"
+                    icon={<Building size={14} className="text-[#462434]" />}
+                    value={customer.gstin}
+                    onChange={handleGSTINChange}
+                    placeholder="e.g. 23AAKCN6666J1Z5"
+                    maxLength={15}
+                    error={errors.gstin}
+                    className={`uppercase font-mono text-xs tracking-wider ${
+                      !gstinValidation.isEmpty && !gstinValidation.isValid
+                        ? gstinValidation.stateMismatch
+                          ? "text-amber-800"
+                          : customer.gstin.length === 15
+                            ? "text-red-700"
+                            : ""
+                        : !gstinValidation.isEmpty && gstinValidation.isValid
+                          ? "text-emerald-800 font-bold"
+                          : ""
+                    }`}
+                  />
+                  {/* Feedback Status */}
+                  {gstinValidation.isEmpty ? (
+                    <span className="text-[9px] text-gray-400 mt-1 block">
+                      Optional for retail. Auto-syncs state & PAN.
+                    </span>
+                  ) : customer.gstin.length < 15 ? (
+                    <span className="text-[9px] text-amber-600 font-mono mt-1 block font-semibold">
+                      {customer.gstin.length}/15 chars • State: {INDIAN_STATE_CODES[customer.gstin.slice(0, 2)] || "Entering..."}
+                    </span>
+                  ) : gstinValidation.isValid ? (
+                    <span className="text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                      Valid GSTIN ({gstinValidation.stateName})
+                    </span>
+                  ) : gstinValidation.stateMismatch ? (
+                    <div className="mt-1 p-1 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[9px] flex items-center justify-between gap-1">
+                      <span className="truncate">State mismatch: Starts with {gstinValidation.stateCode}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCustomer(prev => ({ ...prev, stateCode: gstinValidation.stateCode }))}
+                        className="px-1.5 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold transition shrink-0"
+                      >
+                        Sync {gstinValidation.stateCode}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[9px] text-red-600 font-semibold mt-1 flex items-center gap-1">
+                      <AlertCircle size={12} className="text-red-500 shrink-0" />
+                      {gstinValidation.error}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[9px] font-bold tracking-[0.1em] uppercase text-[#462434]">STATE CODE</label>
+                    {customer.stateCode && (
+                      <span className={`text-[9px] font-bold px-1 rounded ${
+                        customer.stateCode !== "23"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        {customer.stateCode !== "23" ? "IGST (Inter-State)" : "CGST+SGST (MP)"}
+                      </span>
+                    )}
+                  </div>
                   <div className="relative h-10 flex items-center bg-white border border-gray-200 rounded">
                     <div className="px-3 border-r border-gray-200 bg-gray-50 h-full flex items-center justify-center">
                       <Flag size={14} className="text-[#462434]" />
                     </div>
                     <select
-                      className="w-full h-full bg-transparent text-neutral-900 text-sm pl-3 pr-8 appearance-none focus:outline-none cursor-pointer"
+                      className="w-full h-full bg-transparent text-neutral-900 text-xs pl-2 pr-8 appearance-none focus:outline-none cursor-pointer"
                       value={customer.stateCode}
                       onChange={(e) => setCustomer({ ...customer, stateCode: e.target.value })}
                     >
-                      <option value="">Code</option>
-                      {INDIAN_STATE_CODES.map(code => <option key={code} value={code}>{code}</option>)}
+                      <option value="">Select State</option>
+                      {INDIAN_STATE_OPTIONS.map(st => (
+                        <option key={st.code} value={st.code}>
+                          {st.code} - {st.name}
+                        </option>
+                      ))}
                     </select>
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                   </div>
+                  {customer.stateCode && (
+                    <span className="text-[9px] text-gray-500 mt-1 block truncate">
+                      {INDIAN_STATE_CODES[customer.stateCode] || "State"} ({customer.stateCode === "23" ? "Intra-State" : "Inter-State"})
+                    </span>
+                  )}
                 </div>
               </div>
 

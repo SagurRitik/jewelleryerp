@@ -14,7 +14,7 @@ const cartSchema = new mongoose.Schema(
       {
         itemType: {
           type: String,
-          enum: ["PRODUCT", "CUSTOM"],
+          enum: ["PRODUCT", "CUSTOM", "LOOSE_DIAMOND"],
           required: true,
         },
 
@@ -29,12 +29,17 @@ const cartSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "Product",
         },
+        diamond: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "DiamondStock",
+        },
         sku: String,
 
-        /* ================= CUSTOM / ORDER SNAPSHOT ================= */
+        /* ================= CUSTOM / ORDER / DIAMOND SNAPSHOT ================= */
         customSnapshot: {
           // 🔑 identity
           orderId: mongoose.Schema.Types.ObjectId,
+          diamondId: mongoose.Schema.Types.ObjectId,
           orderNo: String,
 
           // 🧑 customer snapshot (optional but useful)
@@ -77,6 +82,7 @@ const cartSchema = new mongoose.Schema(
       grossTotal: { type: Number, default: 0 },
       subtotal: { type: Number, default: 0 },
       gst: { type: Number, default: 0 },
+      roundOff: { type: Number, default: 0 },
       grandTotal: { type: Number, default: 0 },
       discount: { type: Number, default: 0 },
       regularDiscount: { type: Number, default: 0 },

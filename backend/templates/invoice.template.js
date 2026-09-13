@@ -713,6 +713,7 @@
 import fs from "fs";
 import path from "path";
 import QRCode from "qrcode";
+import { determineTaxType, INDIAN_STATE_CODES } from "../utils/gstStateHelper.js";
 
 export const invoiceTemplate = async (invoice) => {
   // --- 1. IMAGE LOADING LOGIC ---   
@@ -784,11 +785,30 @@ export const invoiceTemplate = async (invoice) => {
     .filter(p => p.source === "INVOICE")
     .reduce((s, p) => s + Number(p.totalValue || 0), 0) || Number(invoice.totals?.metalPayment || 0);
 
-  // --- Collect unique metal rates for the pre-table row ---
+  // --- Collect unique metal & diamond rates for the pre-table row ---
   const metalRateLines = invoice.items.map((item, index) => {
+    const snap = item.itemSnapshot || item.customSnapshot || {};
+    const pd = snap.productDetails || {};
     const pricing = item.breakup || {};
+    const isLoose = Boolean(
+      item.itemType === "LOOSE_DIAMOND" ||
+      snap.isLooseDiamond ||
+      pd.jewelleryCategory === "Loose Diamond" ||
+      pd.metalType === "LooseDiamond" ||
+      item.diamond ||
+      snap.diamondId
+    );
+
+    if (isLoose) {
+      const titleStr = snap.title || pd.title || item.title || "";
+      const isLabGrown = /lab\s*grown|labgrown|lab-grown/i.test(titleStr) || snap.labNatural === "Lab Grown" || pd.labNatural === "Lab Grown";
+      const origin = isLabGrown ? "Lab Grown" : (snap.labNatural || pd.labNatural || "Natural");
+      const diaComp = (pricing.componentBreakup || []).find(c => c.pricingRef === "DIAMOND");
+      const diaRate = diaComp?.rate || snap.sellingRate || pd.sellingRate || (pd.components?.[0]?.rateOverride) || 0;
+      return `Item ${index + 1}: ${origin} Diamond @ ₹${fmt(diaRate)}/ct`;
+    }
+
     const metalRate = pricing.metalRateLocked || pricing.metalRate || 0;
-    const pd = item.itemSnapshot?.productDetails || {};
     const metalType = pd.metalType || "Gold";
     const purity = Number(pd.metalPurity?.replace("KT", "")) || 0;
     return `Item ${index + 1}: ${metalType} ${purity}KT @ ₹${fmt(metalRate)}/g`;
@@ -804,6 +824,14 @@ export const invoiceTemplate = async (invoice) => {
     invoiceMetal > 0 ||
     orderMetal > 0 ||
     (invoice.metalPayments || []).some(p => Number(p.totalValue || 0) > 0);
+
+  // --- GST & Place of Supply (POS) Logic ---
+  const taxInfo = determineTaxType(
+    invoice.customer,
+    invoice.totals?.taxType || "AUTO"
+  );
+  const isInterState = invoice.totals?.taxType === "INTER_STATE" || taxInfo.isInterState;
+  const posLabel = isInterState ? `${taxInfo.stateName} (${taxInfo.stateCode})` : "Indore (MP - 23)";
 
   // --- HTML Output ---
   return `
@@ -960,22 +988,22 @@ export const invoiceTemplate = async (invoice) => {
     th {
       background-color: #f2edf2;
       color: #531b4e;
-      padding: 4px 2px;
+      padding: 3px 2px;
       border: 1px solid #e0e0e0;
       font-weight: bold;
       text-align: center;
       vertical-align: middle;
-      font-size: 9.5px;
+      font-size: 9px;
       white-space: pre-wrap;
       overflow: hidden;
     }
     td {
       border: 1px solid #e0e0e0;
-      padding: 4px 2px;
+      padding: 3px 2px;
       text-align: center;
       color: #1d1c1c;
       vertical-align: middle;
-      font-size: 10.5px;
+      font-size: 10px;
       word-wrap: break-word;
     }
     .td-left { text-align: left; padding-left: 4px; }
@@ -1073,22 +1101,22 @@ export const invoiceTemplate = async (invoice) => {
     /* --- Footer Split --- */
     .footer-split {
       display: flex;
-      gap: 20px;
-      margin-bottom: 15px;
+      gap: 12px;
+      margin-bottom: 8px;
     }
     .notes-card {
       flex: 1;
       background-color: #fcf4fc;
-      border-radius: 12px;
-      padding: 15px;
-      height: 100px;
+      border-radius: 6px;
+      padding: 6px 10px;
+      height: 46px;
     }
     .signature-card {
       flex: 1;
       background-color: #fcf4fc;
-      border-radius: 12px;
-      padding: 15px;
-      height: 100px;
+      border-radius: 6px;
+      padding: 6px 10px;
+      height: 46px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -1096,31 +1124,31 @@ export const invoiceTemplate = async (invoice) => {
     .card-title {
       font-weight: bold;
       color: #531b4e;
-      font-size: 10px;
-      margin-bottom: 5px;
+      font-size: 9.5px;
+      margin-bottom: 2px;
     }
     .signature-line {
       border-bottom: 1px solid #494649;
-      width: 80%;
-      margin: 0 auto 2px auto;
+      width: 75%;
+      margin: 0 auto 1px auto;
     }
     .signature-text {
       text-align: center;
-      font-size: 9px;
+      font-size: 8px;
       color: #333;
     }
 
     .registered-address {
       font-size: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 8px;
       color: #333;
     }
 
     .terms-card {
       background-color: #fcf4fc;
-      border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 10px;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
     }
     .terms-list {
       padding-left: 15px;
@@ -1181,7 +1209,7 @@ export const invoiceTemplate = async (invoice) => {
   </div>
   <div class="info-item">
     <div class="info-label">POS</div>
-    <div class="info-value">Indore</div>
+    <div class="info-value">${posLabel}</div>
   </div>
 </div>
 
@@ -1193,8 +1221,11 @@ export const invoiceTemplate = async (invoice) => {
       <div>Mobile: ${invoice.customer.mobile}</div>
       ${invoice.customer?.email ? `<div>Email: ${invoice.customer.email}</div>` : ``}
       ${invoice.customer?.address ? `<div>Address: ${invoice.customer.address}</div>` : ``}
-      ${invoice.customer?.gstin ? `<div>GSTIN: ${invoice.customer.gstin}</div>` : ``}
-      ${invoice.customer?.stateCode ? `<div>State Code: ${invoice.customer.stateCode}</div>` : ``}
+      ${(invoice.customer?.gstin || invoice.customer?.stateCode || (isInterState && taxInfo.stateCode)) ? `
+      <div style="display: flex; gap: 14px; flex-wrap: wrap;">
+        ${invoice.customer?.gstin ? `<span>GSTIN: ${invoice.customer.gstin}</span>` : ``}
+        ${(invoice.customer?.stateCode || (isInterState && taxInfo.stateCode)) ? `<span>State Code: ${invoice.customer?.stateCode || taxInfo.stateCode} (${taxInfo.stateName})</span>` : ``}
+      </div>` : ``}
     </div>
   </div>
   <div class="box-panel">
@@ -1215,26 +1246,26 @@ export const invoiceTemplate = async (invoice) => {
 
 <!-- CHANGE 2: Metal Rate shown above the table in a single bar -->
 <div class="metal-rate-bar">
-  <span class="mr-label">Metal Rate (per gram):</span>
+  <span class="mr-label">Rate Details:</span>
   <span class="mr-values">${metalRateLines}</span>
 </div>
 
 <table>
   <colgroup>
-    <col style="width: 4%;">   <!-- S.No -->
-    <col style="width: 10%;">   <!-- Product Title -->
-    <col style="width: 4%;">   <!-- Qty -->
-    <col style="width: 5%;">   <!-- HSN -->
-    <col style="width: 6%;">   <!-- Gross Wt -->
-    <col style="width: 6%;">   <!-- Net Wt -->
-    <col style="width: 7%;">   <!-- Cert No -->
-    <col style="width: 7%;">   <!-- Dia wt -->
-    <col style="width: 7%;">   <!-- Dia Rate -->
-    ${hasAccessories ? `<col style="width: 10%;">` : ""} <!-- Accessories -->
-    <col style="width: 8%;">   <!-- Stone Value -->
-    <col style="width: 8%;">   <!-- Making -->
-    <col style="width: 8%;">   <!-- Scheme Disc -->
-    <col style="width: 10%;">  <!-- Product Price -->
+    <col style="width: 3.5%;">   <!-- S.No -->
+    <col style="width: ${hasAccessories ? '13.5%' : '17%'};">   <!-- Product Title -->
+    <col style="width: 3.5%;">   <!-- Qty -->
+    <col style="width: ${hasAccessories ? '5%' : '5.5%'};">   <!-- HSN -->
+    <col style="width: ${hasAccessories ? '5.5%' : '6%'};">   <!-- Gross Wt -->
+    <col style="width: ${hasAccessories ? '5.5%' : '6%'};">   <!-- Net Wt -->
+    <col style="width: ${hasAccessories ? '7.5%' : '8%'};">   <!-- Cert No -->
+    <col style="width: ${hasAccessories ? '7%' : '7.5%'};">   <!-- Dia wt -->
+    <col style="width: ${hasAccessories ? '7%' : '7.5%'};">   <!-- Dia Rate -->
+    ${hasAccessories ? `<col style="width: 8.5%;">` : ""} <!-- Accessories -->
+    <col style="width: ${hasAccessories ? '7%' : '7%'};">   <!-- Stone Value -->
+    <col style="width: ${hasAccessories ? '7%' : '7.5%'};">   <!-- Making -->
+    <col style="width: ${hasAccessories ? '7%' : '7.5%'};">   <!-- Scheme Disc -->
+    <col style="width: ${hasAccessories ? '10%' : '10.5%'};">  <!-- Product Price -->
   </colgroup>
 
 
@@ -1258,14 +1289,36 @@ export const invoiceTemplate = async (invoice) => {
   </thead>
   <tbody>
 ${invoice.items.map((item, index) => {
-      const pd = item.itemSnapshot?.productDetails || {};
+      const snap = item.itemSnapshot || item.customSnapshot || {};
+      const pd = snap.productDetails || {};
       const pricing = item.breakup || {};
       const breakup = pricing.componentBreakup || [];
 
-      const desc =
-        pd.title ||
-        item.itemSnapshot?.title ||
-        "Custom Jewellery";
+      const isLoose = Boolean(
+        item.itemType === "LOOSE_DIAMOND" ||
+        snap.isLooseDiamond ||
+        pd.jewelleryCategory === "Loose Diamond" ||
+        pd.metalType === "LooseDiamond" ||
+        pd.productType === "Loose Diamond" ||
+        item.diamond ||
+        snap.diamondId
+      );
+
+      let desc = pd.title || snap.title || item.title || "Custom Jewellery";
+      if (isLoose) {
+        const isLabGrown = /lab\s*grown|labgrown|lab-grown/i.test(desc) || snap.labNatural === "Lab Grown" || pd.labNatural === "Lab Grown";
+        const origin = isLabGrown ? "Lab Grown" : (snap.labNatural || pd.labNatural || "Natural");
+        const diaShape = snap.shape || pd.shape || (pd.components?.[0]?.shape) || (desc.match(/\b(Round|Oval|Emerald|Princess|Cushion|Pear|Radiant|Marquise|Heart|Asscher)\b/i)?.[1] || "");
+        const diaColor = snap.color || pd.color || (pd.components?.[0]?.color) || "";
+        const diaClarity = snap.clarity || pd.clarity || (pd.components?.[0]?.clarity) || "";
+        let quality = (diaColor || diaClarity) ? [diaColor, diaClarity].filter(Boolean).join("/") : "";
+        if (!quality) {
+          const match = desc.match(/\b([D-Z]\/[A-Z0-9\-]+)\b/i) || desc.match(/\(([A-Z0-9\/\-]+)\)/i);
+          if (match) quality = match[1];
+        }
+        const shapeQuality = [diaShape, quality ? `(${quality})` : ""].filter(Boolean).join(" ");
+        desc = `${origin} Diamond${shapeQuality ? `<br><span style="font-size: 8.5px; color: #444;">${shapeQuality}</span>` : ""}`.trim();
+      }
 
       const metalType = pd.metalType || "Gold";
       const purity = Number(pd.metalPurity?.replace("KT", "")) || 0;
@@ -1273,22 +1326,36 @@ ${invoice.items.map((item, index) => {
       const grossWt = Number(pd.grossWeight || 0);
       const netWt = Number(pd.netWeight || 0);
 
-      const diamondWt = breakup
-        .filter(c => c.pricingRef === "DIAMOND")
-        .map(c => {
-          const gross =
-            c.grossWeight && c.grossWeight > 0
-              ? c.grossWeight
-              : (c.weight || 0) * (c.count || 1);
-          const grossNum = Number(gross || 0);
-          return `${grossNum.toFixed(3)} ct`;
-        })
-        .join("<br>");
+      let diamondWt = "";
+      if (isLoose) {
+        const diaComp = breakup.find(c => c.pricingRef === "DIAMOND");
+        const exactWt = snap.caratWeight ?? snap.weight ?? pd.caratWeight ?? pd.diamondWeight ?? diaComp?.weight ?? diaComp?.grossWeight ?? 0;
+        diamondWt = exactWt ? `${exactWt} ct` : "-";
+      } else {
+        diamondWt = breakup
+          .filter(c => c.pricingRef === "DIAMOND")
+          .map(c => {
+            const gross =
+              c.grossWeight && c.grossWeight > 0
+                ? c.grossWeight
+                : (c.weight || 0) * (c.count || 1);
+            const grossNum = Number(gross || 0);
+            return `${grossNum.toFixed(3)} ct`;
+          })
+          .join("<br>");
+      }
 
-      const diamondRate = breakup
-        .filter(c => c.pricingRef === "DIAMOND")
-        .map(c => fmt(c.rate))
-        .join("<br>");
+      let diamondRate = "";
+      if (isLoose) {
+        const diaComp = breakup.find(c => c.pricingRef === "DIAMOND");
+        const rateVal = diaComp?.rate || snap.sellingRate || pd.sellingRate || (pd.components?.[0]?.rateOverride) || 0;
+        diamondRate = rateVal > 0 ? fmt(rateVal) : "-";
+      } else {
+        diamondRate = breakup
+          .filter(c => c.pricingRef === "DIAMOND")
+          .map(c => fmt(c.rate))
+          .join("<br>");
+      }
 
       const stoneLines = breakup
         .filter(c => c.pricingRef === "STONE")
@@ -1311,7 +1378,7 @@ ${invoice.items.map((item, index) => {
         })
         .join("<br>");
 
-      const making = Number(pricing.makingCharge || 0);
+      const making = isLoose ? 0 : Number(pricing.makingCharge || 0);
 
       // ✅ Include ALL discounts (regular, celebration, anniversary, birthday) in Scheme Disc and show discounted Product Price
       const totalInvDiscount = Number(invoice.totals?.discount || 0);
@@ -1336,11 +1403,11 @@ ${invoice.items.map((item, index) => {
       return `
     <tr>
       <td>${index + 1}</td>
-      <td>${safe(desc)}</td>
+      <td style="font-size: 9.5px; line-height: 1.25; padding: 3px 2px;">${safe(desc)}</td>
       <td>${item.quantity || 1}</td>
-      <td>${safe(item.hsn || pd.hsnCode)}</td>
-      <td>${fmt(grossWt)}</td>
-      <td>${fmt(netWt)}</td>
+      <td>${safe(item.hsn || pd.hsnCode || "-")}</td>
+      <td>${isLoose ? "-" : fmt(grossWt)}</td>
+      <td>${isLoose ? "-" : fmt(netWt)}</td>
       <td>
         ${(() => {
           const certArray = item.certificates || pd.certificates || (item.itemSnapshot?.certificates) || [];
@@ -1375,44 +1442,160 @@ ${invoice.items.map((item, index) => {
 </table>
 
 <!-- CHANGE 1: SGST, CGST, Grand Total shown in box on right side -->
+${(() => {
+  const totalSubtotal = Number(invoice.totals?.subtotal || 0);
+  const totalGst = Number(invoice.totals?.gst || 0);
+
+  // Group items by GST rate / category
+  const taxSlabs = {};
+  for (const item of (invoice.items || [])) {
+    const snap = item.itemSnapshot || item.customSnapshot || {};
+    const pd = snap.productDetails || {};
+    const isLoose = Boolean(
+      item.itemType === "LOOSE_DIAMOND" ||
+      snap.isLooseDiamond ||
+      pd.jewelleryCategory === "Loose Diamond" ||
+      pd.metalType === "LooseDiamond" ||
+      pd.productType === "Loose Diamond" ||
+      item.diamond ||
+      snap.diamondId ||
+      pd.hsnCode === "7102" ||
+      item.hsn === "7102"
+    );
+    const ratePercent = Number(
+      item.breakup?.gstPercent ?? (isLoose ? (invoice.rateSnapshot?.looseDiamondGstRate || 1.5) : (invoice.rateSnapshot?.gstRate || 3))
+    );
+    const itemGst = Number(item.breakup?.gst || 0);
+    const itemSubtotal = Number(item.breakup?.subtotal || item.productPrice || 0);
+
+    const slabKey = isLoose ? `loose_${ratePercent}` : `jewellery_${ratePercent}`;
+    if (!taxSlabs[slabKey]) {
+      taxSlabs[slabKey] = {
+        ratePercent,
+        isLoose,
+        label: isLoose ? "Loose Diamond" : "Jewellery",
+        gst: 0,
+        subtotal: 0,
+      };
+    }
+    taxSlabs[slabKey].gst += itemGst;
+    taxSlabs[slabKey].subtotal += itemSubtotal;
+  }
+
+  const slabEntries = Object.values(taxSlabs);
+  const jewellerySlab = slabEntries.find(s => !s.isLoose);
+  const looseSlab = slabEntries.find(s => s.isLoose);
+  const hasBothSlabs = Boolean(jewellerySlab && looseSlab);
+  const isDual = hasBothSlabs || slabEntries.length === 2;
+
+  const boxWidth = isDual ? "530px" : "340px";
+  const valWidth = isDual ? "85px" : "110px";
+
+  let taxRowsHtml = "";
+
+  if (isDual) {
+    const slab1 = jewellerySlab || slabEntries[0];
+    const slab2 = looseSlab || slabEntries[1];
+
+    if (isInterState) {
+      taxRowsHtml = `
+      <div class="ts-row" style="display: flex;">
+        <div style="display: flex; width: 50%; border-right: 1px solid #531b4e;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">IGST ${slab1.ratePercent}% (${slab1.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(slab1.gst)}</div>
+        </div>
+        <div style="display: flex; width: 50%;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">IGST ${slab2.ratePercent}% (${slab2.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(slab2.gst)}</div>
+        </div>
+      </div>`;
+    } else {
+      const halfRate1 = Math.round((slab1.ratePercent / 2) * 100) / 100;
+      const halfGst1 = Math.round((slab1.gst / 2) * 100) / 100;
+      const halfRate2 = Math.round((slab2.ratePercent / 2) * 100) / 100;
+      const halfGst2 = Math.round((slab2.gst / 2) * 100) / 100;
+
+      taxRowsHtml = `
+      <div class="ts-row" style="display: flex;">
+        <div style="display: flex; width: 50%; border-right: 1px solid #531b4e;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">SGST ${halfRate1}% (${slab1.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(halfGst1)}</div>
+        </div>
+        <div style="display: flex; width: 50%;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">SGST ${halfRate2}% (${slab2.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(halfGst2)}</div>
+        </div>
+      </div>
+      <div class="ts-row" style="display: flex;">
+        <div style="display: flex; width: 50%; border-right: 1px solid #531b4e;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">CGST ${halfRate1}% (${slab1.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(halfGst1)}</div>
+        </div>
+        <div style="display: flex; width: 50%;">
+          <div class="ts-label" style="flex: 1; font-size: 8.5px; padding: 4px 6px; white-space: nowrap;">CGST ${halfRate2}% (${slab2.label}) (₹)</div>
+          <div class="ts-val" style="width: ${valWidth}; font-size: 9px; padding: 4px 6px;">${fmt(halfGst2)}</div>
+        </div>
+      </div>`;
+    }
+  } else {
+    const slab = slabEntries[0] || { ratePercent: 3, label: "Jewellery" };
+    if (isInterState) {
+      taxRowsHtml = `
+      <div class="ts-row">
+        <div class="ts-label">IGST ${slab.ratePercent}% (₹)</div>
+        <div class="ts-val">${fmt(totalGst)}</div>
+      </div>`;
+    } else {
+      const halfRate = Math.round((slab.ratePercent / 2) * 100) / 100;
+      taxRowsHtml = `
+      <div class="ts-row">
+        <div class="ts-label">SGST ${halfRate}% (₹)</div>
+        <div class="ts-val">${fmt(totalGst / 2)}</div>
+      </div>
+      <div class="ts-row">
+        <div class="ts-label">CGST ${halfRate}% (₹)</div>
+        <div class="ts-val">${fmt(totalGst / 2)}</div>
+      </div>`;
+    }
+  }
+
+  return `
 <div class="tax-summary-row">
   <div class="tax-summary-blank"></div>
-  <div class="tax-summary-box">
+  <div class="tax-summary-box" style="width: ${boxWidth};">
+    ${taxRowsHtml}
+    ${Number(invoice.totals?.roundOff || 0) !== 0 ? `
     <div class="ts-row">
-      <div class="ts-label">SGST 1.5% (₹)</div>
-      <div class="ts-val">${fmt(invoice.totals.gst / 2)}</div>
-    </div>
-    <div class="ts-row">
-      <div class="ts-label">CGST 1.5% (₹)</div>
-      <div class="ts-val">${fmt(invoice.totals.gst / 2)}</div>
-    </div>
-    <div class="ts-row highlight">
-      <div class="ts-label">Grand Total (₹)</div>
-      <div class="ts-val bold">${fmt(invoice.totals.grandTotal)}</div>
+      <div class="ts-label" style="flex: 1;">Round Off (₹)</div>
+      <div class="ts-val" style="width: ${valWidth};">${Number(invoice.totals.roundOff) > 0 ? "+" : ""}${fmt(invoice.totals.roundOff)}</div>
+    </div>` : ""}
+    <div class="ts-row highlight ${!hasAdjustment ? 'last' : ''}">
+      <div class="ts-label" style="flex: 1;">Grand Total (₹)</div>
+      <div class="ts-val bold" style="width: ${valWidth};">${fmt(invoice.totals.grandTotal)}</div>
     </div>
     ${invoice.totals.advancePayment > 0 ? `
     <div class="ts-row">
-      <div class="ts-label">Less: Advance Payment (₹)</div>
-      <div class="ts-val">- ${fmt(invoice.totals.advancePayment)}</div>
+      <div class="ts-label" style="flex: 1;">Less: Advance Payment (₹)</div>
+      <div class="ts-val" style="width: ${valWidth};">- ${fmt(invoice.totals.advancePayment)}</div>
     </div>` : ""}
     ${(invoice.metalPayments || []).filter(p => p.source === "ORDER").reduce((s, p) => s + Number(p.totalValue || 0), 0) > 0 ? `
     <div class="ts-row">
-      <div class="ts-label">Less: Order Metal (₹)</div>
-      <div class="ts-val">- ${fmt((invoice.metalPayments || []).filter(p => p.source === "ORDER").reduce((s, p) => s + Number(p.totalValue || 0), 0))}</div>
+      <div class="ts-label" style="flex: 1;">Less: Order Metal (₹)</div>
+      <div class="ts-val" style="width: ${valWidth};">- ${fmt((invoice.metalPayments || []).filter(p => p.source === "ORDER").reduce((s, p) => s + Number(p.totalValue || 0), 0))}</div>
     </div>` : ""}
     ${invoiceMetal > 0 ? `
     <div class="ts-row">
-      <div class="ts-label">Less: Metal Payment (₹)</div>
-      <div class="ts-val">- ${fmt(invoiceMetal)}</div>
+      <div class="ts-label" style="flex: 1;">Less: Metal Payment (₹)</div>
+      <div class="ts-val" style="width: ${valWidth};">- ${fmt(invoiceMetal)}</div>
     </div>` : ""}
-   ${hasAdjustment ? `
-<div class="ts-row last highlight">
-  <div class="ts-label">Payable Amount (₹)</div>
-  <div class="ts-val bold">${fmt(invoice.totals.netPayable)}</div>
-</div>
-` : ``}
+    ${hasAdjustment ? `
+    <div class="ts-row last highlight">
+      <div class="ts-label" style="flex: 1;">Payable Amount (₹)</div>
+      <div class="ts-val bold" style="width: ${valWidth};">${fmt(invoice.totals.netPayable)}</div>
+    </div>` : ``}
   </div>
-</div>
+</div>`;
+})()}
 
 <div class="bold theme-color" style="font-size:9.5px; margin-bottom:4px; font-family:inherit;">Other Charges & Payment Details</div>
 <table class="charges-table">

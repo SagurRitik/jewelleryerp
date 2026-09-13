@@ -1,4 +1,5 @@
 export const generateTallySalesXML = (invoice) => {
+  const roundOff = Number(invoice.totals?.roundOff || 0);
   return `
   <ENVELOPE>
     <HEADER>
@@ -26,7 +27,12 @@ export const generateTallySalesXML = (invoice) => {
                 <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
                 <AMOUNT>${invoice.totals.grandTotal}</AMOUNT>
               </ALLLEDGERENTRIES.LIST>
-
+${roundOff !== 0 ? `              <ALLLEDGERENTRIES.LIST>
+                <LEDGERNAME>Round Off</LEDGERNAME>
+                <ISDEEMEDPOSITIVE>${roundOff < 0 ? "No" : "Yes"}</ISDEEMEDPOSITIVE>
+                <AMOUNT>${Math.abs(roundOff)}</AMOUNT>
+              </ALLLEDGERENTRIES.LIST>
+` : ""}
               <ALLLEDGERENTRIES.LIST>
                 <LEDGERNAME>Cash</LEDGERNAME>
                 <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>

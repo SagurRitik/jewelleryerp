@@ -121,18 +121,20 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <div
         className={`fixed top-0 left-0 h-full w-72 z-[70] shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? "translate-x-0" : "-translate-x-full"
-          } ${isDark ? "bg-[#1a1a1a] border-r border-[#333333]" : "bg-[#5A374F]"
+          } ${isDark ? "bg-[#111215] border-r border-[#26272e]" : "bg-[#5A374F]"
           } text-white`}
       >
-        <div className="flex items-center justify-between p-6 shrink-0 relative">
+        <div className="flex items-center justify-between p-6 shrink-0 relative border-b border-white/5">
           <div className="flex flex-col">
             <img src={logo} alt="Nazara" className="h-10 w-auto object-contain" />
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-90"
+            className={`p-2 rounded-full transition-all active:scale-90 ${
+              isDark ? "hover:bg-white/10 text-stone-300" : "hover:bg-white/10 text-white/70"
+            }`}
           >
-            <X size={22} className="text-white/70" />
+            <X size={22} />
           </button>
         </div>
 
@@ -157,14 +159,19 @@ export default function Sidebar({ isOpen, onClose }) {
                     <Link
                       to={item.path}
                       onClick={onClose}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isItemActive
-                        ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
-                        : "text-white/70 hover:bg-white/5"
-                        }`}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                        isItemActive
+                          ? isDark
+                            ? "bg-gradient-to-r from-[#DFBA54] via-[#D4AF37] to-[#C5A059] text-stone-950 font-bold shadow-lg shadow-amber-500/20"
+                            : "bg-white text-[#5A374F] font-semibold shadow-sm"
+                          : isDark
+                            ? "text-stone-300 hover:bg-white/5 hover:text-amber-300"
+                            : "text-white/70 hover:bg-white/5"
+                      }`}
                     >
                       <div className="flex items-center gap-4">
-                        {item.icon && <item.icon size={18} />}
-                        <span className="text-[13px] uppercase">{item.name}</span>
+                        {item.icon && <item.icon size={18} className={isItemActive && isDark ? "text-stone-950" : ""} />}
+                        <span className="text-[13px] uppercase tracking-wide">{item.name}</span>
                       </div>
                     </Link>
                   ) : (
@@ -174,20 +181,25 @@ export default function Sidebar({ isOpen, onClose }) {
                           ? setOpenMenu(isOpenMenu ? null : item.name)
                           : onClose()
                       }
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${isParentActive
-                        ? isDark ? "bg-pink-600 text-white font-semibold" : "bg-white text-[#5A374F] font-semibold"
-                        : "text-white/70 hover:bg-white/5"
-                        }`}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                        isParentActive
+                          ? isDark
+                            ? "bg-gradient-to-r from-[#DFBA54] via-[#D4AF37] to-[#C5A059] text-stone-950 font-bold shadow-lg shadow-amber-500/20"
+                            : "bg-white text-[#5A374F] font-semibold shadow-sm"
+                          : isDark
+                            ? "text-stone-300 hover:bg-white/5 hover:text-amber-300"
+                            : "text-white/70 hover:bg-white/5"
+                      }`}
                     >
                       <div className="flex items-center gap-4">
-                        {item.icon && <item.icon size={18} />}
-                        <span className="text-[13px] uppercase">{item.name}</span>
+                        {item.icon && <item.icon size={18} className={isParentActive && isDark ? "text-stone-950" : ""} />}
+                        <span className="text-[13px] uppercase tracking-wide">{item.name}</span>
                       </div>
 
                       {item.children && (
                         <ChevronDown
                           size={16}
-                          className={`transition-transform ${isOpenMenu ? "rotate-180" : ""}`}
+                          className={`transition-transform duration-200 ${isOpenMenu ? "rotate-180" : ""}`}
                         />
                       )}
                     </button>
@@ -206,10 +218,15 @@ export default function Sidebar({ isOpen, onClose }) {
                               key={child.path}
                               to={child.path}
                               onClick={onClose}
-                              className={`px-3 py-2 rounded-lg text-sm transition-all ${isActive
-                                ? isDark ? "bg-pink-600/20 text-pink-300 font-semibold" : "bg-white text-[#5A374F] font-semibold"
-                                : "text-white/60 hover:text-white hover:bg-white/5"
-                                }`}
+                              className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                                isActive
+                                  ? isDark
+                                    ? "bg-amber-500/15 text-amber-300 font-semibold border-l-2 border-amber-400 pl-2.5 shadow-sm"
+                                    : "bg-white text-[#5A374F] font-semibold"
+                                  : isDark
+                                    ? "text-stone-400 hover:text-amber-200 hover:bg-white/5"
+                                    : "text-white/60 hover:text-white hover:bg-white/5"
+                              }`}
                             >
                               {child.name}
                             </Link>
@@ -223,21 +240,33 @@ export default function Sidebar({ isOpen, onClose }) {
             })}
         </div>
 
-        <div className="p-4 bg-black/10 backdrop-blur-md shrink-0 border-t border-white/5">
+        <div className={`p-4 ${isDark ? "bg-black/30 border-t border-white/5" : "bg-black/10 border-t border-white/5"} backdrop-blur-md shrink-0`}>
           {user && (
             <Link
               to="/profile"
               onClick={onClose}
               className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all mb-3 group"
             >
-              <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 p-[2px]">
-                <div className="h-full w-full rounded-full bg-[#5A374F] flex items-center justify-center border border-white/10">
-                  {user.name ? <span className="text-sm font-bold">{user.name.charAt(0).toUpperCase()}</span> : <User size={18} />}
+              <div className={`h-10 w-10 rounded-full ${
+                isDark
+                  ? "bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 shadow-md shadow-amber-500/20"
+                  : "bg-gradient-to-tr from-pink-500 to-rose-400"
+              } p-[2px]`}>
+                <div className={`h-full w-full rounded-full ${isDark ? "bg-[#18191e]" : "bg-[#5A374F]"} flex items-center justify-center border border-white/10`}>
+                  {user.name ? (
+                    <span className={`text-sm font-bold ${isDark ? "text-amber-300" : "text-white"}`}>
+                      {user.name.charAt(0).toUpperCase()}
+                    </span>
+                  ) : (
+                    <User size={18} className={isDark ? "text-amber-300" : "text-white"} />
+                  )}
                 </div>
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate text-white/90 group-hover:text-pink-300">
+                <p className={`text-sm font-semibold truncate ${
+                  isDark ? "text-stone-200 group-hover:text-amber-300" : "text-white/90 group-hover:text-pink-300"
+                }`}>
                   {user.name || "User Account"}
                 </p>
                 <p className="text-[10px] text-white/40 truncate uppercase tracking-tighter">
@@ -249,7 +278,11 @@ export default function Sidebar({ isOpen, onClose }) {
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-red-500/20 text-white/70 hover:text-red-300 py-3 rounded-xl transition-all duration-300 border border-white/5 active:scale-[0.98]"
+            className={`w-full flex items-center justify-center gap-2 ${
+              isDark
+                ? "bg-white/5 hover:bg-red-500/20 text-stone-400 hover:text-red-300 border-white/10"
+                : "bg-white/5 hover:bg-red-500/20 text-white/70 hover:text-red-300 border-white/5"
+            } py-3 rounded-xl transition-all duration-300 border active:scale-[0.98]`}
           >
             <LogOut size={16} />
             <span className="text-xs font-bold uppercase tracking-widest">Logout System</span>

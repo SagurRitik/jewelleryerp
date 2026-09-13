@@ -1088,11 +1088,11 @@ export default function Invoice({ invoice }) {
                   {item.description}
                 </td>
                 <td className="text-center border-r px-0.5 py-1">{item.hsn}</td>
-                <td className="text-center border-r px-0.5 py-1 capitalize">{item.metalType}</td>
-                <td className="text-center border-r px-0.5 py-1">{item.purity}</td>
-                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{formatDecimal(item.grossWt)}</td>
-                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{formatDecimal(item.netWt)}</td>
-                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{formatCurrency(item.metalRate)}</td>
+                <td className="text-center border-r px-0.5 py-1 capitalize">{item.metalType === "LooseDiamond" ? "Loose" : item.metalType}</td>
+                <td className="text-center border-r px-0.5 py-1">{item.purity === "NA" ? "-" : item.purity}</td>
+                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{Number(item.grossWt || 0) > 0 ? formatDecimal(item.grossWt) : "-"}</td>
+                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{Number(item.netWt || 0) > 0 ? formatDecimal(item.netWt) : "-"}</td>
+                <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{Number(item.metalRate || 0) > 0 ? formatCurrency(item.metalRate) : "-"}</td>
                 <td className="text-center border-r px-0.5 py-1 text-[6px] uppercase break-all">{item.certNo}</td>
                 <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{formatDecimal(item.diaWt)}</td>
                 <td className="text-right border-r px-0.5 py-1 whitespace-nowrap">{formatCurrency(item.diaRate)}</td>

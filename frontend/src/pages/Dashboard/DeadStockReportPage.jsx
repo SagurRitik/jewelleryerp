@@ -83,7 +83,7 @@ export default function DeadStockReportPage() {
                 <ArrowLeft size={20} />
               </button>
               <h1 className={`text-4xl md:text-[32px] font-bold tracking-tight flex items-center gap-4 ${isDark ? "text-white" : "text-[#4c2344]"}`}>
-                <PackageX size={36} className={`${isDark ? "text-pink-500" : "text-[#7E4C69]"}`} />
+                <PackageX size={36} className={`${isDark ? "text-amber-400" : "text-[#7E4C69]"}`} />
                 Dead Stock & Inventory Aging
               </h1>
             </div>
@@ -220,7 +220,7 @@ export default function DeadStockReportPage() {
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className={`p-3 rounded-2xl border ${isDark ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-100"}`}>
-                            <Package size={20} className={isDark ? "text-pink-400" : "text-[#7E4C69]"} />
+                            <Package size={20} className={isDark ? "text-amber-400" : "text-[#7E4C69]"} />
                           </div>
                           <div>
                             <p className="font-bold text-sm tracking-tight">{item.sku}</p>

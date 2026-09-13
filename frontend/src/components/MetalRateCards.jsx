@@ -75,13 +75,13 @@ const MetalRateCards = memo(function MetalRateCards() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="flex items-center gap-3 overflow-x-auto scrollbar-hide px-1"
+      className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-3 sm:overflow-x-auto w-full px-0.5 sm:px-1"
     >
       {metals.map((metal, i) => (
         <motion.div
           key={i}
           variants={itemVariants}
-          className={`flex-shrink-0 min-w-[140px] md:min-w-[160px] relative overflow-hidden flex items-center justify-between px-3 md:px-4 py-2.5 rounded-xl border backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.15)] ${metal.bgClass} hover:border-white/50 transition-colors duration-300 group`}
+          className={`relative overflow-hidden flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.15)] ${metal.bgClass} hover:border-white/50 transition-colors duration-300 group min-w-0 sm:min-w-[140px] md:min-w-[160px]`}
         >
           {/* Shimmer effect inside the card */}
           <motion.div
@@ -90,31 +90,31 @@ const MetalRateCards = memo(function MetalRateCards() {
             className="absolute top-0 bottom-0 w-[50%] bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-20deg]"
           />
 
-          <div className="relative z-10 leading-tight">
-            <div className="flex items-center gap-1.5 mb-1">
+          <div className="relative z-10 leading-tight min-w-0 flex-1">
+            <div className="flex items-center gap-1 mb-0.5 sm:mb-1">
               <motion.div
                 animate={{ rotate: [0, 15, -15, 0] }}
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
               >
-                <Sparkles size={10} className={`${metal.icon} opacity-80`} />
+                <Sparkles size={9} className={`${metal.icon} opacity-80 shrink-0`} />
               </motion.div>
-              <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-white/80">
+              <p className="text-[9px] sm:text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-white/90 truncate">
                 {metal.name}
               </p>
             </div>
 
-            <p className={`text-sm md:text-base font-extrabold tracking-wide bg-gradient-to-r ${metal.accent} bg-clip-text text-transparent drop-shadow-sm`}>
+            <p className={`text-xs sm:text-sm md:text-base font-extrabold tracking-tight bg-gradient-to-r ${metal.accent} bg-clip-text text-transparent drop-shadow-sm whitespace-nowrap`}>
               ₹{Number(metal.value || 0).toLocaleString("en-IN")}
-              <span className="text-[9px] md:text-[10px] text-white/40 ml-1 font-medium tracking-normal drop-shadow-none">/gm</span>
+              <span className="text-[8px] sm:text-[9px] md:text-[10px] text-white/50 ml-0.5 font-medium tracking-normal drop-shadow-none">/gm</span>
             </p>
           </div>
 
           <motion.div
             animate={{ y: [0, -2, 0] }}
             transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-            className="relative z-10 flex flex-col items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-black/30 border border-white/10 group-hover:scale-110 group-hover:bg-black/50 transition-all duration-300 ml-2"
+            className="hidden sm:flex relative z-10 flex-col items-center justify-center w-6 h-6 md:w-8 md:h-8 rounded-full bg-black/30 border border-white/10 group-hover:scale-110 group-hover:bg-black/50 transition-all duration-300 ml-1.5 shrink-0"
           >
-            <TrendingUp size={12} className={`${metal.icon}`} strokeWidth={2.5} />
+            <TrendingUp size={11} className={`${metal.icon}`} strokeWidth={2.5} />
           </motion.div>
         </motion.div>
       ))}

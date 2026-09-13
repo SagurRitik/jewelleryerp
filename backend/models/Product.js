@@ -87,12 +87,24 @@ const productSchema = new mongoose.Schema(
 
 
     /* ================= METAL (STRUCTURE ONLY) ================= */
-    metalType: { type: String, required: true },
-    metalPurity: { type: String, required: true },
+    metalType: {
+      type: String,
+      required: function () {
+        return this.jewelleryCategory !== "Loose Diamond";
+      },
+      default: "LooseDiamond",
+    },
+    metalPurity: {
+      type: String,
+      required: function () {
+        return this.jewelleryCategory !== "Loose Diamond";
+      },
+      default: "NA",
+    },
     metalColor: { type: String, default: "" },
 
-    netWeight: { type: Number, required: true },      // ⭐ ADDED: Metal weight only (without stones)
-    grossWeight: { type: Number, required: true },    // Total weight (metal + stones)
+    netWeight: { type: Number, required: true, default: 0 },      // ⭐ ADDED: Metal weight only (without stones)
+    grossWeight: { type: Number, required: true, default: 0 },    // Total weight (metal + stones)
     fineGold: {
       type: Number,
       default: 0,

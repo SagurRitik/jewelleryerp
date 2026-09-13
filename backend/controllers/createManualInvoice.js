@@ -159,6 +159,7 @@ import CreditNote from "../models/creditnotes.js"
 import DiamondStock from "../models/DiamondStock.js"
 import MetalLedger from "../models/MetalLedger.js"
 import { generateInvoiceNo } from "../utils/generateInvoiceNo.js"
+import { determineTaxType, validateGSTIN } from "../utils/gstStateHelper.js"
 
 const normalizeMetalType = (metal) => {
   if (!metal) return "Gold";
@@ -173,12 +174,28 @@ export const createManualInvoice = async (req, res) => {
 
   try {
 
-    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date, invoiceNo, metalPayment } = req.body
+    const { customer, items, payment, salesperson, creditNoteIds, appliedCredit, date, invoiceNo, metalPayment, taxTypeOverride, taxType: bodyTaxType } = req.body
 
     if (customer) {
       if (customer.panNumber === "") delete customer.panNumber;
       if (customer.gstin === "") delete customer.gstin;
       if (customer.email === "") delete customer.email;
+
+      if (customer.gstin) {
+        const gCheck = validateGSTIN(customer.gstin, customer.stateCode);
+        if (!gCheck.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: gCheck.error || "Invalid GSTIN or State Code mismatch",
+            error: gCheck.error || "Invalid GSTIN or State Code mismatch",
+          });
+        }
+        customer.gstin = customer.gstin.trim().toUpperCase();
+        customer.stateCode = gCheck.stateCode;
+        if (!customer.panNumber && gCheck.pan) {
+          customer.panNumber = gCheck.pan;
+        }
+      }
     }
 
     const trimmedInvoiceNo = invoiceNo?.trim();
@@ -203,6 +220,17 @@ export const createManualInvoice = async (req, res) => {
       grandTotal += Number(i.breakup?.grandTotal || 0)
       totalDiscount += Number(i.breakup?.discount || 0)
     })
+
+    /* ================= ✅ TAX DETERMINATION (INTER-STATE vs INTRA-STATE) ================= */
+    const taxInfo = determineTaxType(customer, taxTypeOverride || bodyTaxType || "AUTO");
+    const isInterState = taxInfo.isInterState;
+    const cgst = isInterState ? 0 : Math.round((gst / 2) * 100) / 100;
+    const sgst = isInterState ? 0 : Math.round((gst / 2) * 100) / 100;
+    const igst = isInterState ? gst : 0;
+
+    if (customer && !customer.stateCode && taxInfo.stateCode) {
+      customer.stateCode = taxInfo.stateCode;
+    }
 
     /* ================= ✅ PAN VALIDATION ================= */
     if (Number(subtotal) >= 200000 && (!customer || !customer.panNumber)) {
@@ -235,12 +263,15 @@ export const createManualInvoice = async (req, res) => {
       });
     }
 
-    const netPayableCalculated = grandTotal - (Number(appliedCredit) || 0) - metalCredit;
+    const unroundedGrandTotal = subtotal + gst;
+    const roundedGrandTotal = Math.round(unroundedGrandTotal);
+    const roundOff = Math.round((roundedGrandTotal - unroundedGrandTotal) * 100) / 100;
+    const netPayableCalculated = roundedGrandTotal - (Number(appliedCredit) || 0) - metalCredit;
 
     if (subtotal < 0 || netPayableCalculated < -0.01) {
       return res.status(400).json({
         success: false,
-        message: `Invoice amount cannot be less than 0. Exchange credit (₹${metalCredit.toLocaleString('en-IN')}) or discount exceeds total bill amount (₹${grandTotal.toLocaleString('en-IN')}).`
+        message: `Invoice amount cannot be less than 0. Exchange credit (₹${metalCredit.toLocaleString('en-IN')}) or discount exceeds total bill amount (₹${roundedGrandTotal.toLocaleString('en-IN')}).`
       });
     }
 
@@ -256,10 +287,15 @@ export const createManualInvoice = async (req, res) => {
         subtotal,
         discount: totalDiscount,
         gst,
-        grandTotal,
+        taxType: taxInfo.taxType,
+        cgst,
+        sgst,
+        igst,
+        roundOff,
+        grandTotal: roundedGrandTotal,
         appliedCredit: Number(appliedCredit) || 0,
         metalPayment: metalCredit,
-        netPayable: Math.max(0, grandTotal - (Number(appliedCredit) || 0) - metalCredit)
+        netPayable: Math.max(0, netPayableCalculated)
       },
       payment: {
         mode: payment?.mode ? String(payment.mode).toUpperCase() : "CASH",
@@ -330,7 +366,26 @@ export const createManualInvoice = async (req, res) => {
         if (breakup && breakup.componentBreakup && Array.isArray(breakup.componentBreakup)) {
           for (const comp of breakup.componentBreakup) {
             if (comp.pricingRef === "DIAMOND" && comp.diamondId) {
-              await DiamondStock.findByIdAndUpdate(comp.diamondId, { status: "SOLD" });
+              const dStock = await DiamondStock.findById(comp.diamondId);
+              if (dStock) {
+                const currentStock = Number(dStock.stock ?? 1);
+                const qtySold = Number(item.quantity || comp.count || 1);
+                const newStock = Math.max(0, currentStock - qtySold);
+
+                let newStatus = dStock.status;
+                if (newStock === 0) {
+                  newStatus = "SOLD";
+                } else if (dStock.status === "RESERVED") {
+                  newStatus = "RESERVED";
+                } else {
+                  newStatus = "AVAILABLE";
+                }
+
+                await DiamondStock.findByIdAndUpdate(comp.diamondId, {
+                  stock: newStock,
+                  status: newStatus,
+                });
+              }
             }
           }
         }
