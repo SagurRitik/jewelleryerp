@@ -68,6 +68,7 @@ import StoneRateForm from "./pages/admin/stone-rates/StoneRateForm.jsx";
 import StoneRateList from "./pages/admin/stone/StoneRateList.jsx";
 import CreateUser from "./pages/admin/CreateUser.jsx";
 import UserManagement from "./pages/admin/UserManagement.jsx";
+import BackupManagement from "./pages/admin/BackupManagement.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 
 /* LEDGER */
@@ -270,6 +271,11 @@ export default function App() {
                     <Route path="/suppliers/edit/:id" element={<SupplierForm />} />
                     <Route path="/suppliers/:id" element={<SupplierLedger />} />
                     <Route path="/purchases/new" element={<PurchaseEntry />} />
+                  </Route>
+
+                  {/* Superadmin only */}
+                  <Route element={<PrivateRoute allowedRoles={["superadmin"]} />}>
+                    <Route path="/admin/backup" element={<BackupManagement />} />
                   </Route>
 
                 </Route>

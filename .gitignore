@@ -55,3 +55,6 @@ Thumbs.db
 *.tmp
 *.temp
 .cache
+backend/backups/
+backend/temp/
+*.zip

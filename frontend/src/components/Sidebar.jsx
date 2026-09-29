@@ -1,6 +1,6 @@
 import { rolePermissions } from "../config/rolePermissions.js";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Upload, ChevronDown, X, Home, ShoppingBag, PlusCircle, FileText, Calculator, BarChart2, DollarSign, Settings, User, LogOut, Sparkles } from "lucide-react";
+import { Upload, ChevronDown, X, Home, ShoppingBag, PlusCircle, FileText, Calculator, BarChart2, DollarSign, Settings, User, LogOut, Sparkles, Database } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/NazaraWhite.png";
 import { useState, useEffect } from "react";
@@ -36,6 +36,7 @@ export default function Sidebar({ isOpen, onClose }) {
         { name: "Manual Billing", path: "/manual-billing", icon: FileText, permission: "manual-billing" },
         { name: "Create User", path: "/admin/users/new", icon: PlusCircle, permission: "create-user" },
         { name: "User Management", path: "/admin/users", icon: User, permission: "user-management" },
+        { name: "Backup & Restore", path: "/admin/backup", icon: Database, permission: "backup-management" },
       ]
     },
 

@@ -57,6 +57,7 @@ import catalogueRoutes from "./routes/catalogueRoutes.js";
 import diamondStockRoutes from "./routes/diamondStockRoutes.js";
 import customerRoutes from "./routes/customerRoutes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import backupRoutes from "./routes/backupRoutes.js";
 
 
 dotenv.config();
@@ -186,6 +187,7 @@ app.use("/api/catalogues", catalogueRoutes);
 app.use("/api/diamonds", diamondStockRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/admin/backup", backupRoutes);
 
 
 /* ---------------- HANDLE UNKNOWN API REQUESTS ---------------- */
@@ -224,4 +226,4 @@ app.use((err, req, res, next) => {
 /* ---------------- START SERVER ---------------- */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-// Restart trigger: 1
+// Restart trigger: 2

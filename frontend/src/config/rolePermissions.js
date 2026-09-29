@@ -24,6 +24,7 @@ export const rolePermissions = {
      "catalogues",
     "customers",
     "diamonds",
+    "backup-management",
   ],
 
   admin: [
