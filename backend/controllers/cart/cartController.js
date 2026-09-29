@@ -4,6 +4,7 @@
 import Order from "../../models/Order.js";
 import Cart from "../../models/Cart.js";
 import Product from "../../models/Product.js";
+import DiamondStock from "../../models/DiamondStock.js";
 import RateConfig from "../../models/RateConfig.js";
 import calculateItem from "../../utils/calculateItem.js";
 import { normalizeImage } from "../../utils/normalizeImage.js";
@@ -41,12 +42,27 @@ export const addProductToCart = async (req, res) => {
       (i) => i.itemType === "PRODUCT" && i.product?.toString() === productId
     );
 
+    const maxStock = Number(product.stock || 0);
+    const addQty = Number(quantity);
+
     if (existing) {
-      existing.quantity += Number(quantity);
+      if (existing.quantity + addQty > maxStock) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot exceed available stock. Maximum ${maxStock} available.`,
+        });
+      }
+      existing.quantity += addQty;
     } else {
+      if (addQty > maxStock) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot exceed available stock. Maximum ${maxStock} available.`,
+        });
+      }
       cart.items.push({
         itemType: "PRODUCT",
-        quantity: Number(quantity),
+        quantity: addQty,
         product: product._id,
         sku: product.sku,
         customSnapshot: {
@@ -104,6 +120,135 @@ export const addProductToCart = async (req, res) => {
 
   } catch (err) {
     console.error("ADD PRODUCT ERROR:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/* ================= ADD LOOSE DIAMOND TO CART ================= */
+export const addLooseDiamondToCart = async (req, res) => {
+  try {
+    const { sessionId, diamondId, diamondData } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: "sessionId is required" });
+    }
+
+    let diamond = null;
+    if (diamondId) {
+      diamond = await DiamondStock.findById(diamondId).lean();
+    }
+
+    const d = {
+      shape: diamondData?.shape || diamond?.shape || "",
+      weight: Number(diamondData?.weight ?? diamond?.weight ?? 0),
+      color: diamondData?.color || diamond?.color || "",
+      clarity: diamondData?.clarity || diamond?.clarity || "",
+      cut: diamondData?.cut || diamond?.cut || "",
+      lab: diamondData?.lab || diamond?.lab || "",
+      labNatural: diamondData?.labNatural || diamond?.labNatural || (/lab\s*grown/i.test(diamondData?.title || diamond?.title || '') ? "Lab Grown" : "Natural"),
+      certificateNo: diamondData?.certificateNo || diamond?.certificateNo || "",
+      sellingPrice: Number(diamondData?.sellingPrice ?? diamond?.sellingPrice ?? 0),
+      sku: diamondData?.sku || diamond?.sku || `LD-${Date.now().toString().slice(-6)}`,
+      diamondId: diamond?._id || diamondData?.diamondId || undefined,
+    };
+
+    const rate = Number(diamondData?.sellingRate || diamond?.sellingRate || (d.weight > 0 ? Math.round(d.sellingPrice / d.weight) : d.sellingPrice));
+    const availableStock = diamond ? Number(diamond.stock ?? 1) : Number(diamondData?.stock ?? 1);
+
+    if (availableStock <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This loose diamond is out of stock",
+      });
+    }
+
+    const cart = await getCart(sessionId);
+
+    // Prevent exceeding available stock if already in cart
+    if (d.diamondId) {
+      const alreadyInCart = cart.items.find(
+        (i) =>
+          i.customSnapshot?.diamondId?.toString() === d.diamondId.toString() ||
+          i.diamond?.toString() === d.diamondId.toString()
+      );
+      if (alreadyInCart) {
+        if (alreadyInCart.quantity >= availableStock) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot add more. Maximum available stock is ${availableStock}.`,
+          });
+        }
+        alreadyInCart.quantity += 1;
+        await cart.save();
+        const freshCart = await Cart.findOne({ sessionId }).lean();
+        return res.json({ success: true, cart: freshCart });
+      }
+    }
+
+    const origin = d.labNatural || "Lab Grown";
+    const shapeStr = d.shape ? ` - ${d.shape}` : "";
+    const qualityStr = (d.color || d.clarity) ? ` (${[d.color, d.clarity].filter(Boolean).join("/")})` : "";
+    const title = `${origin} Diamond${shapeStr}${qualityStr}`.trim();
+
+    cart.items.push({
+      itemType: "LOOSE_DIAMOND",
+      quantity: 1,
+      diamond: d.diamondId || undefined,
+      sku: d.sku,
+      customSnapshot: {
+        title,
+        diamondId: d.diamondId,
+        rateSource: "ACTIVE",
+        isLooseDiamond: true,
+        stock: availableStock,
+        weight: d.weight,
+        caratWeight: d.weight,
+        sellingRate: rate,
+        shape: d.shape,
+        color: d.color,
+        clarity: d.clarity,
+        cut: d.cut,
+        lab: d.lab,
+        labNatural: d.labNatural,
+        certificateNo: d.certificateNo,
+        productDetails: {
+          title,
+          sku: d.sku,
+          jewelleryCategory: "Loose Diamond",
+          productType: "Loose Diamond",
+          metalType: "LooseDiamond",
+          metalPurity: "NA",
+          netWeight: 0,
+          grossWeight: 0,
+          stock: availableStock,
+          caratWeight: d.weight,
+          diamondWeight: d.weight,
+          sellingRate: rate,
+          hsnCode: diamondData?.hsnCode || diamond?.hsnCode || "",
+          certificates: d.certificateNo ? [{ lab: d.lab || "Cert", certificateNo: d.certificateNo }] : [],
+          components: [
+            {
+              type: "Diamond",
+              pricingRef: "DIAMOND",
+              shape: d.shape,
+              color: d.color,
+              clarity: d.clarity,
+              cut: d.cut,
+              count: 1,
+              weight: d.weight,
+              grossWeight: d.weight,
+              rateOverride: rate > 0 ? rate : null,
+              diamondId: d.diamondId,
+            },
+          ],
+        },
+      },
+    });
+
+    await cart.save();
+    const freshCart = await Cart.findOne({ sessionId }).lean();
+    return res.json({ success: true, cart: freshCart });
+  } catch (err) {
+    console.error("ADD LOOSE DIAMOND TO CART ERROR:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -493,15 +638,16 @@ export const getCartBySession = async (req, res) => {
       cart.items.map(async (item) => {
         let breakup;
 
-        /* ================= CUSTOM ORDER ================= */
-        if (item.itemType === "CUSTOM") {
+        /* ================= CUSTOM ORDER / LIVE CALCULATION ================= */
+        if (item.itemType === "CUSTOM" && item.customSnapshot?.pricingSnapshot) {
           breakup = item.customSnapshot?.pricingSnapshot || {};
         } else {
-          /* ================= PRODUCT (LIVE CALCULATION) ================= */
+          /* ================= PRODUCT OR LOOSE DIAMOND (LIVE CALCULATION) ================= */
           breakup = await calculateItem(
             {
               ...item,
               customSnapshot: {
+                ...item.customSnapshot,
                 productDetails: item.customSnapshot?.productDetails,
                 title:
                   item.customSnapshot?.title ||
@@ -553,12 +699,27 @@ export const getCartBySession = async (req, res) => {
 
         const finalImage = finalImages[0] || null;
 
+        let availableStock = undefined;
+        if (item.itemType === "PRODUCT" && item.product) {
+          const prod = await Product.findById(item.product).lean();
+          if (prod) availableStock = Number(prod.stock ?? 0);
+        } else if (item.itemType === "LOOSE_DIAMOND" || item.diamond || item.customSnapshot?.diamondId) {
+          const diamondId = item.diamond || item.customSnapshot?.diamondId;
+          if (diamondId) {
+            const dStock = await DiamondStock.findById(diamondId).lean();
+            if (dStock) availableStock = Number(dStock.stock ?? 1);
+          } else if (item.customSnapshot?.stock !== undefined) {
+            availableStock = Number(item.customSnapshot.stock);
+          }
+        }
+
         return {
           ...item,
+          availableStock,
           breakup,
           customSnapshot: {
             ...item.customSnapshot,
-
+            stock: availableStock ?? item.customSnapshot?.stock,
             title:
               item.customSnapshot?.title ||
               item.customSnapshot?.productDetails?.title ||
@@ -566,25 +727,12 @@ export const getCartBySession = async (req, res) => {
                 ? `Order #${item.customSnapshot?.orderNo || ""}`
                 : "Jewellery Item"),
 
-            // productImage: normalizeImage(
-            //   item.customSnapshot?.productImage
-            // ),
-            //             productImages: item.customSnapshot?.productImages || [],
-
-            // productImage: normalizeImage(
-            //   item.customSnapshot?.productImages?.[0] ||
-            //   item.customSnapshot?.productImage ||
-            //   null
-            // ),
-
-            // productImages: normalizedImages,
-            // productImage: normalizedImages[0] || null,
-
             productImages: finalImages,
             productImage: finalImage,
 
             productDetails: {
               ...item.customSnapshot?.productDetails,
+              stock: availableStock ?? item.customSnapshot?.productDetails?.stock,
               title:
                 item.customSnapshot?.productDetails?.title ||
                 item.customSnapshot?.title ||
@@ -600,21 +748,26 @@ export const getCartBySession = async (req, res) => {
     const discount =
       discountDiamond + discountStone + discountMaking;
 
+    const unroundedGrandTotal = Number((subtotal + gst).toFixed(2));
+    const roundedGrandTotal = Math.round(unroundedGrandTotal);
+    const roundOff = Number((roundedGrandTotal - unroundedGrandTotal).toFixed(2));
+
     const payable = Math.max(
-      grandTotal - advancePayment - metalPayment,
+      Math.round(roundedGrandTotal - advancePayment - metalPayment),
       0
     );
 
     const totals = {
       subtotal: Number(subtotal.toFixed(2)),
       gst: Number(gst.toFixed(2)),
-      grandTotal: Number(grandTotal.toFixed(2)),
+      roundOff,
+      grandTotal: roundedGrandTotal,
 
       grossTotal: Number(grossTotal.toFixed(2)),
 
       advancePayment: Number(advancePayment.toFixed(2)),
       metalPayment: Number(metalPayment.toFixed(2)),
-      payable: Number(payable.toFixed(2)),
+      payable,
 
       discount: Number(discount.toFixed(2)),
       discountDiamond: Number(discountDiamond.toFixed(2)),
@@ -648,8 +801,35 @@ export const updateCartItemQuantity = async (req, res) => {
     const idx = cart.items.findIndex((i) => i._id.toString() === itemId);
     if (idx === -1) return res.status(404).json({ success: false, message: "Item not found" });
 
-    if (quantity <= 0) cart.items.splice(idx, 1);
-    else cart.items[idx].quantity = Number(quantity);
+    const targetQty = Number(quantity);
+    if (targetQty <= 0) {
+      cart.items.splice(idx, 1);
+    } else {
+      const item = cart.items[idx];
+      let maxStock = Infinity;
+
+      if (item.itemType === "PRODUCT" && item.product) {
+        const prod = await Product.findById(item.product).lean();
+        if (prod) maxStock = Number(prod.stock ?? 0);
+      } else if (item.itemType === "LOOSE_DIAMOND" || item.diamond || item.customSnapshot?.diamondId) {
+        const diamondId = item.diamond || item.customSnapshot?.diamondId;
+        if (diamondId) {
+          const dStock = await DiamondStock.findById(diamondId).lean();
+          if (dStock) maxStock = Number(dStock.stock ?? 1);
+        } else if (item.customSnapshot?.stock !== undefined) {
+          maxStock = Number(item.customSnapshot.stock);
+        }
+      }
+
+      if (maxStock !== Infinity && targetQty > maxStock) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot exceed available stock. Maximum ${maxStock} available.`,
+        });
+      }
+
+      cart.items[idx].quantity = targetQty;
+    }
 
     await cart.save();
     return getCartBySession(req, res);

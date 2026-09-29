@@ -642,6 +642,7 @@ export const exportSalesInvoices = async (req, res) => {
       "Subtotal": inv.totals?.subtotal || 0,
       "Discount": inv.totals?.discount || 0,
       "GST": inv.totals?.gst || 0,
+      "Round Off": inv.totals?.roundOff || 0,
       "Grand Total": inv.totals?.grandTotal || 0,
       "Net Payable": inv.totals?.netPayable || 0,
       "Applied Credit": inv.totals?.appliedCredit || 0,
@@ -938,13 +939,15 @@ export const sendSalesInvoiceWhatsApp = async (req, res) => {
     }
 
     const customer = invoice.customer || {};
-    const mobile = (customer.mobile || customer.phone || "").replace(/\D/g, "");
-    if (!mobile || mobile.length < 10) {
+    const rawDigits = (customer.mobile || customer.phone || "").replace(/\D/g, "");
+    const last10 = rawDigits.slice(-10);
+    if (!last10 || last10.length !== 10) {
       return res.status(400).json({
         success: false,
-        error: "No valid mobile number found on this invoice. Please add phone number to customer details.",
+        error: "No valid 10-digit mobile number found on this invoice. Please add a valid phone number to customer details.",
       });
     }
+    const mobile = `91${last10}`;
 
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
 

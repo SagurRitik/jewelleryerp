@@ -7,10 +7,12 @@ import Cart from "../../models/Cart.js";
 import SalesOrder from "../../models/SalesOrder.js";
 import RateConfig from "../../models/RateConfig.js";
 import Product from "../../models/Product.js";
+import DiamondStock from "../../models/DiamondStock.js";
 import calculateItem, { calculateCartTotals } from "../../utils/calculateItem.js";
 import { generateInvoiceNo } from "../../utils/generateInvoiceNo.js";
 import MetalLedger from "../../models/MetalLedger.js";
 import { clearProductCache } from "../../utils/productCache.js";
+import { determineTaxType, validateGSTIN } from "../../utils/gstStateHelper.js";
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
@@ -46,6 +48,21 @@ export const confirmInvoice = async (req, res) => {
       if (customer.panNumber === "") delete customer.panNumber;
       if (customer.gstin === "") delete customer.gstin;
       if (customer.email === "") delete customer.email;
+
+      if (customer.gstin) {
+        const gCheck = validateGSTIN(customer.gstin, customer.stateCode);
+        if (!gCheck.isValid) {
+          return res.status(400).json({
+            success: false,
+            error: gCheck.error || "Invalid GSTIN or State Code mismatch",
+          });
+        }
+        customer.gstin = customer.gstin.trim().toUpperCase();
+        customer.stateCode = gCheck.stateCode;
+        if (!customer.panNumber && gCheck.pan) {
+          customer.panNumber = gCheck.pan;
+        }
+      }
     }
 
     if (!customer.name || !customer.mobile) {
@@ -120,6 +137,8 @@ export const confirmInvoice = async (req, res) => {
         const finalCerts = meta?.certificates || certArray || [];
 
         return {
+          itemType: item.itemType,
+          diamond: item.diamond,
           itemSnapshot: item.customSnapshot || item.itemSnapshot || {},
           quantity: item.quantity || 1,
           breakup: calc,
@@ -131,7 +150,7 @@ export const confirmInvoice = async (req, res) => {
     );
 
     /* ================= 🧮 DELEGATE TO CENTRAL PRICING ENGINE ================= */
-    const invoiceTotals = calculateCartTotals(items, celebrationDiscount, { gstRate: activeRates.gstRate });
+    const invoiceTotals = calculateCartTotals(items, celebrationDiscount, activeRates);
 
     /* ================= ✅ PAN VALIDATION ================= */
     if (Number(invoiceTotals.subtotal) >= 200000 && !customer.panNumber) {
@@ -166,6 +185,7 @@ export const confirmInvoice = async (req, res) => {
       stoneRate: activeRates.stoneRate,
       makingCharge: activeRates.makingCharge,
       gstRate: activeRates.gstRate,
+      looseDiamondGstRate: activeRates.looseDiamondGstRate ?? 1.5,
       makingDiscountType: activeRates.makingDiscountType,
       makingDiscountValue: activeRates.makingDiscountValue,
       diamondDiscountType: activeRates.diamondDiscountType,
@@ -176,6 +196,17 @@ export const confirmInvoice = async (req, res) => {
 
     const totalAdjustments = round2(invoiceTotals.advancePayment + invoiceTotals.metalPayment + metalCredit);
     const netPayable = round2(Math.max(0, invoiceTotals.grandTotal - totalAdjustments));
+
+    /* ================= 4.5 TAX DETERMINATION (INTER-STATE vs INTRA-STATE) ================= */
+    const taxInfo = determineTaxType(customer, req.body.taxTypeOverride || req.body.taxType || "AUTO");
+    const isInterState = taxInfo.isInterState;
+    const cgst = isInterState ? 0 : round2(invoiceTotals.gst / 2);
+    const sgst = isInterState ? 0 : round2(invoiceTotals.gst / 2);
+    const igst = isInterState ? invoiceTotals.gst : 0;
+
+    if (customer && !customer.stateCode && taxInfo.stateCode) {
+      customer.stateCode = taxInfo.stateCode;
+    }
 
     /* ================= 5️⃣ SAVE INVOICE ================= */
     const invoice = await SalesOrder.create({
@@ -188,6 +219,11 @@ export const confirmInvoice = async (req, res) => {
         grossTotal: invoiceTotals.grossTotal,
         subtotal: invoiceTotals.subtotal,
         gst: invoiceTotals.gst,
+        taxType: taxInfo.taxType,
+        cgst,
+        sgst,
+        igst,
+        roundOff: invoiceTotals.roundOff || 0,
         grandTotal: invoiceTotals.grandTotal,
 
         /* 🔑 DIFFERENTIATED AUDIT TRAIL DISCOUNTS */
@@ -246,7 +282,7 @@ export const confirmInvoice = async (req, res) => {
       });
     }
 
-    /* ================= 6️⃣ STOCK DEDUCTION (PRODUCT ONLY) ================= */
+    /* ================= 6️⃣ STOCK DEDUCTION (PRODUCT & DIAMONDS) ================= */
     for (const item of cart.items) {
       if (item.itemType === "PRODUCT" && item.product?._id) {
         const result = await Product.updateOne(
@@ -255,6 +291,34 @@ export const confirmInvoice = async (req, res) => {
         );
         if (result.modifiedCount === 0) {
           throw new Error(`Stock changed for product ${item.product.title || item.product._id}`);
+        }
+      }
+
+      // 💎 Process Diamond Stock Updates
+      const diamondId = item.diamond || item.customSnapshot?.diamondId || item.customSnapshot?.productDetails?.diamondId;
+      if (diamondId) {
+        const dStock = await DiamondStock.findById(diamondId);
+        if (dStock) {
+          const currentStock = Number(dStock.stock ?? 1);
+          const qtySold = Number(item.quantity || 1);
+          if (qtySold > currentStock) {
+            throw new Error(`Insufficient stock for diamond ${dStock.sku || ""}. Only ${currentStock} available in stock.`);
+          }
+          const newStock = Math.max(0, currentStock - qtySold);
+
+          let newStatus = dStock.status;
+          if (newStock === 0) {
+            newStatus = "SOLD";
+          } else if (dStock.status === "RESERVED") {
+            newStatus = "RESERVED"; // agar reserved kiya tha toh reserved hi rahega
+          } else {
+            newStatus = "AVAILABLE"; // agar stock 0 se jyada h toh available aayega
+          }
+
+          await DiamondStock.findByIdAndUpdate(diamondId, {
+            stock: newStock,
+            status: newStatus,
+          });
         }
       }
     }

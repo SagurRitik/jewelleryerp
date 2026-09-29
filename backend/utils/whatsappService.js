@@ -81,12 +81,13 @@ export const sendEstimateViaWhatsApp = async ({
     return { success: false, error: "AiSensy media URL must be a public HTTPS domain (currently running on localhost)" };
   }
 
-  // Normalise mobile number: ensure 91 prefix
+  // Normalise mobile number: extract last 10 digits and ensure 91 prefix
   const digits = (mobile || "").replace(/\D/g, "");
-  if (!digits || digits.length < 10) {
-    return { success: false, error: "Invalid mobile number" };
+  const last10 = digits.slice(-10);
+  if (!last10 || last10.length !== 10) {
+    return { success: false, error: "Invalid 10-digit mobile number" };
   }
-  const destination = digits.length === 10 ? `91${digits}` : digits;
+  const destination = `91${last10}`;
 
   const payload = {
     apiKey,

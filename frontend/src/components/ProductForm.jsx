@@ -88,7 +88,7 @@ const METAL_PURITY_OPTIONS = {
 
 const JEWELLERY_CATEGORIES = [
   "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant",
-  "Chain", "Rakhi", "Other",
+  "Chain", "Rakhi", "Loose Diamond", "Other",
 ];
 
 export default function ProductForm({ existingProduct, onSuccess, onSubmit: outsideSubmit, onCancel, standalone = true }) {
@@ -313,6 +313,24 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
   const handleChange = (e) => {
     const { name, value, type } = e.target;
 
+    if (name === "jewelleryCategory") {
+      setForm((p) => {
+        const isLoose = value === "Loose Diamond";
+        return {
+          ...p,
+          jewelleryCategory: value,
+          hsnCode: isLoose ? (p.hsnCode === "7113" || !p.hsnCode ? "7102" : p.hsnCode) : (p.hsnCode === "7102" ? "7113" : p.hsnCode),
+          netWeight: isLoose ? (p.netWeight === "" ? 0 : p.netWeight) : p.netWeight,
+          grossWeight: isLoose ? (p.grossWeight === "" ? 0 : p.grossWeight) : p.grossWeight,
+          diamonds: isLoose && p.diamonds.length === 0 ? [{
+            shape: "Round", weight: "", grossWeight: "",
+            size: "", color: "D", clarity: "VS2", count: 1, rateOverride: null, rateLocked: true
+          }] : p.diamonds
+        };
+      });
+      return;
+    }
+
     if (name === "metalType") {
       const firstPurity = METAL_PURITY_OPTIONS[value][0];
       setForm((p) => ({
@@ -532,6 +550,14 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
           formData.append(field, form[field]);
         }
       });
+
+      if (form.jewelleryCategory === "Loose Diamond") {
+        formData.set("metalType", form.metalType || "LooseDiamond");
+        formData.set("metalPurity", form.metalPurity || "NA");
+        formData.set("netWeight", form.netWeight !== "" && form.netWeight !== undefined ? String(form.netWeight) : "0");
+        formData.set("grossWeight", form.grossWeight !== "" && form.grossWeight !== undefined ? String(form.grossWeight) : "0");
+        formData.set("hsnCode", form.hsnCode || "7102");
+      }
 
 
 
@@ -1154,7 +1180,17 @@ active:scale-90"
 
                   <div>
                     <label className={labelClass}>Gross Weight (g)</label>
-                    <input type="number" min="0" step="0.001" name="grossWeight" value={form.grossWeight} onChange={handleChange} placeholder="0.00" className={inputClass} required />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      name="grossWeight"
+                      value={form.grossWeight}
+                      onChange={handleChange}
+                      placeholder={form.jewelleryCategory === "Loose Diamond" ? "0.00 (Optional)" : "0.00"}
+                      className={inputClass}
+                      required={form.jewelleryCategory !== "Loose Diamond"}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
@@ -1168,53 +1204,75 @@ active:scale-90"
               <div className={cardClass}>
                 <div className={sectionTitleClass}><span className={lineMarkerClass}></span>Metal Specifications</div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className={labelClass}>Metal</label>
-                    <select name="metalType" value={form.metalType} onChange={handleChange} className={selectClass}>
-                      <option>Gold</option><option>Silver</option><option>Platinum</option>
-                    </select>
+                {form.jewelleryCategory === "Loose Diamond" ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-3">
+                    <span className="text-2xl">💎</span>
+                    <div>
+                      <p className="font-bold text-amber-950">Loose Diamond Product</p>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Metal details and making charges are not required (auto-set to 0). Please enter diamond carat weight, grade, and rate below.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className={labelClass}>Purity</label>
-                    <select name="metalPurity" value={form.metalPurity} onChange={handleChange} className={selectClass}>
-                      {METAL_PURITY_OPTIONS[form.metalType].map(p => (<option key={p} value={p}>{p}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Color</label>
-                    <select name="metalColor" value={form.metalColor} onChange={handleChange} className={selectClass}>
-                      {form.metalType === "Gold" && (<><option value="yellow-gold">Yellow Gold</option><option value="white-gold">White Gold</option><option value="rose-gold">Rose Gold</option></>)}
-                      {form.metalType === "Silver" && <option value="silver">Silver</option>}
-                      {form.metalType === "Platinum" && <option value="platinum">Platinum</option>}
-                    </select>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className={labelClass}>Metal</label>
+                        <select name="metalType" value={form.metalType} onChange={handleChange} className={selectClass}>
+                          <option>Gold</option><option>Silver</option><option>Platinum</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Purity</label>
+                        <select name="metalPurity" value={form.metalPurity} onChange={handleChange} className={selectClass}>
+                          {METAL_PURITY_OPTIONS[form.metalType].map(p => (<option key={p} value={p}>{p}</option>))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Color</label>
+                        <select name="metalColor" value={form.metalColor} onChange={handleChange} className={selectClass}>
+                          {form.metalType === "Gold" && (<><option value="yellow-gold">Yellow Gold</option><option value="white-gold">White Gold</option><option value="rose-gold">Rose Gold</option></>)}
+                          {form.metalType === "Silver" && <option value="silver">Silver</option>}
+                          {form.metalType === "Platinum" && <option value="platinum">Platinum</option>}
+                        </select>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className={labelClass}>Net Weight (g)</label>
-                    <input type="number" min="0" step="0.001" name="netWeight" value={form.netWeight} onFocus={disableScrollOnFocus} onChange={handleChange} placeholder="0.00" className={inputClass} required />
-                  </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className={labelClass}>Net Weight (g)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          name="netWeight"
+                          value={form.netWeight}
+                          onFocus={disableScrollOnFocus}
+                          onChange={handleChange}
+                          placeholder="0.00"
+                          className={inputClass}
+                          required={form.jewelleryCategory !== "Loose Diamond"}
+                        />
+                      </div>
 
-
-
-                  <div>
-                    <label className={labelClass}>Fine Metal (g)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      onFocus={disableScrollOnFocus}
-                      name="fineGold"
-                      value={form.fineGold}
-                      onChange={handleChange}
-                      placeholder="0.000"
-                      className={inputClass}
-                    />
-                  </div>
-
-                </div>
+                      <div>
+                        <label className={labelClass}>Fine Metal (g)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          onFocus={disableScrollOnFocus}
+                          name="fineGold"
+                          value={form.fineGold}
+                          onChange={handleChange}
+                          placeholder="0.000"
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Diamonds Card */}

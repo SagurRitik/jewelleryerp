@@ -1,17 +1,20 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, Edit, Eye, EyeOff, Gem, Loader2, BadgeDollarSign, ShieldCheck } from "lucide-react";
+import { ChevronLeft, Edit, Eye, EyeOff, Gem, Loader2, BadgeDollarSign, ShieldCheck, ShoppingCart, FileText } from "lucide-react";
 import API from "../api";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
+import { useCart } from "../context/CartContext";
 
 export default function DiamondDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isDark } = useTheme();
+  const { addLooseDiamond, openCart } = useCart();
   const [diamond, setDiamond] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hideCost, setHideCost] = useState(true); // Hidden by default!
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     fetchDiamond();
@@ -30,6 +33,24 @@ export default function DiamondDetailsPage() {
     }
   };
 
+  const handleAddToCart = async () => {
+    if (!diamond) return;
+    try {
+      setAddingToCart(true);
+      await addLooseDiamond({
+        diamondId: diamond._id,
+        diamondData: diamond,
+      });
+      toast.success("Loose Diamond added to Cart!");
+      openCart(); // 🔥 Opens the slide-over cart drawer immediately right here!
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || "Failed to add diamond to cart");
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -40,20 +61,19 @@ export default function DiamondDetailsPage() {
 
   if (!diamond) return null;
 
-  const weight = Number(diamond.weight || 0);
-  const costPrice = Number(diamond.costPrice || 0);
-  const sellingPrice = Number(diamond.sellingPrice || 0);
-
-  const sellingRatePerCarat = weight > 0 ? (sellingPrice / weight).toFixed(2) : "0.00";
-  const costRatePerCarat = weight > 0 ? (costPrice / weight).toFixed(2) : "0.00";
+  const weight = Number(diamond?.weight || 0);
+  const sellingPrice = Number(diamond?.sellingPrice || 0);
+  const costPrice = Number(diamond?.costPrice || 0);
+  const sellingRatePerCarat = diamond?.sellingRate || (weight > 0 ? Math.round(sellingPrice / weight) : 0);
+  const costRatePerCarat = diamond?.costRate || (weight > 0 ? Math.round(costPrice / weight) : 0);
 
   return (
     <div className={`min-h-screen p-6 transition-colors duration-300 ${
       isDark ? "bg-[#121212] text-white" : "bg-[#fcfaf8] text-[#2f2430]"
     }`}>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         
-        {/* Navigation & Actions */}
+        {/* Top Action Bar */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate("/diamonds")}
@@ -66,30 +86,43 @@ export default function DiamondDetailsPage() {
           </button>
           
           <div className="flex items-center gap-3">
-            {diamond.status === "AVAILABLE" && (
-              <button
-                onClick={() => navigate("/manual-billing", { 
-                  state: { 
-                    prefillDiamond: {
-                      title: `Loose Diamond - ${diamond.shape} ${diamond.weight}ct`,
-                      qty: 1,
-                      weight: diamond.weight,
-                      rate: diamond.weight > 0 ? (diamond.sellingPrice / diamond.weight) : 0,
-                      certificateNo: diamond.certificateNo,
-                      sku: diamond.sku,
-                      shape: diamond.shape,
-                      color: diamond.color,
-                      clarity: diamond.clarity,
-                      lab: diamond.lab,
-                      labNatural: diamond.labNatural,
-                      diamondId: diamond._id
+            {diamond.status !== "SOLD" && Number(diamond.stock ?? 1) > 0 && (
+              <>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={addingToCart}
+                  className="flex items-center gap-2 bg-[#714760] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#5a374f] transition-all shadow-md active:scale-95 text-sm"
+                >
+                  <ShoppingCart size={16} />
+                  {addingToCart ? "Adding..." : "Add to Cart / Direct Bill"}
+                </button>
+                <button
+                  onClick={() => navigate("/manual-billing", { 
+                    state: { 
+                      isLooseDiamond: true,
+                      prefillDiamond: {
+                        title: `Loose Diamond - ${diamond.shape} ${diamond.weight}ct`,
+                        qty: 1,
+                        weight: diamond.weight,
+                        rate: diamond.weight > 0 ? (diamond.sellingPrice / diamond.weight) : 0,
+                        certificateNo: diamond.certificateNo,
+                        sku: diamond.sku,
+                        shape: diamond.shape,
+                        color: diamond.color,
+                        clarity: diamond.clarity,
+                        lab: diamond.lab,
+                        labNatural: diamond.labNatural,
+                        diamondId: diamond._id,
+                        hsnCode: "7102"
+                      } 
                     } 
-                  } 
-                })}
-                className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-green-700 transition-all shadow-md active:scale-95 text-sm"
-              >
-                Sell Diamond
-              </button>
+                  })}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-md active:scale-95 text-sm"
+                >
+                  <FileText size={16} />
+                  Manual Bill
+                </button>
+              </>
             )}
             
             <button

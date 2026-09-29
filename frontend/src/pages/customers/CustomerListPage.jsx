@@ -214,7 +214,7 @@ export default function CustomerListPage() {
           className={`p-5 rounded-2xl border transition cursor-pointer ${
             activeTab === "TODAY_BDAY"
               ? isDark
-                ? "bg-pink-500/10 border-pink-500/50 shadow-lg shadow-pink-500/5 ring-1 ring-pink-500/30"
+                ? "bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/30"
                 : "bg-pink-50 border-pink-400 shadow-md ring-2 ring-pink-400/20"
               : isDark
                 ? "bg-[#1e1e1e] border-[#2e2e2e] hover:border-gray-700"
@@ -222,14 +222,14 @@ export default function CustomerListPage() {
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDark ? "text-pink-400" : "text-pink-700"}`}>
+            <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDark ? "text-amber-400" : "text-pink-700"}`}>
               <Cake size={14} /> Today's Birthdays
             </span>
-            <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${isDark ? "bg-pink-500/20 text-pink-300" : "bg-pink-100 text-pink-700"}`}>
+            <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${isDark ? "bg-amber-500/20 text-amber-300" : "bg-pink-100 text-pink-700"}`}>
               {celebrations.stats.todayBirthdaysCount}
             </span>
           </div>
-          <div className={`text-2xl font-black ${isDark ? "text-pink-300" : "text-pink-700"}`}>{celebrations.stats.todayBirthdaysCount}</div>
+          <div className={`text-2xl font-black ${isDark ? "text-amber-300" : "text-pink-700"}`}>{celebrations.stats.todayBirthdaysCount}</div>
           <div className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-pink-600 font-medium"}`}>🎂 Celebrate today</div>
         </div>
 
@@ -307,7 +307,7 @@ export default function CustomerListPage() {
             onClick={() => setActiveTab("TODAY_BDAY")}
             className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-2 ${
               activeTab === "TODAY_BDAY"
-                ? "bg-pink-600 text-white shadow-md"
+                ? isDark ? "bg-amber-500 text-stone-950 font-bold shadow-md" : "bg-pink-600 text-white shadow-md"
                 : isDark ? "bg-[#282828] text-gray-300 hover:bg-[#333]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >

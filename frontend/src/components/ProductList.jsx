@@ -79,38 +79,35 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
       `}
     >
       {/* IMAGE SECTION */}
-      <div className={`relative aspect-square p-4 flex items-center justify-center overflow-hidden will-change-transform ${theme.cardTop}`}>
+      <div className={`relative aspect-square p-2 sm:p-4 flex items-center justify-center overflow-hidden will-change-transform ${theme.cardTop}`}>
 
         {/* SKU Badge */}
         {p?.sku && (
           <div className="absolute top-2 left-2 z-10">
-            <span className={`text-[10px] font-medium px-2 py-0.5 border shadow-sm uppercase ${isDark ? "bg-black text-gray-300 border-gray-700" : "bg-white text-[#5A374F] border-gray-200"}`}>
+            <span className={`text-[9px] sm:text-[10px] font-medium px-1.5 sm:px-2 py-0.5 border shadow-sm uppercase ${isDark ? "bg-black text-gray-300 border-gray-700" : "bg-white text-[#5A374F] border-gray-200"}`}>
               {p.sku}
             </span>
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
-          <button type="button" className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
-            <Heart size={14} strokeWidth={2} />
-          </button>
-          <button type="button" className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
-            <BarChart2 size={14} strokeWidth={2} />
+        {/* Action buttons - on mobile visible or subtle, on desktop hover-revealed */}
+        <div className="absolute top-2 sm:top-3 right-2 sm:right-3 z-10 flex flex-col gap-1.5 sm:gap-2 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 sm:translate-x-2 sm:group-hover:translate-x-0">
+          <button type="button" className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626]/90 border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white/95 border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
+            <Heart size={13} strokeWidth={2} />
           </button>
           {p?.sku && (
             <button 
               type="button" 
               title="Print Barcode Tag"
               onClick={() => navigate(`/barcode-print`, { state: { products: [p] } })}
-              className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-emerald-500" : "bg-white border border-gray-200 text-gray-500 hover:text-emerald-500 hover:border-emerald-500"}`}
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626]/90 border border-gray-700 text-gray-400 hover:text-emerald-500" : "bg-white/95 border border-gray-200 text-gray-500 hover:text-emerald-500 hover:border-emerald-500"}`}
             >
-              <Barcode size={14} strokeWidth={2} />
+              <Barcode size={13} strokeWidth={2} />
             </button>
           )}
           {p?.sku && (
-            <button type="button" onClick={() => navigate(`/product/${p.sku}`)} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626] border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
-              <Eye size={14} strokeWidth={2} />
+            <button type="button" onClick={() => navigate(`/product/${p.sku}`)} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-sm transition-colors ${isDark ? "bg-[#262626]/90 border border-gray-700 text-gray-400 hover:text-[#C19A2A]" : "bg-white/95 border border-gray-200 text-gray-500 hover:text-[#C19A2A] hover:border-[#C19A2A]"}`}>
+              <Eye size={13} strokeWidth={2} />
             </button>
           )}
         </div>
@@ -126,32 +123,32 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
       </div>
 
       {/* DETAILS SECTION */}
-      <div className={`p-4 pb-14 flex flex-col items-center text-center flex-1 border-t transition-all duration-200 ease-out group-hover:-translate-y-2 ${theme.cardBottom} ${isDark ? "border-gray-800" : "border-gray-200"}`}>
+      <div className={`p-2.5 sm:p-4 pb-12 sm:pb-14 flex flex-col items-center text-center flex-1 border-t transition-all duration-200 ease-out group-hover:-translate-y-2 ${theme.cardBottom} ${isDark ? "border-gray-800" : "border-gray-200"}`}>
         {p?.sku && (
           <Link to={`/product/${p.sku}`} className="w-full">
-            <h3 className={`text-[13px] font-medium leading-snug line-clamp-1 mb-1 transition-colors ${isDark ? "text-zinc-200 hover:text-[#C19A2A]" : "text-zinc-800 hover:text-[#C19A2A]"}`}>
+            <h3 className={`text-[12px] sm:text-[13px] font-medium leading-snug line-clamp-1 mb-1 transition-colors ${isDark ? "text-zinc-200 hover:text-[#C19A2A]" : "text-zinc-800 hover:text-[#C19A2A]"}`}>
               {p?.title || "Untitled Product"}
             </h3>
           </Link>
         )}
-        <div className="text-[11px] leading-relaxed mb-2 line-clamp-1 italic text-zinc-500">
+        <div className="text-[10px] sm:text-[11px] leading-relaxed mb-1.5 sm:mb-2 line-clamp-1 italic text-zinc-500">
           {p?.description || "Premium Collection"}
         </div>
-        <div className="mt-2">
+        <div className="mt-1 sm:mt-2">
           {p?.pricing ? (
             <div className="flex flex-col items-center">
-              <span className="text-[10px] uppercase tracking-wider text-gray-400">EST. Price</span>
-              <span className="text-sm font-semibold text-[#C19A2A]">
+              <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-gray-400">EST. Price</span>
+              <span className="text-xs sm:text-sm font-semibold text-[#C19A2A]">
                 ₹{Number(p.pricing.payable ?? p.pricing.grandTotal ?? 0).toLocaleString("en-IN")}
               </span>
             </div>
           ) : (
-            <span className="text-xs text-gray-400">Calculating...</span>
+            <span className="text-[11px] sm:text-xs text-gray-400">Calculating...</span>
           )}
         </div>
 
         {/* Add to Cart */}
-        <div className="absolute bottom-0 left-0 w-full p-3 translate-y-0 opacity-100">
+        <div className="absolute bottom-0 left-0 w-full p-2 sm:p-3 translate-y-0 opacity-100">
           <button
             type="button"
             disabled={Number(p?.stock || 0) <= 0}
@@ -166,7 +163,7 @@ const ProductCard = memo(({ p, isDark, theme, navigate, addProduct, setShowToast
                 console.error("Cart error:", err);
               }
             }}
-            className={`w-full py-2 text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70"}`}
+            className={`w-full py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-semibold rounded-sm transition-all shadow-sm ${Number(p?.stock || 0) > 0 ? "bg-[#C19A2A] text-white hover:bg-[#A38222]" : "bg-gray-200 text-gray-400 cursor-not-allowed opacity-70"}`}
           >
             {Number(p?.stock || 0) > 0 ? "Add To Cart" : "Out of Stock"}
           </button>
@@ -596,33 +593,33 @@ export default function ProductList() {
         {/* Live Rates Bar */}
         <div className="relative border-b border-white/10 overflow-hidden">
           <BackgroundSlider />
-          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-1 flex items-center">
-            <div className="flex items-center gap-2 mr-4 border-r pr-4 border-white/20 flex-shrink-0">
+          <div className="max-w-[1920px] mx-auto px-2 sm:px-6 py-1 flex items-center">
+            <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 mr-2 sm:mr-4 border-r pr-2 sm:pr-4 border-white/20 flex-shrink-0">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Live Market</span>
             </div>
-            <div className="overflow-x-auto scrollbar-hide flex-1 py-1">
+            <div className="w-full flex-1 py-1">
               <MetalRateCards />
             </div>
           </div>
         </div>
 
         {/* Search & Filters */}
-        <div className={`max-w-[1920px] mx-auto px-4 sm:px-6 py-2 ${isDark ? "bg-[#0a0a0a]" : "bg-[#F5F5F5]"}`}>
+        <div className={`max-w-[1920px] mx-auto px-2.5 sm:px-6 py-2 ${isDark ? "bg-[#0a0a0a]" : "bg-[#F5F5F5]"}`}>
 
           {/* ─── TOP ROW: Search + Action Buttons ─── */}
           <div className="flex items-center gap-2">
 
             {/* Search Bar */}
-            <div className={`flex-1 flex items-center rounded-full border shadow-sm px-4 py-1 transition-all focus-within:ring-2 focus-within:ring-[#C19A2A]/30 focus-within:border-[#C19A2A] ${theme.inputBg} ${theme.border}`}>
-              <Search size={16} className={`${theme.subText} mr-3 flex-shrink-0`} />
+            <div className={`flex-1 flex items-center rounded-full border shadow-sm px-3 sm:px-4 py-1 transition-all focus-within:ring-2 focus-within:ring-[#C19A2A]/30 focus-within:border-[#C19A2A] ${theme.inputBg} ${theme.border}`}>
+              <Search size={15} className={`${theme.subText} mr-2 sm:mr-3 flex-shrink-0`} />
               <input
                 ref={searchRef}
                 type="text"
-                placeholder="Search SKU or Product Name..."
+                placeholder="Search SKU or Product..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -633,17 +630,17 @@ export default function ProductList() {
                     applyFilters({ ...filters, search: val });
                   }
                 }}
-                className={`w-full bg-transparent border-none outline-none text-sm font-medium placeholder:font-normal ${theme.text}`}
+                className={`w-full bg-transparent border-none outline-none text-xs sm:text-sm font-medium placeholder:font-normal ${theme.text}`}
               />
               {/* Scanner Button */}
               <button
                 onClick={() => setShowScanner(true)}
                 title="Scan Barcode"
-                className="group relative flex items-center justify-center w-9 h-9 bg-[#5A374F] text-white rounded-lg transition-all hover:bg-[#4a2d41] active:scale-95 overflow-hidden shadow-md ml-2 flex-shrink-0"
+                className="group relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-[#5A374F] text-white rounded-lg transition-all hover:bg-[#4a2d41] active:scale-95 overflow-hidden shadow-md ml-1.5 sm:ml-2 flex-shrink-0"
               >
                 <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent opacity-0 group-hover:animate-scan group-hover:opacity-100" />
                 <div className="relative z-10 flex items-center gap-2 h-full">
-                  <svg viewBox="0 0 24 24" className="w-5 h-9 fill-none stroke-current stroke-[2px]" strokeLinecap="round" strokeLinejoin="round">
+                  <svg viewBox="0 0 24 24" className="w-4 sm:w-5 h-8 sm:h-9 fill-none stroke-current stroke-[2px]" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
                     <path d="M8 8v8M12 8v8M16 8v8" className="opacity-60" />
                   </svg>
@@ -654,20 +651,20 @@ export default function ProductList() {
             {/* Filter Toggle — visible on all screens */}
             <button
               onClick={() => setFiltersOpen(o => !o)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 h-10 rounded-full border shadow-sm text-xs font-bold uppercase tracking-wide transition-all ${filtersOpen
+              className={`flex-shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 h-9 sm:h-10 rounded-full border shadow-sm text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all ${filtersOpen
                 ? "bg-[#5A374F] text-white border-[#5A374F]"
                 : `${theme.inputBg} ${theme.border} ${theme.text}`
                 }`}
             >
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={13} />
               <span>Filters</span>
-              {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {filtersOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
           </div>
 
           {/* ─── COLLAPSIBLE FILTERS: hidden by default on all screens ─── */}
           <div className={`${filtersOpen ? "flex" : "hidden"
-            } flex-col lg:flex-row lg:items-center flex-wrap gap-2 mt-2 pt-2 border-t ${isDark ? "border-gray-800" : "border-gray-200"}`}>
+            } flex-col sm:flex-row sm:items-center flex-wrap gap-2 mt-2 pt-2 border-t ${isDark ? "border-gray-800" : "border-gray-200"}`}>
 
             {/* Metal */}
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] font-medium ${theme.inputBg} ${theme.border} ${theme.text}`}>
@@ -700,6 +697,7 @@ export default function ProductList() {
                 <option value="Pendant">Pendants</option>
                 <option value="Chain">Chains</option>
                 <option value="Rakhi">Rakhi</option>
+                <option value="Loose Diamond">Loose Diamond</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -856,11 +854,11 @@ export default function ProductList() {
       {(!loading || products.length > 0) && (
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700"
+          className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 lg:p-8 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700"
         >
           {Array.isArray(products) && products.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 pb-6 items-start w-full">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2 sm:gap-4 md:gap-6 pb-6 items-start w-full">
                 {products.map((p) => (
                   <ProductCard
                     key={p._id}

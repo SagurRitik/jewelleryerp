@@ -69,6 +69,7 @@ export const getCartSummary = async (req, res) => {
           grossTotal: 0,
           subtotal: 0,
           gst: 0,
+          roundOff: 0,
           grandTotal: 0,
           discount: 0,
           regularDiscount: 0,

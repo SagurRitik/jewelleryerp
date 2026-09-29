@@ -1975,6 +1975,8 @@ import {
   UserPlus,
   QrCode,
   Calculator,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import BackButton from "../components/BackButton";
 import toast from "react-hot-toast";
@@ -1990,6 +1992,39 @@ export default function InvoicePreview() {
   const [error, setError] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null);
   const [whatsAppLoading, setWhatsAppLoading] = useState(false);
+  const [isFitMode, setIsFitMode] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  const [scale, setScale] = useState(1);
+  const [iframeHeight, setIframeHeight] = useState(1123);
+
+  const handleIframeLoad = (e) => {
+    try {
+      const doc = e.target.contentDocument || e.target.contentWindow?.document;
+      if (doc && doc.body) {
+        const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 1123);
+        setIframeHeight(h);
+      }
+    } catch (err) {
+      console.warn("Could not measure iframe height:", err);
+    }
+  };
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (typeof window === "undefined") return;
+      const screenWidth = window.innerWidth;
+      // On mobile (< 640px), 16px total padding so invoice fills the screen nicely
+      const horizontalPadding = screenWidth < 640 ? 16 : 48;
+      const availableWidth = Math.max(280, screenWidth - horizontalPadding);
+      // 210mm is approximately 794px at 96 DPI
+      const a4WidthPx = 794;
+      const calculatedScale = Math.min(1, availableWidth / a4WidthPx);
+      setScale(calculatedScale);
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2159,51 +2194,78 @@ export default function InvoicePreview() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-2 sm:p-4">
 
       {/* --- Toolbar --- */}
-      <div className="w-full max-w-[210mm] bg-white shadow-md rounded-lg p-4 mb-6 flex justify-between items-center print:hidden">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 hover:text-[#531b4e] font-medium transition"
-          >
-            <ArrowLeft size={20} /> Back
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-gray-800">Invoice Preview</h1>
-            <p className="text-xs text-gray-500">ID: {activeId}</p>
+      <div className="w-full max-w-[210mm] bg-white shadow-md rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 print:hidden">
+        <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 sm:p-2 text-gray-600 hover:text-[#531b4e] font-medium transition flex items-center gap-1 rounded-lg hover:bg-gray-100 text-sm sm:text-base shrink-0"
+            >
+              <ArrowLeft size={18} /> <span>Back</span>
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-gray-800 leading-tight">Invoice Preview</h1>
+              <p className="text-[10px] sm:text-xs text-gray-500 font-mono truncate max-w-[140px] sm:max-w-none">
+                ID: {activeId}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex gap-2.5 items-center">
+          {/* Quick UserPlus icon on mobile top right */}
           <button
             onClick={handleAddCustomerFromInvoice}
-            className="p-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-lg shadow-md shadow-pink-600/20 transition-all active:scale-95 flex items-center justify-center"
+            className="sm:hidden p-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg shadow-sm transition-all active:scale-95 flex items-center justify-center shrink-0"
+            title="Save Customer Profile"
+          >
+            <UserPlus size={16} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+          {/* UserPlus (Desktop) */}
+          <button
+            onClick={handleAddCustomerFromInvoice}
+            className="hidden sm:flex p-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-lg shadow-md shadow-pink-600/20 transition-all active:scale-95 items-center justify-center shrink-0"
             title="Save Customer Profile & Add Birthday / Anniversary Dates"
           >
             <UserPlus size={18} />
           </button>
 
+          {/* Fit Screen / 100% Toggle (Especially helpful on mobile) */}
+          <button
+            type="button"
+            onClick={() => setIsFitMode((prev) => !prev)}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition shrink-0"
+            title={isFitMode ? "View at 100% size (horizontal scroll)" : "Auto-fit invoice width to screen"}
+          >
+            {isFitMode ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+            <span>{isFitMode ? "Full Size (100%)" : "Fit Screen"}</span>
+          </button>
+
           <button
             onClick={handleWhatsApp}
             disabled={whatsAppLoading}
-            className="flex items-center gap-2 px-5 py-2 bg-[#25D366] text-white rounded-lg hover:bg-[#1ea952] shadow-md transition font-semibold disabled:opacity-50"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 bg-[#25D366] text-white rounded-lg hover:bg-[#1ea952] shadow-md transition text-xs sm:text-sm font-semibold disabled:opacity-50 shrink-0"
           >
-            <MessageCircle size={18} fill="white" /> {whatsAppLoading ? "Sending..." : "WhatsApp"}
+            <MessageCircle size={16} fill="white" />
+            <span>{whatsAppLoading ? "Sending..." : "WhatsApp"}</span>
           </button>
 
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-2 bg-[#531b4e] text-white rounded-lg hover:bg-[#3d1339] shadow-md transition font-semibold"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 bg-[#531b4e] text-white rounded-lg hover:bg-[#3d1339] shadow-md transition text-xs sm:text-sm font-semibold shrink-0"
           >
-            <Printer size={18} /> Print
+            <Printer size={16} />
+            <span>Print</span>
           </button>
         </div>
       </div>
 
       {/* --- PREVIEW AREA --- */}
-      <div className="flex-1 w-full flex justify-center overflow-auto pb-10">
+      <div className={`flex-1 w-full flex ${isFitMode && scale < 1 ? "justify-center" : "justify-start sm:justify-center"} items-start overflow-x-auto pb-10 px-2 sm:px-4`}>
 
         {loading && (
           <div className="flex flex-col items-center justify-center mt-20 text-gray-500">
@@ -2220,15 +2282,36 @@ export default function InvoicePreview() {
         )}
 
         {!loading && !error && (
-          /* ✅ IFRAME: Ye backend wala Purple Design dikhayega */
-          <div className="bg-white shadow-2xl rounded-sm overflow-hidden" style={{ width: "210mm", height: "297mm" }}>
-            <iframe
-              id="invoice-frame"
-              title="Invoice"
-              srcDoc={htmlContent} // Backend ka HTML yahan inject hoga
-              className="w-full h-full border-none"
-              style={{ display: "block", backgroundColor: "white" }}
-            />
+          /* ✅ Scaled or Scrollable container */
+          <div
+            className="relative transition-all duration-300 shadow-2xl rounded-sm overflow-hidden bg-white shrink-0"
+            style={{
+              width: isFitMode && scale < 1 ? `${Math.round(794 * scale)}px` : "794px",
+              height: isFitMode && scale < 1 ? `${Math.round(iframeHeight * scale)}px` : `${iframeHeight}px`,
+              minWidth: isFitMode && scale < 1 ? `${Math.round(794 * scale)}px` : "794px",
+            }}
+          >
+            <div
+              style={{
+                width: "794px",
+                height: `${iframeHeight}px`,
+                minWidth: "794px",
+                transform: isFitMode && scale < 1 ? `scale(${scale})` : "none",
+                transformOrigin: "0 0",
+                position: isFitMode && scale < 1 ? "absolute" : "relative",
+                top: 0,
+                left: 0,
+              }}
+            >
+              <iframe
+                id="invoice-frame"
+                title="Invoice"
+                srcDoc={htmlContent}
+                onLoad={handleIframeLoad}
+                className="w-full h-full border-none"
+                style={{ display: "block", backgroundColor: "white" }}
+              />
+            </div>
           </div>
         )}
 

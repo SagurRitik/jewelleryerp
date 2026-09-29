@@ -89,6 +89,7 @@ export const RatesProvider = ({ children }) => {
         silverMakingCharge: Number(rawRates.silverMakingCharge) || 0,
         platinumMakingCharge: Number(rawRates.platinumMakingCharge) || 0,
         gstRate: Number(rawRates.gstRate) || 3, // Default 3%
+        looseDiamondGstRate: rawRates.looseDiamondGstRate != null ? Number(rawRates.looseDiamondGstRate) : 1.5, // Default 1.5%
         settingChargePerPc: Number(rawRates.settingChargePerPc) || 0,
         minMakingWeight: Number(rawRates.minMakingWeight) || 0,
         minMakingFlatFee: Number(rawRates.minMakingFlatFee) || 0,
@@ -142,6 +143,7 @@ export const RatesProvider = ({ children }) => {
       // Tax
       tax: {
         gst: Number(rawRates.gstRate) || 3,
+        looseDiamondGst: rawRates.looseDiamondGstRate != null ? Number(rawRates.looseDiamondGstRate) : 1.5,
       },
 
       // 🔒 DISPLAY ONLY (calculation happens in backend)

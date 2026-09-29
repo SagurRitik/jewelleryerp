@@ -1,1766 +1,528 @@
-
-
-
-
-// import { useEffect, useState } from "react";
-// import API from "../api";
-// import { useNavigate } from "react-router-dom";
-
-// export default function ExpensePage() {
-//   const navigate = useNavigate();
-
-//   const [expenses, setExpenses] = useState([]);
-//   const [summary, setSummary] = useState({ totalExpense: 0 });
-
-//   const [page, setPage] = useState(1);
-//   const [pagination, setPagination] = useState({ pages: 1 });
-
-//   useEffect(() => {
-//     fetchExpenses();
-//   }, [page]);
-
-//   const fetchExpenses = async () => {
-//     try {
-//       const res = await API.get(`/expenses?page=${page}&limit=10`);
-
-//       setExpenses(res.data.expenses || []);
-//       setSummary(res.data.summary || {});
-//       setPagination(res.data.pagination || {});
-//     } catch (err) {
-//       console.error(err);
-//       alert("Failed to fetch expenses");
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-[#F5F3F0] p-6 flex flex-col">
-
-//       {/* HEADER */}
-//       <div className="flex justify-between items-center mb-6">
-//         <h1 className="text-2xl font-semibold text-gray-800">
-//           Expense Management
-//         </h1>
-
-//         <button
-//           onClick={() => navigate("/expenses/new")}
-//           className="bg-[#6B2E4A] hover:bg-[#5A2640] text-white px-4 py-2 rounded-md text-sm"
-//         >
-//           + Add Expense
-//         </button>
-//       </div>
-
-//       {/* SUMMARY */}
-//       <div className="bg-white rounded-lg shadow-sm p-5 mb-6 border border-gray-200">
-//         <div className="flex justify-between items-center">
-//           <span className="text-gray-600 text-sm">Total Expense</span>
-//           <span className="text-xl font-semibold text-red-600">
-//             ₹ {summary.totalExpense?.toFixed(2) || "0.00"}
-//           </span>
-//         </div>
-//       </div>
-
-//       {/* TABLE (flex-1 = pushes pagination down) */}
-//       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-1">
-//         <table className="w-full text-sm">
-
-//           <thead className="bg-gray-100 text-gray-700">
-//             <tr>
-//               <th className="p-3 text-left">Date</th>
-//               <th className="p-3 text-left">Category</th>
-//               <th className="p-3 text-left">Amount</th>
-//               <th className="p-3 text-left">Payment</th>
-//               <th className="p-3 text-left">Reference</th>
-//               <th className="p-3 text-left">Party</th>
-//               <th className="p-3 text-left">Notes</th>
-//             </tr>
-//           </thead>
-
-//           <tbody>
-//             {expenses.length === 0 ? (
-//               <tr>
-//                 <td colSpan="7" className="text-center p-6 text-gray-500">
-//                   No expenses found
-//                 </td>
-//               </tr>
-//             ) : (
-//               expenses.map((e) => (
-//                 <tr key={e._id} className="border-t hover:bg-gray-50">
-
-//                   <td className="p-3">
-//                     {new Date(e.expenseDate).toLocaleDateString("en-IN")}
-//                   </td>
-
-//                   <td className="p-3 font-medium">
-//                     {e.category}
-//                   </td>
-
-//                   <td className="p-3 text-red-600 font-semibold">
-//                     ₹ {e.amount?.toFixed(2)}
-//                   </td>
-
-//                   <td className="p-3">
-//                     {e.paymentMode}
-//                   </td>
-
-//                   <td className="p-3">
-//                     {e.reference || "-"}
-//                   </td>
-
-//                   <td className="p-3">
-//                     {e.partyName || "-"}
-//                   </td>
-
-//                   <td className="p-3 text-gray-500 max-w-[200px] truncate">
-//                     {e.notes || "-"}
-//                   </td>
-
-//                 </tr>
-//               ))
-//             )}
-//           </tbody>
-
-//         </table>
-//       </div>
-
-//       {/* PAGINATION (always bottom now) */}
-//       <div className="flex justify-center items-center gap-2 mt-6 flex-wrap pb-4">
-
-//         {/* Prev */}
-//         <button
-//           disabled={page === 1}
-//           onClick={() => setPage(page - 1)}
-//           className="px-3 py-1 border rounded disabled:opacity-50"
-//         >
-//           Prev
-//         </button>
-
-//         {/* Page Numbers */}
-//         {Array.from({ length: pagination.pages || 1 }, (_, i) => i + 1).map(p => (
-//           <button
-//             key={p}
-//             onClick={() => setPage(p)}
-//             className={`px-3 py-1 border rounded ${
-//               p === page ? "bg-[#6B2E4A] text-white" : ""
-//             }`}
-//           >
-//             {p}
-//           </button>
-//         ))}
-
-//         {/* Next */}
-//         <button
-//           disabled={page === pagination.pages}
-//           onClick={() => setPage(page + 1)}
-//           className="px-3 py-1 border rounded disabled:opacity-50"
-//         >
-//           Next
-//         </button>
-
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
 import React, { useEffect, useState, useRef } from "react";
-
-
-
 import API from "../api";
-
-
-
 import { useNavigate } from "react-router-dom";
-
-
-
-import { 
-
-
-
-  TrendingUp, Plus, Filter, Download, Upload,
-
-
-
-  Landmark, Banknote, CreditCard, ChevronLeft, ChevronRight,
-
-
-
-  ListOrdered, Trash2, ArrowLeft
-
-
-
+import {
+  TrendingUp,
+  Plus,
+  Filter,
+  Download,
+  Upload,
+  Landmark,
+  Banknote,
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  ListOrdered,
+  Trash2,
+  ArrowLeft,
 } from "lucide-react";
 
-
-
-
-
-
-
 export default function ExpensePage() {
-
-
-
   const navigate = useNavigate();
 
-
-
-
-
-
-
   const [expenses, setExpenses] = useState([]);
-
-
-
   const [summary, setSummary] = useState({ totalExpense: 0 });
-
-
-
-
-
-
-
   const [page, setPage] = useState(1);
-
-
-
   const [pagination, setPagination] = useState({ pages: 1, total: 0, limit: 10 });
-
-
-
-
-
-
-
   const [isFilterVisible, setIsFilterVisible] = useState(false);
-
-
-
   const [filters, setFilters] = useState({
-
-
-
     startDate: "",
-
-
-
     endDate: "",
-
-
-
     category: "",
-
-
-
   });
-
-
-
   const [categories, setCategories] = useState([]);
-
-
-
-
-
-
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-
-
-
     fetchExpenses();
-
-
-
     fetchCategories();
-
-
-
   }, [page, filters]);
 
-
-
-
-
-
-
   const fetchExpenses = async () => {
-
-
-
     try {
-
-
-
       const params = new URLSearchParams({
-
-
-
         page,
-
-
-
         limit: 10,
-
-
-
         ...filters,
-
-
-
       });
 
-
-
       const res = await API.get(`/expenses?${params.toString()}`);
-
-
-
       setExpenses(res.data.expenses || []);
-
-
-
       setSummary(res.data.summary || {});
-
-
-
-      setPagination(res.data.pagination || { pages: 1, total: res.data.expenses?.length || 0, limit: 10 });
-
-
-
+      setPagination(
+        res.data.pagination || {
+          pages: 1,
+          total: res.data.expenses?.length || 0,
+          limit: 10,
+        }
+      );
     } catch (err) {
-
-
-
       console.error(err);
-
-
-
       alert("Failed to fetch expenses");
-
-
-
     }
-
-
-
   };
-
-
-
-
-
-
 
   const fetchCategories = async () => {
-
-
-
     try {
-
-
-
       const res = await API.get("/expenses/categories");
-
-
-
       setCategories(res.data || []);
-
-
-
     } catch (err) {
-
-
-
       console.error(err);
-
-
-
       alert("Failed to fetch categories");
-
-
-
     }
-
-
-
   };
-
-
-
-
-
-
 
   const handleFilterChange = (e) => {
-
-
-
     const { name, value } = e.target;
-
-
-
     setFilters((prev) => ({ ...prev, [name]: value }));
-
-
-
   };
-
-
-
-
-
-
 
   const applyFilters = () => {
-
-
-
     setPage(1);
-
-
-
     fetchExpenses();
-
-
-
   };
-
-
-
-
-
-
 
   const clearFilters = () => {
-
-
-
     setFilters({
-
-
-
       startDate: "",
-
-
-
       endDate: "",
-
-
-
       category: "",
-
-
-
     });
-
-
-
     setPage(1);
-
-
-
   };
-
-
-
-
-
-
 
   /* Helper for Payment Icons */
-
-
-
   const getPaymentIcon = (mode) => {
-
-
-
     const m = mode?.toUpperCase() || "";
-
-
-
-    if (m.includes("UPI")) return <Landmark className="w-4 h-4 mr-2 text-slate-600" />;
-
-
-
-    if (m.includes("CASH")) return <Banknote className="w-4 h-4 mr-2 text-slate-600" />;
-
-
-
-    if (m.includes("CARD")) return <CreditCard className="w-4 h-4 mr-2 text-slate-600" />;
-
-
-
-    return <Landmark className="w-4 h-4 mr-2 text-slate-600" />; // default
-
-
-
+    if (m.includes("UPI")) return <Landmark className="w-3.5 h-3.5 mr-1.5 text-slate-500" />;
+    if (m.includes("CASH")) return <Banknote className="w-3.5 h-3.5 mr-1.5 text-slate-500" />;
+    if (m.includes("CARD")) return <CreditCard className="w-3.5 h-3.5 mr-1.5 text-slate-500" />;
+    return <Landmark className="w-3.5 h-3.5 mr-1.5 text-slate-500" />;
   };
-
-
-
-
-
-
 
   /* Helper for Date Formatting */
-
-
-
   const fmtDate = (dateString) => {
-
-
-
+    if (!dateString) return "-";
     const d = new Date(dateString);
-
-
-
     return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-
-
-
   };
-
-
-
-
-
-
 
   const handleDelete = async (id) => {
-
-
-
     const confirmDelete = window.confirm("Delete this expense?");
-
-
-
     if (!confirmDelete) return;
 
-
-
-
-
-
-
     try {
-
-
-
       await API.delete(`/expenses/${id}`);
-
-
-
-      fetchExpenses(); // refresh list
-
-
-
+      fetchExpenses();
     } catch (err) {
-
-
-
       console.error(err);
-
-
-
       alert("Delete failed");
-
-
-
     }
-
-
-
   };
 
-
-
-
-
-
-
-  
-
-
-
-
-
-
-
-    const handleExport = async () => {
-
-
-
-
-
-
-
-      try {
-
-
-
-
-
-
-
-        const params = new URLSearchParams(filters);
-
-
-
-
-
-
-
-        const res = await API.get(`/expenses/export?${params.toString()}`, {
-
-
-
-
-
-
-
-          responseType: "blob",
-
-
-
-
-
-
-
-        });
-
-
-
-
-
-
-
-        const url = window.URL.createObjectURL(new Blob([res.data]));
-
-
-
-
-
-
-
-        const link = document.createElement("a");
-
-
-
-
-
-
-
-        link.href = url;
-
-
-
-
-
-
-
-        link.setAttribute("download", "expenses.xlsx");
-
-
-
-
-
-
-
-        document.body.appendChild(link);
-
-
-
-
-
-
-
-        link.click();
-
-
-
-
-
-
-
-      } catch (err) {
-
-
-
-
-
-
-
-        console.error(err);
-
-
-
-
-
-
-
-        alert("Failed to export expenses");
-
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams(filters);
+      const res = await API.get(`/expenses/export?${params.toString()}`, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "expenses.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export expenses");
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("excel", file);
+
+    try {
+      const res = await API.post("/expenses/import", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (res.data.success) {
+        alert(`Successfully imported ${res.data.count} expenses!`);
+        fetchExpenses();
+      } else {
+        alert(res.data.message || "Failed to import expenses");
       }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || err.message || "Failed to import expenses");
+    }
+  };
 
-    };
-
-    const fileInputRef = useRef(null);
-
-    const handleImportClick = () => {
-      fileInputRef.current?.click();
-    };
-
-    const handleImport = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      e.target.value = "";
-
-      const formData = new FormData();
-      formData.append("excel", file);
-
-      try {
-        const res = await API.post("/expenses/import", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
-
-        if (res.data.success) {
-          alert(`Successfully imported ${res.data.count} expenses!`);
-          fetchExpenses();
-        } else {
-          alert(res.data.message || "Failed to import expenses");
-        }
-      } catch (err) {
-        console.error(err);
-        alert(err.response?.data?.message || err.message || "Failed to import expenses");
-      }
-    };
-
-
-
-
-
-
-
-  
-
-
-
-
-
-
-
-    const handleEdit = (id) => {
-
-
-
-
-
-
-
-      navigate(`/expenses/edit/${id}`);
-
-
-
-
-
-
-
-    };
-
-
-
-
-
-
-
-  
-
-
-
-
-
-
+  const handleEdit = (id) => {
+    navigate(`/expenses/edit/${id}`);
+  };
 
   /* Pagination text calculation */
-
-
-
   const startItem = (page - 1) * (pagination.limit || 10) + 1;
-
-
-
   const endItem = Math.min(page * (pagination.limit || 10), pagination.total || expenses.length);
 
-
-
-
-
-
-
   return (
-
-
-
-    <div className="min-h-screen bg-[#FCFBFA] p-8 flex flex-col font-sans text-slate-800 pb-12">
-
-      {/* BACK BUTTON */}
-      <button
-        onClick={() => navigate("/")}
-        className="flex items-center gap-2 text-slate-500 hover:text-[#6A3D55] font-bold text-sm mb-6 transition-colors self-start"
-      >
-        <ArrowLeft size={18} /> Back to Dashboard
-      </button>
-
-
-
-      {/* TOP SECTION: Title & Summary Card */}
-
-
-
-      <div className="flex flex-col md:flex-row justify-between items-start mb-12 gap-6">
-
-
-
-        
-
-
-
-        {/* Left: Titles */}
-        <div className="flex items-start gap-4 pt-2">
+    <div className="min-h-screen bg-[#FCFBFA] p-3 sm:p-6 md:p-8 flex flex-col font-sans text-slate-800 pb-12">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col">
+        {/* BACK BUTTON */}
+        <div className="mb-3 sm:mb-5">
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-600 hover:text-[#6A3D55] hover:border-[#6A3D55]/20 transition-colors mt-2"
+            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#6A3D55] font-semibold text-xs sm:text-sm py-1.5 px-2.5 rounded-lg hover:bg-slate-100 transition-colors"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
           </button>
-          <div className="max-w-md">
-            <h3 className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-2">
+        </div>
+
+        {/* TOP SECTION: Title & Summary Card */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
+          <div>
+            <h3 className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-1">
               Overview
             </h3>
-            <h1 className="text-[32px] font-bold text-[#6A3D55] tracking-tight mb-3">
+            <h1 className="text-xl sm:text-2xl md:text-[30px] font-bold text-[#6A3D55] tracking-tight">
               Expense Management
             </h1>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Real-time tracking and categorization of your organizational expenditures for the current fiscal period.
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-lg">
+              Track and manage store expenditures, repairs, and daily overheads.
             </p>
           </div>
-        </div>
 
-
-
-
-
-
-
-        {/* Right: Summary Card */}
-
-
-
-        <div className="bg-white rounded-xl shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-slate-100 p-6 w-full md:w-[320px]">
-
-
-
-          <div className="flex justify-between items-start mb-4">
-
-
-
-            <h3 className="text-[11px] font-bold tracking-[0.1em] text-slate-500 uppercase">Total Expense</h3>
-
-
-
-            <div className="bg-[#F4EAEE] text-[#6A3D55] p-1.5 rounded-lg">
-
-
-
-              <TrendingUp className="w-4 h-4" />
-
-
-
+          {/* Summary Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 sm:p-5 w-full md:w-[280px] shrink-0">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">
+                Total Expense
+              </span>
+              <div className="bg-[#F4EAEE] text-[#6A3D55] p-1.5 rounded-lg">
+                <TrendingUp className="w-4 h-4" />
+              </div>
             </div>
-
-
-
-          </div>
-
-
-
-          <div className="text-[36px] font-bold text-[#6A3D55] mb-6">
-
-
-
-            ₹ {summary.totalExpense?.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
-
-
-
-          </div>
-
-
-
-          <div className="flex justify-end text-[10px] font-bold uppercase tracking-wider">
-
-
-
-            <div className="text-[#6A3D55]">
-              {new Date().toLocaleString("en-US", { month: "long", year: "numeric" }).toUpperCase()}
+            <div className="text-2xl sm:text-3xl font-bold text-[#6A3D55] break-words">
+              ₹ {summary.totalExpense?.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
             </div>
-
-
-
-          </div>
-
-
-
-        </div>
-
-
-
-
-
-
-
-      </div>
-
-
-
-
-
-
-
-      {/* ACTION BAR */}
-
-
-
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-
-
-
-        <h2 className="text-xl font-bold text-[#6A3D55]">Recent Transactions</h2>
-
-
-
-        
-
-
-
-        <div className="flex items-center gap-3">
-
-
-
-          <button
-
-
-
-            onClick={() => navigate("/expenses/new")}
-
-
-
-            className="bg-[#6A3D55] hover:bg-[#5C3149] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center shadow-sm"
-
-
-
-          >
-
-
-
-            <Plus className="w-4 h-4 mr-2" /> Add Expense
-
-
-
-          </button>
-
-
-
-          <button
-
-
-
-            onClick={() => setIsFilterVisible(!isFilterVisible)}
-
-
-
-            className="px-4 py-2.5 border border-transparent hover:bg-slate-100 rounded-lg text-sm font-semibold text-slate-700 transition-colors flex items-center"
-
-
-
-          >
-
-
-
-            <Filter className="w-4 h-4 mr-2 text-slate-500" /> Filter
-
-
-
-          </button>
-
-
-
-          
-
-
-
-          <button
-
-
-
-                      onClick={handleExport}
-
-
-
-                      className="px-4 py-2.5 border border-transparent hover:bg-slate-100 rounded-lg text-sm font-semibold text-slate-700 transition-colors flex items-center"
-
-
-
-                    >
-
-
-
-                      <Download className="w-4 h-4 mr-2 text-slate-500" /> Export
-
-
-
-                    </button>
-
-          <button
-            onClick={handleImportClick}
-            className="px-4 py-2.5 border border-transparent hover:bg-slate-100 rounded-lg text-sm font-semibold text-slate-700 transition-colors flex items-center"
-          >
-            <Upload className="w-4 h-4 mr-2 text-slate-500" /> Import
-          </button>
-
-          <input
-            type="file"
-            accept=".xlsx, .xls"
-            ref={fileInputRef}
-            onChange={handleImport}
-            className="hidden"
-          />
-
-
-
-          
-
-
-
-        </div>
-
-
-
-      </div>
-
-
-
-
-
-
-
-      {/* FILTER SECTION */}
-
-
-
-      {isFilterVisible && (
-
-
-
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6 border border-gray-200">
-
-
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-
-
-            <input
-
-
-
-              type="date"
-
-
-
-              name="startDate"
-
-
-
-              value={filters.startDate}
-
-
-
-              onChange={handleFilterChange}
-
-
-
-              className="p-2 border rounded"
-
-
-
-            />
-
-
-
-            <input
-
-
-
-              type="date"
-
-
-
-              name="endDate"
-
-
-
-              value={filters.endDate}
-
-
-
-              onChange={handleFilterChange}
-
-
-
-              className="p-2 border rounded"
-
-
-
-            />
-
-
-
-            <select
-
-
-
-              name="category"
-
-
-
-              value={filters.category}
-
-
-
-              onChange={handleFilterChange}
-
-
-
-              className="p-2 border rounded"
-
-
-
-            >
-
-
-
-              <option value="">All Categories</option>
-
-
-
-              {categories.map((cat) => (
-
-
-
-                <option key={cat} value={cat}>
-
-
-
-                  {cat}
-
-
-
-                </option>
-
-
-
-              ))}
-
-
-
-            </select>
-
-
-
-            <div className="flex gap-2">
-
-
-
-              <button
-
-
-
-                onClick={applyFilters}
-
-
-
-                className="bg-[#6A3D55] text-white px-4 py-2 rounded"
-
-
-
-              >
-
-
-
-                Apply
-
-
-
-              </button>
-
-
-
-              <button
-
-
-
-                onClick={clearFilters}
-
-
-
-                className="bg-gray-300 px-4 py-2 rounded"
-
-
-
-              >
-
-
-
-                Clear
-
-
-
-              </button>
-
-
-
+            <div className="flex justify-end text-[10px] font-bold uppercase tracking-wider text-[#6A3D55] mt-2">
+              {new Date().toLocaleString("en-US", { month: "short", year: "numeric" }).toUpperCase()}
             </div>
-
-
-
           </div>
-
-
-
         </div>
 
-
-
-      )}
-
-
-
-
-
-
-
-      {/* TABLE */}
-
-
-
-      <div className="bg-white rounded-xl shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-slate-100 overflow-hidden mb-6 flex-1">
-
-
-
-        <div className="overflow-x-auto">
-
-
-
-          <table className="w-full text-left border-collapse min-w-[900px]">
-
-
-
-            <thead>
-
-
-
-              <tr className="bg-[#FAFAFA]">
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Date</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Category</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Amount</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Payment</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Reference</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Specific Expence</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Notes</th>
-
-
-
-                <th className="py-4 px-6 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase text-center">Actions</th>
-
-
-
-              </tr>
-
-
-
-            </thead>
-
-
-
-            <tbody>
-
-
-
-              {expenses.length === 0 ? (
-
-
-
-                <tr>
-
-
-
-                  <td colSpan="8" className="text-center py-12 text-slate-500 text-sm">
-
-
-
-                    No expenses found
-
-
-
-                  </td>
-
-
-
-                </tr>
-
-
-
-              ) : (
-
-
-
-                expenses.map((e) => (
-
-
-
-                  <tr key={e._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-
-
-
-                    
-
-
-
-                    <td className="py-5 px-6 text-sm font-medium text-slate-800 whitespace-nowrap">
-
-
-
-                      {fmtDate(e.expenseDate)}
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6">
-
-
-
-                      <span className="inline-block bg-[#D2B5C6] text-[#4A1E34] px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase">
-
-
-
-                        {e.category}
-
-
-
-                      </span>
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6 text-sm font-bold text-[#6A3D55] whitespace-nowrap">
-
-
-
-                      <div className="flex items-center">
-
-
-
-                        <span className="text-[10px] mr-1">₹</span>
-
-
-
-                        {e.amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-
-
-
-                      </div>
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6 text-sm font-medium text-slate-700 uppercase flex items-center mt-1">
-
-
-
-                      {getPaymentIcon(e.paymentMode)} {e.paymentMode}
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6 text-sm text-slate-500">
-
-
-
-                      {e.reference || "-"}
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6 text-sm text-slate-600">
-
-
-
-                      {e.partyName || "-"}
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6 text-sm text-slate-500 italic max-w-[150px] truncate">
-
-
-
-                      {e.notes || "-"}
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                    <td className="py-5 px-6">
-
-
-
-                      <div className="flex justify-center items-center gap-2">
-
-
-
-                        <button className="p-1.5 text-slate-400 hover:text-[#6A3D55] transition-colors rounded">
-
-
-
-                          <ListOrdered className="w-4 h-4"  onClick={() => handleEdit(e._id)}  title="Edit" />
-
-
-
-                        </button>
-
-
-
-                        <button className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors rounded">
-
-
-
-                          <Trash2 className="w-4 h-4" onClick={() => handleDelete(e._id)} title="Delete"
-
-
-
-                         >  </Trash2>
-
-
-
-                        </button>
-
-
-
-                      </div>
-
-
-
-                    </td>
-
-
-
-
-
-
-
-                  </tr>
-
-
-
-                ))
-
-
-
-              )}
-
-
-
-            </tbody>
-
-
-
-          </table>
-
-
-
-        </div>
-
-
-
-      </div>
-
-
-
-
-
-
-
-      {/* PAGINATION FOOTER */}
-
-
-
-      <div className="flex flex-col sm:flex-row justify-between items-center text-sm">
-
-
-
-        
-
-
-
-        <div className="text-slate-500 font-medium mb-4 sm:mb-0">
-
-
-
-          Showing {expenses.length > 0 ? startItem : 0}-{endItem} of {pagination.total || expenses.length} transactions
-
-
-
-        </div>
-
-
-
-
-
-
-
-        <div className="flex items-center space-x-1">
-
-
-
-          {/* Prev */}
-
-
-
-          <button
-
-
-
-            disabled={page === 1}
-
-
-
-            onClick={() => setPage(page - 1)}
-
-
-
-            className="flex items-center px-3 py-1.5 text-[#6A3D55] font-semibold hover:bg-slate-100 rounded-md transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-
-
-
-          >
-
-
-
-            <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-
-
-
-          </button>
-
-
-
-
-
-
-
-          {/* Page Numbers */}
-
-
-
-          {Array.from({ length: pagination.pages || 1 }, (_, i) => i + 1).map(p => (
-
-
-
+        {/* ACTION BAR */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
+          <h2 className="text-base sm:text-lg font-bold text-[#6A3D55]">Recent Transactions</h2>
+
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             <button
-
-
-
-              key={p}
-
-
-
-              onClick={() => setPage(p)}
-
-
-
-              className={`w-8 h-8 flex items-center justify-center rounded-md font-bold transition-colors ${
-
-
-
-                p === page 
-
-
-
-                  ? "bg-[#6A3D55] text-white" 
-
-
-
-                  : "text-slate-600 hover:bg-slate-100"
-
-
-
-              }`}
-
-
-
+              onClick={() => navigate("/expenses/new")}
+              className="flex-1 sm:flex-initial bg-[#6A3D55] hover:bg-[#5C3149] text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
             >
-
-
-
-              {p}
-
-
-
+              <Plus className="w-4 h-4" /> <span>Add Expense</span>
             </button>
 
+            <button
+              onClick={() => setIsFilterVisible(!isFilterVisible)}
+              className={`flex-1 sm:flex-initial px-3 py-2 border rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 active:scale-95 ${
+                isFilterVisible
+                  ? "bg-[#6A3D55] text-white border-[#6A3D55]"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" /> <span>Filter</span>
+            </button>
 
+            <button
+              onClick={handleExport}
+              className="flex-1 sm:flex-initial px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" /> <span>Export</span>
+            </button>
 
-          ))}
+            <button
+              onClick={handleImportClick}
+              className="flex-1 sm:flex-initial px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Upload className="w-3.5 h-3.5 text-slate-500" /> <span>Import</span>
+            </button>
 
-
-
-
-
-
-
-          {/* Next */}
-
-
-
-          <button
-
-
-
-            disabled={page === pagination.pages}
-
-
-
-            onClick={() => setPage(page + 1)}
-
-
-
-            className="flex items-center px-3 py-1.5 text-[#6A3D55] font-semibold hover:bg-slate-100 rounded-md transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-
-
-
-          >
-
-
-
-            Next <ChevronRight className="w-4 h-4 ml-1" />
-
-
-
-          </button>
-
-
-
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              ref={fileInputRef}
+              onChange={handleImport}
+              className="hidden"
+            />
+          </div>
         </div>
 
+        {/* FILTER SECTION */}
+        {isFilterVisible && (
+          <div className="bg-white rounded-xl shadow-sm p-3.5 sm:p-4 mb-5 border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+              <input
+                type="date"
+                name="startDate"
+                value={filters.startDate}
+                onChange={handleFilterChange}
+                className="p-2 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#6A3D55]/20 focus:border-[#6A3D55]"
+                title="Start Date"
+              />
 
+              <input
+                type="date"
+                name="endDate"
+                value={filters.endDate}
+                onChange={handleFilterChange}
+                className="p-2 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#6A3D55]/20 focus:border-[#6A3D55]"
+                title="End Date"
+              />
 
+              <select
+                name="category"
+                value={filters.category}
+                onChange={handleFilterChange}
+                className="p-2 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-[#6A3D55]/20 focus:border-[#6A3D55]"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={applyFilters}
+                  className="flex-1 bg-[#6A3D55] text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#5C3149] transition shadow-sm"
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={clearFilters}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MOBILE CARD VIEW (< md) */}
+        <div className="md:hidden space-y-3 mb-6">
+          {expenses.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 border border-slate-200 text-center text-slate-400 text-sm">
+              No expenses found
+            </div>
+          ) : (
+            expenses.map((e) => (
+              <div
+                key={e._id}
+                className="bg-white rounded-xl border border-slate-200/80 p-3.5 shadow-sm space-y-2.5"
+              >
+                {/* Top: Date & Category */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-500">
+                    {fmtDate(e.expenseDate)}
+                  </span>
+                  <span className="bg-[#F4EAEE] text-[#6A3D55] px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                    {e.category}
+                  </span>
+                </div>
+
+                {/* Middle: Amount & Payment Mode */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Amount</span>
+                    <span className="text-base font-bold text-[#6A3D55]">
+                      ₹ {e.amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex items-center text-xs font-semibold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                    {getPaymentIcon(e.paymentMode)}
+                    <span className="uppercase">{e.paymentMode}</span>
+                  </div>
+                </div>
+
+                {/* Details: Party & Reference & Notes */}
+                {(e.partyName || e.reference || e.notes) && (
+                  <div className="text-xs text-slate-500 pt-1 border-t border-slate-100 space-y-0.5">
+                    {e.partyName && (
+                      <p className="text-slate-700 font-medium">
+                        Party: <span className="text-slate-800">{e.partyName}</span>
+                      </p>
+                    )}
+                    {e.reference && (
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Ref: {e.reference}
+                      </p>
+                    )}
+                    {e.notes && (
+                      <p className="text-[11px] text-slate-500 italic">
+                        {e.notes}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Bottom Actions */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => handleEdit(e._id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition active:scale-95"
+                  >
+                    <ListOrdered size={13} />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(e._id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition active:scale-95"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* DESKTOP TABLE VIEW (>= md) */}
+        <div className="hidden md:block bg-white rounded-xl shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-slate-200/80 overflow-hidden mb-6 flex-1">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[850px]">
+              <thead>
+                <tr className="bg-[#FAFAFA] border-b border-slate-100">
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Date</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Category</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Amount</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Payment</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Reference</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Party</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase">Notes</th>
+                  <th className="py-3.5 px-5 text-[10px] font-bold tracking-[0.1em] text-slate-500 uppercase text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-12 text-slate-500 text-sm">
+                      No expenses found
+                    </td>
+                  </tr>
+                ) : (
+                  expenses.map((e) => (
+                    <tr key={e._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-4 px-5 text-sm font-medium text-slate-800 whitespace-nowrap">
+                        {fmtDate(e.expenseDate)}
+                      </td>
+                      <td className="py-4 px-5">
+                        <span className="inline-block bg-[#F4EAEE] text-[#6A3D55] px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                          {e.category}
+                        </span>
+                      </td>
+                      <td className="py-4 px-5 text-sm font-bold text-[#6A3D55] whitespace-nowrap">
+                        ₹ {e.amount?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 px-5 text-sm font-medium text-slate-700 uppercase">
+                        <div className="flex items-center">
+                          {getPaymentIcon(e.paymentMode)}
+                          <span>{e.paymentMode}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-5 text-sm text-slate-500">
+                        {e.reference || "-"}
+                      </td>
+                      <td className="py-4 px-5 text-sm text-slate-600 font-medium">
+                        {e.partyName || "-"}
+                      </td>
+                      <td className="py-4 px-5 text-sm text-slate-500 italic max-w-[150px] truncate">
+                        {e.notes || "-"}
+                      </td>
+                      <td className="py-4 px-5 text-center">
+                        <div className="flex justify-center items-center gap-1.5">
+                          <button
+                            onClick={() => handleEdit(e._id)}
+                            className="p-1.5 text-slate-400 hover:text-[#6A3D55] hover:bg-slate-100 rounded transition-colors"
+                            title="Edit"
+                          >
+                            <ListOrdered className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(e._id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* PAGINATION FOOTER */}
+        <div className="flex flex-col sm:flex-row justify-between items-center text-xs sm:text-sm bg-white p-3 rounded-xl border border-slate-200/80 gap-3">
+          <div className="text-slate-500 font-medium">
+            Showing {expenses.length > 0 ? startItem : 0}-{endItem} of {pagination.total || expenses.length} transactions
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage(page - 1)}
+              className="flex items-center px-2.5 py-1 text-[#6A3D55] font-semibold hover:bg-slate-100 rounded-md transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft className="w-4 h-4 mr-0.5" /> Prev
+            </button>
+
+            {Array.from({ length: pagination.pages || 1 }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md font-bold text-xs sm:text-sm transition-colors ${
+                  p === page ? "bg-[#6A3D55] text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+
+            <button
+              disabled={page === pagination.pages}
+              onClick={() => setPage(page + 1)}
+              className="flex items-center px-2.5 py-1 text-[#6A3D55] font-semibold hover:bg-slate-100 rounded-md transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              Next <ChevronRight className="w-4 h-4 ml-0.5" />
+            </button>
+          </div>
+        </div>
       </div>
-
-
-
-
-
-
-
     </div>
-
-
-
   );
-
-
-
 }
-
-

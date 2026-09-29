@@ -33,19 +33,19 @@ const AccordionSection = ({ title, icon: Icon, children, defaultOpen = false }) 
     <div className="border-b border-stone-200/50 last:border-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-5 px-4 hover:bg-[#F5F1EB]/50 transition-colors group select-none"
+        className="w-full flex items-center justify-between py-3.5 sm:py-5 px-2 sm:px-4 hover:bg-[#F5F1EB]/50 transition-colors group select-none"
       >
-        <div className="flex items-center gap-4">
-          <div className={`p-2 rounded-md transition-all duration-200 ${isOpen
+        <div className="flex items-center gap-2.5 sm:gap-4">
+          <div className={`p-1.5 sm:p-2 rounded-md transition-all duration-200 ${isOpen
             ? 'bg-[#A0826D] text-white'
             : 'bg-[#F5F1EB] text-[#8B7355] group-hover:bg-[#E8DFD6]'
             }`}>
-            <Icon size={16} strokeWidth={1.5} />
+            <Icon size={15} strokeWidth={1.5} />
           </div>
-          <h3 className="font-serif text-base text-[#2D2D2D] font-medium tracking-tight">{title}</h3>
+          <h3 className="font-serif text-sm sm:text-base text-[#2D2D2D] font-medium tracking-tight text-left">{title}</h3>
         </div>
         <div className={`text-stone-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#A0826D]' : ''}`}>
-          <ChevronDown size={16} />
+          <ChevronDown size={15} />
         </div>
       </button>
       <AnimatePresence>
@@ -57,7 +57,7 @@ const AccordionSection = ({ title, icon: Icon, children, defaultOpen = false }) 
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="pb-6 pt-1 px-4">
+            <div className="pb-5 pt-1 px-2 sm:px-4">
               {children}
             </div>
           </motion.div>
@@ -68,52 +68,52 @@ const AccordionSection = ({ title, icon: Icon, children, defaultOpen = false }) 
 };
 
 const DataRow = ({ label, value, subValue, isPremium = false }) => (
-  <div className="flex justify-between items-center py-3 border-b border-dashed border-stone-200/60 last:border-0 hover:bg-[#F5F1EB]/30 px-2 transition-colors group">
-    <span className="text-[#8B7355] text-[10px] font-semibold tracking-widest uppercase">{label}</span>
+  <div className="flex justify-between items-center py-2.5 sm:py-3 border-b border-dashed border-stone-200/60 last:border-0 hover:bg-[#F5F1EB]/30 px-1 sm:px-2 transition-colors group">
+    <span className="text-[#8B7355] text-[9px] sm:text-[10px] font-semibold tracking-widest uppercase">{label}</span>
     <div className="text-right">
-      <span className={`block ${isPremium ? 'text-[#2D2D2D] font-serif text-base font-medium' : 'text-[#2D2D2D] text-sm font-medium'}`}>
+      <span className={`block ${isPremium ? 'text-[#2D2D2D] font-serif text-sm sm:text-base font-medium' : 'text-[#2D2D2D] text-xs sm:text-sm font-medium'}`}>
         {value || "—"}
       </span>
-      {subValue && <span className="text-[10px] text-stone-400">{subValue}</span>}
+      {subValue && <span className="text-[9px] sm:text-[10px] text-stone-400">{subValue}</span>}
     </div>
   </div>
 );
 
 const ComponentBadge = ({ component, index }) => (
-  <div className="flex items-center justify-between p-4 bg-white border border-stone-200/60 hover:border-[#A0826D]/30 transition-all">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-white border border-stone-200/60 hover:border-[#A0826D]/30 transition-all gap-2.5 sm:gap-4">
 
     {/* LEFT SIDE */}
-    <div className="flex items-center gap-4">
-      <span className="text-stone-300 font-serif text-lg italic font-light">
+    <div className="flex items-center gap-3 sm:gap-4">
+      <span className="text-stone-300 font-serif text-base sm:text-lg italic font-light shrink-0">
         0{index + 1}
       </span>
 
       <div>
-        <p className="font-semibold text-[#2D2D2D] capitalize text-sm flex items-center gap-2">
+        <p className="font-semibold text-[#2D2D2D] capitalize text-xs sm:text-sm flex items-center gap-2">
           {component.type}
 
           {component.componentRole && (
-            <span className="px-2 py-0.5 bg-[#A0826D] text-white text-[9px] uppercase tracking-wider font-semibold">
+            <span className="px-1.5 sm:px-2 py-0.5 bg-[#A0826D] text-white text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold">
               {component.componentRole}
             </span>
           )}
         </p>
 
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
           {component.shape && (
-            <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">
+            <span className="text-[9px] sm:text-[10px] text-[#8B7355] px-1.5 sm:px-2 py-0.5 bg-[#F5F1EB] font-medium">
               {component.shape}
             </span>
           )}
 
           {component.clarity && (
-            <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">
+            <span className="text-[9px] sm:text-[10px] text-[#8B7355] px-1.5 sm:px-2 py-0.5 bg-[#F5F1EB] font-medium">
               {component.clarity}
             </span>
           )}
 
           {component.color && (
-            <span className="text-[10px] text-[#8B7355] px-2 py-0.5 bg-[#F5F1EB] font-medium">
+            <span className="text-[9px] sm:text-[10px] text-[#8B7355] px-1.5 sm:px-2 py-0.5 bg-[#F5F1EB] font-medium">
               {component.color}
             </span>
           )}
@@ -122,29 +122,29 @@ const ComponentBadge = ({ component, index }) => (
     </div>
 
     {/* RIGHT SIDE DATA */}
-    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right text-xs">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-left sm:text-right text-[11px] sm:text-xs pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
 
       {component.size > 0 && (
         <div>
-          <p className="text-stone-400 text-[9px] uppercase">Size</p>
+          <p className="text-stone-400 text-[8px] sm:text-[9px] uppercase">Size</p>
           <p className="font-semibold">{component.size}</p>
         </div>
       )}
 
       {component.grossWeight > 0 && (
         <div>
-          <p className="text-stone-400 text-[9px] uppercase">Total (Ct)</p>
+          <p className="text-stone-400 text-[8px] sm:text-[9px] uppercase">Total (Ct)</p>
           <p className="font-semibold">{component.grossWeight} ct</p>
         </div>
       )}
 
       <div>
-        <p className="text-stone-400 text-[9px] uppercase">per piece (ct)</p>
-        <p className="font-semibold">{component.weight.toFixed(3)} ct</p>
+        <p className="text-stone-400 text-[8px] sm:text-[9px] uppercase">per piece (ct)</p>
+        <p className="font-semibold">{component.weight?.toFixed ? component.weight.toFixed(3) : component.weight} ct</p>
       </div>
 
       <div>
-        <p className="text-stone-400 text-[9px] uppercase">Count</p>
+        <p className="text-stone-400 text-[8px] sm:text-[9px] uppercase">Count</p>
         <p className="font-semibold">{component.count} pcs</p>
       </div>
 
@@ -445,63 +445,67 @@ export default function OrderDetails() {
 
       {/* --- TOP NAVIGATION BAR --- */}
       <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-stone-200/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-3 text-[#8B7355] hover:text-[#2D2D2D] transition-colors group py-2"
+            className="flex items-center gap-1.5 sm:gap-3 text-[#8B7355] hover:text-[#2D2D2D] transition-colors group py-1.5 shrink-0"
           >
             <div className="p-1.5 border border-stone-200 group-hover:border-[#A0826D] transition-colors">
-              <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+              <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
             </div>
-            <span className="text-[10px] font-semibold tracking-widest uppercase">Back to Dashboard</span>
+            <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest uppercase">
+              Back<span className="hidden md:inline"> to Dashboard</span>
+            </span>
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {isEditable && (
               <button
                 onClick={handleEditOrder}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-[#A0826D] text-[#A0826D] hover:bg-[#A0826D] hover:text-white transition-all group"
+                className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-white border border-[#A0826D] text-[#A0826D] hover:bg-[#A0826D] hover:text-white transition-all group"
+                title="Edit Order"
               >
-                <Edit size={14} />
-                <span className="text-[10px] font-semibold uppercase tracking-wide">Edit Order</span>
+                <Edit size={13} />
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide">Edit</span>
               </button>
             )}
 
             {!["Delivered"].includes(order.status) && (
               <button
                 onClick={handleDeleteOrder}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-600 text-rose-600 hover:bg-rose-600 hover:text-white transition-all group"
+                className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-white border border-rose-600 text-rose-600 hover:bg-rose-600 hover:text-white transition-all group"
+                title="Delete Order"
               >
-                <Trash2 size={14} />
-                <span className="text-[10px] font-semibold uppercase tracking-wide">Delete Order</span>
+                <Trash2 size={13} />
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide">Delete</span>
               </button>
             )}
-            <span className="px-4 py-1.5 bg-[#EBE2E6] border border-stone-200/60 text-[#8B7355] text-[9px] uppercase tracking-[0.15em] font-semibold">
+            <span className="hidden md:inline-block px-4 py-1.5 bg-[#EBE2E6] border border-stone-200/60 text-[#8B7355] text-[9px] uppercase tracking-[0.15em] font-semibold">
               Order #{order.orderNo}
             </span>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-10">
 
         {/* --- HEADER SECTION --- */}
-        <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-stone-200/60 pb-8">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-[#8B7355] text-[10px] tracking-wider uppercase font-medium">
-              <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 border border-stone-200/60">
+        <header className="mb-6 sm:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 border-b border-stone-200/60 pb-4 sm:pb-8">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 text-[#8B7355] text-[9px] sm:text-[10px] tracking-wider uppercase font-medium flex-wrap">
+              <div className="flex items-center gap-1.5 bg-white px-2.5 sm:px-3 py-1 sm:py-1.5 border border-stone-200/60">
                 <Calendar size={11} className="text-[#A0826D]" />
                 <span>{dateStr}</span>
               </div>
               <span className="text-stone-300">•</span>
-              <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 border border-stone-200/60">
+              <div className="flex items-center gap-1.5 bg-white px-2.5 sm:px-3 py-1 sm:py-1.5 border border-stone-200/60">
                 <Clock size={11} className="text-[#A0826D]" />
                 <span>{timeStr}</span>
               </div>
               {order.expectedDeliveryDate && (
                 <>
                   <span className="text-stone-300">•</span>
-                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 border border-stone-200/60">
+                  <div className="flex items-center gap-1.5 bg-white px-2.5 sm:px-3 py-1 sm:py-1.5 border border-stone-200/60">
                     <Package size={11} className="text-emerald-600" />
                     <span>Exp: {new Date(order.expectedDeliveryDate).toLocaleDateString()}</span>
                   </div>
@@ -510,15 +514,15 @@ export default function OrderDetails() {
             </div>
 
             <div className="flex items-baseline gap-2">
-              <h1 className="font-serif text-3xl md:text-4xl text-[#2D2D2D] tracking-tight font-normal">
+              <h1 className="font-serif text-xl sm:text-2xl md:text-4xl text-[#2D2D2D] tracking-tight font-normal break-all sm:break-normal">
                 Order #{order.orderNo}
               </h1>
             </div>
-            <p className="text-xs text-[#8B7355] uppercase tracking-widest font-medium">Premium Collection</p>
+            <p className="text-[10px] sm:text-xs text-[#8B7355] uppercase tracking-widest font-medium">Premium Collection</p>
           </div>
 
-          <div className="flex flex-col items-end justify-end pb-2 gap-2">
-            <StatusBadge status={order.status} className="border border-stone-200/60 px-5 py-2 text-sm" />
+          <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
+            <StatusBadge status={order.status} className="border border-stone-200/60 px-3.5 sm:px-5 py-1 sm:py-2 text-xs sm:text-sm" />
             {!isCancelled && metalSnapshot?.ratePerGram && (
               <div className="text-right">
                 <span className="text-[9px] uppercase tracking-widest text-[#8B7355] font-semibold">Metal Rate: ₹{metalSnapshot.ratePerGram?.toLocaleString()}/g</span>
@@ -527,14 +531,14 @@ export default function OrderDetails() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 items-start">
 
           {/* --- LEFT COLUMN (Visuals & Client) --- */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4 space-y-4 sm:space-y-6">
 
             {/* Product Image Gallery */}
             <div className="w-full flex flex-col items-center">
-              <div className="bg-white p-2 border border-stone-200/60 relative group max-w-[280px] w-full">
+              <div className="bg-white p-2 border border-stone-200/60 relative group max-w-[240px] sm:max-w-[280px] w-full">
 
                 {/* MAIN IMAGE */}
                 <div
@@ -567,12 +571,12 @@ export default function OrderDetails() {
 
               {/* THUMBNAILS */}
               {imagesArray.length > 1 && (
-                <div className="flex gap-2 mt-4 flex-wrap justify-center">
+                <div className="flex gap-2 mt-3 sm:mt-4 flex-wrap justify-center">
                   {imagesArray.map((img, index) => (
                     <div
                       key={index}
                       onClick={() => setActiveImageIndex(index)}
-                      className={`w-16 h-20 border cursor-pointer overflow-hidden transition-all ${activeImageIndex === index
+                      className={`w-14 h-16 sm:w-16 sm:h-20 border cursor-pointer overflow-hidden transition-all ${activeImageIndex === index
                         ? "border-[#A0826D] ring-1 ring-[#A0826D]"
                         : "border-stone-200 hover:border-[#A0826D]"
                         }`}
@@ -590,24 +594,24 @@ export default function OrderDetails() {
 
             {/* Client Details Card */}
             <div className="bg-[#6B3151] text-white border border-stone-200/60 relative overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6 border-b border-dashed border-stone-200/60 pb-4">
-                  <div className="p-2 bg-[#EBE2E6]">
+              <div className="p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6 border-b border-dashed border-stone-200/60 pb-3 sm:pb-4">
+                  <div className="p-1.5 sm:p-2 bg-[#EBE2E6]">
                     <User className="text-[#A0826D]" size={14} />
                   </div>
-                  <h3 className="font-serif text-base  font-medium">Client Profile</h3>
+                  <h3 className="font-serif text-sm sm:text-base font-medium">Client Profile</h3>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-4 sm:space-y-5">
                   <div>
-                    <p className="text-[9px]  uppercase tracking-widest mb-1 font-semibold">Name</p>
-                    <p className=" font-serif text-lg tracking-tight">{customer?.name}</p>
+                    <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">Name</p>
+                    <p className="font-serif text-base sm:text-lg tracking-tight">{customer?.name}</p>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     <div>
-                      <p className="text-[9px]  uppercase tracking-widest mb-1 font-semibold">Contact</p>
-                      <p className="font-mono text-sm">{customer?.mobile}</p>
-                      {customer?.email && <p className=" text-xs mt-0.5 truncate hover:text-[#A0826D] cursor-pointer">{customer.email}</p>}
+                      <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">Contact</p>
+                      <p className="font-mono text-xs sm:text-sm">{customer?.mobile}</p>
+                      {customer?.email && <p className="text-xs mt-0.5 truncate hover:text-[#A0826D] cursor-pointer text-white/90">{customer.email}</p>}
                       {customer?.mobile && (
                         <a
                           href={`/orders?search=${encodeURIComponent(customer.mobile)}`}
@@ -618,31 +622,31 @@ export default function OrderDetails() {
                       )}
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold">Address</p>
-                      <p className=" text-xs leading-relaxed border-l-2 border-[#E8DFD6] pl-3">
+                      <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">Address</p>
+                      <p className="text-xs leading-relaxed border-l-2 border-[#E8DFD6] pl-3 text-white/90">
                         {customer?.address || "Walk-in Customer"}
                       </p>
                     </div>
                   </div>
                   {(customer?.city || customer?.gstin || customer?.stateCode) && (
-                    <div className="pt-4 border-t border-stone-200/60">
+                    <div className="pt-3 sm:pt-4 border-t border-white/10">
                       <div className="grid grid-cols-2 gap-3">
                         {customer?.city && (
                           <div>
-                            <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold">City</p>
-                            <p className=" text-xs">{customer.city}</p>
+                            <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">City</p>
+                            <p className="text-xs">{customer.city}</p>
                           </div>
                         )}
                         {customer?.gstin && (
                           <div>
-                            <p className="text-[9px] text-[#8B7355] uppercase tracking-widest mb-1 font-semibold">GSTIN</p>
-                            <p className="text-[#2D2D2D] text-xs font-mono">{customer.gstin}</p>
+                            <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">GSTIN</p>
+                            <p className="text-xs font-mono">{customer.gstin}</p>
                           </div>
                         )}
                         {customer?.stateCode && (
                           <div>
-                            <p className="text-[9px] text-[#8B7355] uppercase tracking-widest mb-1 font-semibold">State Code</p>
-                            <p className="text-[#2D2D2D] text-xs">{customer.stateCode}</p>
+                            <p className="text-[9px] uppercase tracking-widest mb-1 font-semibold text-white/70">State Code</p>
+                            <p className="text-xs">{customer.stateCode}</p>
                           </div>
                         )}
                       </div>
@@ -653,12 +657,12 @@ export default function OrderDetails() {
             </div>
 
             {/* Metal Information Card */}
-            <div className={`border p-6 ${hasMetalInfo ? 'bg-[#F8EFF3] border-[#F8EFF3]' : 'bg-amber-50/30 border-amber-200/50'}`}>
+            <div className={`border p-4 sm:p-6 ${hasMetalInfo ? 'bg-[#F8EFF3] border-[#F8EFF3]' : 'bg-amber-50/30 border-amber-200/50'}`}>
               <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 ${hasMetalInfo ? 'bg-[#F8EFF3]' : 'bg-amber-100/50'}`}>
+                <div className={`p-1.5 sm:p-2 ${hasMetalInfo ? 'bg-[#F8EFF3]' : 'bg-amber-100/50'}`}>
                   <Lock className={hasMetalInfo ? 'text-white' : 'text-amber-700'} size={14} />
                 </div>
-                <h3 className="font-serif text-base text-[#2D2D2D] font-medium">Metal Information</h3>
+                <h3 className="font-serif text-sm sm:text-base text-[#2D2D2D] font-medium">Metal Information</h3>
               </div>
 
               {hasMetalInfo ? (
@@ -857,22 +861,22 @@ export default function OrderDetails() {
           {/* --- RIGHT COLUMN (Specifications) --- */}
           <div className="lg:col-span-8">
             <div className="bg-[#6B3151] border border-stone-200/60 relative">
-              <div className="px-8 py-6 border-b border-stone-200/60 flex justify-between items-center">
+              <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-stone-200/60 flex justify-between items-center">
                 <div>
-                  <h2 className="font-serif text-xl text-white mb-1 font-medium">Specification Sheet</h2>
-                  <p className="text-[9px] text-[#8B7355] uppercase tracking-widest font-semibold">Technical Details & Requirements</p>
+                  <h2 className="font-serif text-lg sm:text-xl text-white mb-0.5 sm:mb-1 font-medium">Specification Sheet</h2>
+                  <p className="text-[8px] sm:text-[9px] text-[#8B7355] uppercase tracking-widest font-semibold">Technical Details & Requirements</p>
                 </div>
-                <Layers size={20} className="text-stone-300" strokeWidth={1} />
+                <Layers size={18} className="text-stone-300" strokeWidth={1} />
               </div>
 
               {/* PRODUCT TITLE & DESCRIPTION SECTION */}
-              <div className="px-8 pt-6 pb-4 bg-white">
-                <h1 className="font-serif text-2xl md:text-3xl text-[#6B3151] mb-3 leading-tight font-normal">
+              <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4 bg-white">
+                <h1 className="font-serif text-lg sm:text-2xl md:text-3xl text-[#6B3151] mb-2 sm:mb-3 leading-tight font-normal">
                   {displayTitle}
                 </h1>
 
                 {productSnapshot.productType && (
-                  <p className="text-[#8B7355] text-sm italic mb-3">
+                  <p className="text-[#8B7355] text-xs sm:text-sm italic mb-2 sm:mb-3">
                     {productSnapshot.productType}
                   </p>
                 )}
@@ -885,11 +889,11 @@ export default function OrderDetails() {
                 )}
               </div>
 
-              <div className="px-8 bg-white min-h-[500px]">
+              <div className="px-3 sm:px-8 bg-white min-h-[auto] sm:min-h-[500px]">
 
                 {/* 1. Metal Specifications */}
                 <AccordionSection title="Metal & Base Structure" icon={Coins} defaultOpen={true}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 sm:gap-x-16 gap-y-1">
                     <DataRow label="Jewellery Category" value={productSnapshot.jewelleryCategory} />
                     <DataRow
                       label="Size"
@@ -1103,7 +1107,7 @@ export default function OrderDetails() {
               </div>
 
               {/* --- ACTION FOOTER --- */}
-              <div className="bg-[#F8EFF3] p-8 border-t border-stone-200/60 flex flex-wrap gap-4 justify-end items-center">
+              <div className="bg-[#F8EFF3] p-4 sm:p-8 border-t border-stone-200/60 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 justify-end items-stretch sm:items-center">
 
                 {isCancelled ? (
                   <div className="w-full flex justify-center py-2">
@@ -1115,10 +1119,10 @@ export default function OrderDetails() {
                   <>
                     {/* START PRODUCTION BUTTON */}
                     {order.status === "Placed" && (
-                      <div className="w-full space-y-3 mb-4">
+                      <div className="w-full space-y-3 mb-2 sm:mb-4">
                         {!hasMetalInfo && (
-                          <div className="mb-4 p-4 bg-amber-50/50 border border-amber-200/50">
-                            <p className="text-amber-800 text-xs mb-2 flex items-center gap-2 font-semibold">
+                          <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-amber-50/50 border border-amber-200/50">
+                            <p className="text-amber-800 text-xs mb-1.5 flex items-center gap-2 font-semibold">
                               <AlertTriangle size={14} />
                               <span>Metal information required</span>
                             </p>
@@ -1130,7 +1134,7 @@ export default function OrderDetails() {
                         <button
                           onClick={handleStartProduction}
                           disabled={isStartingProduction || !hasMetalInfo}
-                          className={`w-full px-8 py-3 transition-all text-xs font-semibold uppercase tracking-wider ${(!hasMetalInfo || isStartingProduction)
+                          className={`w-full px-4 sm:px-8 py-2.5 sm:py-3 transition-all text-xs font-semibold uppercase tracking-wider ${(!hasMetalInfo || isStartingProduction)
                             ? 'bg-[#5A374F] cursor-not-allowed text-white'
                             : 'bg-[#6B3151] text-white hover:bg-[#5A374F]'
                             }`}
@@ -1153,7 +1157,7 @@ export default function OrderDetails() {
                     {order.status === "In-Process" && (
                       <button
                         onClick={handleMarkComplete}
-                        className="px-8 py-3 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-2 w-full text-xs font-semibold uppercase tracking-wider"
+                        className="px-4 sm:px-8 py-2.5 sm:py-3 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 w-full text-xs font-semibold uppercase tracking-wider"
                       >
                         <CheckCircle size={14} />
                         Finalize & Mark Ready
@@ -1161,15 +1165,13 @@ export default function OrderDetails() {
                     )}
 
                     {/* ACTION BUTTONS ROW */}
-                    <div className="w-full flex flex-wrap gap-3 justify-between items-center pt-4 border-t border-stone-200/60">
-
-
+                    <div className="w-full flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-between items-stretch sm:items-center pt-3 sm:pt-4 border-t border-stone-200/60">
 
                       {/* ADD TO CART */}
                       <button
                         disabled={!isReadyForBilling}
                         onClick={handleAddOrderToCart}
-                        className={`px-6 py-2.5 border transition-colors flex items-center gap-2 ${isReadyForBilling
+                        className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 border transition-colors flex items-center justify-center gap-2 ${isReadyForBilling
                           ? "bg-[#A0826D] border-[#A0826D] text-white hover:bg-[#8B7355] cursor-pointer"
                           : "bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed opacity-70"
                           }`}
@@ -1185,7 +1187,7 @@ export default function OrderDetails() {
                         <button
                           onClick={handleCancelOrder}
                           disabled={isCancelling}
-                          className={`px-6 py-2.5 border border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center gap-2 ${isCancelling ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 border border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-2 ${isCancelling ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {isCancelling ? (
                             <span className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></span>

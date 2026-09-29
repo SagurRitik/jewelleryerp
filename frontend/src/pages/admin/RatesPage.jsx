@@ -31,6 +31,7 @@ export default function RatesPage() {
 
     minMakingFlatFee: "",
     gstRate: 3,
+    looseDiamondGstRate: 1.5,
     makingDiscountType: "none",
     makingDiscountValue: 0,
     diamondDiscountType: "none",
@@ -264,11 +265,7 @@ export default function RatesPage() {
                   value={rates.platinumMakingCharge}
                   onChange={(v) => setRates({ ...rates, platinumMakingCharge: v })}
                 />
-                <Input
-                  label="APPLICABLE GST (%)"
-                  value={rates.gstRate}
-                  onChange={(v) => setRates({ ...rates, gstRate: v })}
-                />
+                <div className="hidden md:block" />
 
                 <Input
                   label="MIN WEIGHT THRESHOLD (GM)"
@@ -280,6 +277,17 @@ export default function RatesPage() {
                   value={rates.minMakingFlatFee}
                   onChange={(v) => setRates({ ...rates, minMakingFlatFee: v })}
                   isCurrency
+                />
+
+                <Input
+                  label="APPLICABLE GST (%) (JEWELLERY)"
+                  value={rates.gstRate}
+                  onChange={(v) => setRates({ ...rates, gstRate: v })}
+                />
+                <Input
+                  label="LOOSE DIAMOND GST (%)"
+                  value={rates.looseDiamondGstRate}
+                  onChange={(v) => setRates({ ...rates, looseDiamondGstRate: v })}
                 />
               </div>
             </section>

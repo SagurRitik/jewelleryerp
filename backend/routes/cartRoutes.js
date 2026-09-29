@@ -2,6 +2,7 @@ import express from "express";
 import {
   addProductToCart,
   addCustomToCart,
+  addLooseDiamondToCart,
   getCartBySession,
   clearCart,
   updateCartItemQuantity,
@@ -14,6 +15,7 @@ const router = express.Router();
 /* ===== ADD ===== */
 router.post("/product", addProductToCart);
 router.post("/custom", addCustomToCart);
+router.post("/loose-diamond", addLooseDiamondToCart);
 
 /* ✅ SUMMARY (VERY IMPORTANT) */
 router.get("/summary/:sessionId", getCartSummary);

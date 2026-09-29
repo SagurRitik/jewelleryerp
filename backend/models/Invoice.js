@@ -100,6 +100,11 @@ const invoiceSchema = new mongoose.Schema(
       gst: { type: Number, default: 0 },
       gstOnMaking: { type: Number, default: 0 },
 
+      taxType: { type: String, enum: ["INTRA_STATE", "INTER_STATE"], default: "INTRA_STATE" },
+      cgst: { type: Number, default: 0 },
+      sgst: { type: Number, default: 0 },
+      igst: { type: Number, default: 0 },
+
       grandTotal: { type: Number, default: 0 },
       stoneWeight: { type: Number, default: 0 },
       taxable3: { type: Number, default: 0 },

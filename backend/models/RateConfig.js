@@ -21,6 +21,7 @@ const RateConfigSchema = new mongoose.Schema(
     minMakingFlatFee: { type: Number, default: 0 },  // e.g., 3000
 
     gstRate: { type: Number, default: 3 },
+    looseDiamondGstRate: { type: Number, default: 1.5 },
 
     /* ===== DIAMOND ===== */
     diamondDiscountType: {

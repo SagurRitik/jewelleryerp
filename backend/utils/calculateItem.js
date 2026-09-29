@@ -29,12 +29,28 @@ export default async function calculateItem(
   const p = item.customSnapshot?.productDetails || {};
   const qty = Number(item.quantity || 1);
 
+  const isLoose = Boolean(
+    item.itemType === "LOOSE_DIAMOND" ||
+    item.isLooseDiamond ||
+    item.customSnapshot?.isLooseDiamond ||
+    p.metalType === "LooseDiamond" ||
+    item.jewelleryCategory === "Loose Diamond" ||
+    p.jewelleryCategory === "Loose Diamond" ||
+    item.category === "Loose Diamond" ||
+    p.category === "Loose Diamond" ||
+    item.customSnapshot?.jewelleryCategory === "Loose Diamond" ||
+    item.customSnapshot?.productDetails?.jewelleryCategory === "Loose Diamond" ||
+    item.product?.jewelleryCategory === "Loose Diamond" ||
+    item.diamond ||
+    item.customSnapshot?.diamondId
+  );
+
   /* ================= METAL ================= */
   const purityKey = String(p.metalPurity || "")
     .toUpperCase()
     .replace(/\s/g, "");
 
-  const purityFactor = PURITY_FACTORS[purityKey] || 0;
+  const purityFactor = isLoose ? 0 : (PURITY_FACTORS[purityKey] || 0);
   const netWeight = Number(p.netWeight || 0);
 
   let metalRate = 0;
@@ -45,7 +61,7 @@ export default async function calculateItem(
     Number(options.lockedMetalRate) ||
     0;
 
-  if (purityFactor > 0 && netWeight > 0) {
+  if (!isLoose && purityFactor > 0 && netWeight > 0) {
     if (lockedRate > 0) {
       metalRate = round2(lockedRate);
     } else {
@@ -138,10 +154,8 @@ export default async function calculateItem(
 
   const minWeight = Number(rateConfig.minMakingWeight || 0);
   const minFlat = Number(rateConfig.minMakingFlatFee || 0);
-
-
   let makingCharge = 0;
-  if (netWeight > 0) {
+  if (!isLoose && netWeight > 0) {
     makingCharge =
       netWeight >= minWeight
         ? round2(netWeight * makingPerGram * qty)
@@ -161,7 +175,7 @@ export default async function calculateItem(
     rateConfig.stoneDiscountValue
   );
   // discount on making
-  const discountMaking = applyDiscount(
+  const discountMaking = isLoose ? 0 : applyDiscount(
     makingCharge,
     rateConfig.makingDiscountType,
     rateConfig.makingDiscountValue
@@ -182,6 +196,7 @@ export default async function calculateItem(
     totalDiscount = 0;
   }
 
+  /* ================= SUBTOTAL ================= */
   const grossTotal = round2(
     metalValue +
     diamondValue +
@@ -190,10 +205,9 @@ export default async function calculateItem(
     makingCharge
   );
 
-  /* ================= TOTAL ================= */
   const subtotal = round2(grossTotal - totalDiscount);
 
-  const gstPercent = Number(rateConfig.gstRate || 3);
+  const gstPercent = isLoose ? Number(rateConfig.looseDiamondGstRate ?? 1.5) : Number(rateConfig.gstRate || 3);
   const gst = round2((subtotal * gstPercent) / 100);
   const grandTotal = round2(subtotal + gst);
 
@@ -321,18 +335,36 @@ export function calculateCartTotals(
 
   /* ================= TAX & GRAND TOTAL ================= */
   const netSubtotal = round2(Math.max(0, baseSubtotal - celebrationDiscountAmount));
-  const gstRate = Number(options.gstRate || 3);
-  const gst = round2((netSubtotal * gstRate) / 100);
-  const grandTotal = round2(netSubtotal + gst);
 
-  const netPayable = round2(
-    Math.max(0, grandTotal - totalAdvancePayment - totalMetalPayment)
-  );
+  let itemTotalGst = 0;
+  let hasItemGst = false;
+  for (const item of items) {
+    if (item.breakup?.gst !== undefined && item.breakup?.gst !== null) {
+      hasItemGst = true;
+      itemTotalGst += Number(item.breakup.gst || 0);
+    }
+  }
+
+  let gst = 0;
+  if (hasItemGst && baseSubtotal > 0) {
+    const factor = netSubtotal / baseSubtotal;
+    gst = round2(itemTotalGst * factor);
+  } else {
+    const gstRate = Number(options.gstRate || 3);
+    gst = round2((netSubtotal * gstRate) / 100);
+  }
+
+  const unroundedGrandTotal = round2(netSubtotal + gst);
+  const grandTotal = Math.round(unroundedGrandTotal);
+  const roundOff = round2(grandTotal - unroundedGrandTotal);
+
+  const netPayable = Math.max(0, Math.round(grandTotal - totalAdvancePayment - totalMetalPayment));
 
   return {
     grossTotal: round2(grossTotal),
     subtotal: netSubtotal,
     gst,
+    roundOff,
     grandTotal,
 
     /* 🔑 DIFFERENTIATED DISCOUNTS AUDIT TRAIL */

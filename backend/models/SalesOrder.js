@@ -105,6 +105,11 @@ const SalesOrderSchema = new mongoose.Schema(
 
       /* ===== TAX ===== */
       gst: Number,
+      taxType: { type: String, enum: ["INTRA_STATE", "INTER_STATE"], default: "INTRA_STATE" },
+      cgst: { type: Number, default: 0 },
+      sgst: { type: Number, default: 0 },
+      igst: { type: Number, default: 0 },
+      roundOff: { type: Number, default: 0 },
       grandTotal: Number,
 
       /* ===== PAYMENTS ===== */

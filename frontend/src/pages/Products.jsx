@@ -752,10 +752,8 @@ import { useTheme } from "../context/ThemeContext";
 
 export default function Products() {
   const navigate = useNavigate();
-  const { clearCart, cart, fetchCartSummary } = useCart();
+  const { clearCart, cart, fetchCartSummary, isCartOpen, setIsCartOpen } = useCart();
   const { refresh, invalidateCache } = useProductList();
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const cartPanelRef = useRef(null);
   const { showConfirm } = useModal();
 
   const { rawRates, refreshRates } = useRates();
@@ -772,33 +770,6 @@ export default function Products() {
     }
   }, [totalItems]);
 
-  /* ================= CLOSE ON OUTSIDE CLICK (DESKTOP ONLY) ================= */
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        cartPanelRef.current &&
-        !cartPanelRef.current.contains(event.target) &&
-        isCartOpen
-      ) {
-        setIsCartOpen(false);
-      }
-    };
-
-    if (isCartOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isCartOpen]);
-
-  /* ================= CALCULATE SUBTOTAL ================= */
-  const subtotal =
-    cart?.items?.reduce((sum, item) => {
-      return sum + (item.breakup?.grandTotal || 0);
-    }, 0) || 0;
-
   return (
     <div className={`flex h-[calc(100vh-80px)] w-full overflow-hidden transition-colors duration-300 ${isDark ? "bg-[#121212]" : "bg-gradient-to-br from-gray-50 to-slate-100"}`}>
 
@@ -813,135 +784,6 @@ export default function Products() {
           <ProductList />
         </div>
       </div>
-
-      {/* ================= MOBILE OVERLAY ================= */}
-      {isCartOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setIsCartOpen(false)}
-        />
-      )}
-
-      {/* ================= CART PANEL ================= */}
-      <div
-        ref={cartPanelRef}
-        className={`
-          fixed top-0 right-0 h-full
-          w-full sm:w-[400px] lg:w-[420px]
-          shadow-[-10px_0_30px_rgba(0,0,0,0.05)]
-          flex flex-col z-50
-          transform transition-transform duration-500 ease-in-out
-          ${isDark ? "bg-[#1a1a1a] border-l border-[#333333]" : "bg-[#F5F5F5]"}
-          ${isCartOpen ? "translate-x-0" : "translate-x-full"}
-        `}
-      >
-        {/* ================= HEADER ================= */}
-        <div className={`flex-shrink-0 px-6 py-2 border-b transition-colors ${isDark ? "bg-[#0d0d0d] border-white/5" : "bg-[#5A374F] border-gray-100"}`}>
-          <div className="flex items-center justify-between">
-            <h2 className={`text-sm font-bold uppercase tracking-widest ${isDark ? "text-pink-400" : "text-[#F2F2F2]"}`}>
-              Shopping Cart
-            </h2>
-            <button
-              onClick={() => setIsCartOpen(false)}
-              className="group p-2 -mr-2"
-            >
-              <X
-                size={20}
-                className="text-gray-400 group-hover:text-red-500 transition-colors"
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* ================= CART ITEMS ================= */}
-        <div className="flex-1 overflow-y-auto px-2 py-4 scrollbar-hide">
-          {cart?.items?.length > 0 ? (
-            <CartItems variant="minimal" />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-              <Package size={32} strokeWidth={1} />
-              <p className="mt-2 text-xs uppercase tracking-widest font-medium">
-                Cart is empty
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* ================= FOOTER ================= */}
-        {cart?.items?.length > 0 && (
-          <div className={`flex-shrink-0 border-t p-4 space-y-4 transition-colors ${isDark ? "bg-[#0d0d0d] border-white/5" : "bg-white border-gray-100"}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-500 uppercase tracking-tighter">
-                Subtotal:
-              </span>
-              <span className="text-lg font-bold text-[#B28912]">
-                ₹{subtotal.toLocaleString("en-IN")}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  navigate("/cart");
-                  setIsCartOpen(false);
-                }}
-                className="w-full py-3 rounded-md border border-gray-200 text-gray-600 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all"
-              >
-                View Cart
-              </button>
-
-              <button
-                onClick={() => {
-                  navigate("/checkout/calculate");
-                  setIsCartOpen(false);
-                }}
-                className={`w-full py-3 rounded-md font-bold text-[10px] uppercase tracking-widest transition-all ${isDark ? "bg-pink-600 text-white hover:bg-pink-700" : "bg-[#F2F2F2] text-gray-800 hover:bg-gray-200"}`}
-              >
-                Checkout
-              </button>
-            </div>
-
-            {/* <button
-              onClick={() =>
-                window.confirm("Clear cart?") && clearCart()
-              }
-    
-              className="w-full text-center text-[9px] uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
-            >
-              Clear All Items
-            </button> */}
-
-            <button
-
-              onClick={async () => {
-                const ok = await showConfirm("Clear cart?");
-                if (ok) clearCart();
-              }}
-
-
-              className="w-full text-center text-[9px] uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
-            >
-              Clear All Items
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ================= FLOATING CART BUTTON ================= */}
-      {!isCartOpen && totalItems > 0 && (
-        <button
-          onClick={() => setIsCartOpen(true)}
-          className="fixed bottom-8 right-8 z-30 bg-[#5A374F] text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 flex items-center gap-3 px-6 py-4"
-        >
-          <div className="relative">
-            <ShoppingCart size={24} />
-            <span className="absolute -top-2 -right-2 w-6 h-6 bg-white text-[#6B3151] text-xs font-bold rounded-full flex items-center justify-center border-2 border-[#6B3151]">
-              {totalItems}
-            </span>
-          </div>
-          <span className="font-semibold text-sm">View Cart</span>
-        </button>
-      )}
     </div>
   );
 }
