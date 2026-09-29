@@ -3,7 +3,6 @@ import {
   getBackupStatus,
   downloadBackup,
   restoreBackup,
-  cleanLocalData,
   uploadBackupZip,
 } from "../controllers/backupController.js";
 import { protect, authorize } from "../middlewares/authMiddleware.js";
@@ -36,8 +35,5 @@ router.get("/download", downloadBackup);
 
 // 3. Restore backup from uploaded zip
 router.post("/restore", handleBackupUpload, restoreBackup);
-
-// 4. Clean local test data (Strictly restricted to localhost)
-router.post("/clean-local", cleanLocalData);
 
 export default router;

@@ -20,8 +20,7 @@ import {
   EyeOff,
   Clock,
   Sparkles,
-  Server,
-  Trash2
+  Server
 } from "lucide-react";
 
 export default function BackupManagement() {
@@ -42,10 +41,6 @@ export default function BackupManagement() {
   const [restoring, setRestoring] = useState(false);
   const [restoreResult, setRestoreResult] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-
-  // Clean Local Data State (Testing Only)
-  const [cleaningLocal, setCleaningLocal] = useState(false);
-  const [showCleanModal, setShowCleanModal] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -176,29 +171,6 @@ export default function BackupManagement() {
     }
   };
 
-  // 3. Clean Local Test Data (Localhost Only)
-  const handleCleanLocalData = async () => {
-    try {
-      setCleaningLocal(true);
-      setShowCleanModal(false);
-
-      const { data } = await api.post("/admin/backup/clean-local");
-      if (data.success) {
-        toast.success("Local test data wiped successfully!", {
-          description: data.message,
-        });
-        fetchStatus();
-      }
-    } catch (err) {
-      console.error("Clean local error:", err);
-      toast.error(
-        err.response?.data?.message || "Failed to clean local data"
-      );
-    } finally {
-      setCleaningLocal(false);
-    }
-  };
-
   return (
     <div
       className={`min-h-screen p-6 md:p-8 transition-colors ${
@@ -228,31 +200,20 @@ export default function BackupManagement() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowCleanModal(true)}
-              disabled={cleaningLocal}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 active:scale-95"
-            >
-              <Trash2 className="w-4 h-4" />
-              {cleaningLocal ? "Cleaning..." : "Clean Local Data"}
-            </button>
-
-            <button
-              onClick={fetchStatus}
-              disabled={loadingStats}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm ${
-                isDark
-                  ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
-                  : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
-              }`}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loadingStats ? "animate-spin" : ""}`}
-              />
-              Refresh Status
-            </button>
-          </div>
+          <button
+            onClick={fetchStatus}
+            disabled={loadingStats}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm ${
+              isDark
+                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${loadingStats ? "animate-spin" : ""}`}
+            />
+            Refresh Status
+          </button>
         </div>
       </div>
 
@@ -716,88 +677,6 @@ export default function BackupManagement() {
                     </>
                   ) : (
                     "Yes, Restore Now"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CLEAN LOCAL TEST DATA MODAL */}
-        {showCleanModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div
-              className={`max-w-md w-full p-6 md:p-8 rounded-3xl border shadow-2xl transition-all ${
-                isDark
-                  ? "bg-zinc-900 border-zinc-800 text-zinc-100"
-                  : "bg-white border-slate-200 text-slate-800"
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-2xl bg-red-500/10 text-red-500 ring-1 ring-red-500/20">
-                  <Trash2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Clean Local Test Data</h3>
-                  <p
-                    className={`text-xs ${
-                      isDark ? "text-zinc-400" : "text-slate-500"
-                    }`}
-                  >
-                    Wipe local records to test restore from backup
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`p-4 rounded-xl mb-6 border text-xs space-y-2 leading-relaxed ${
-                  isDark
-                    ? "bg-zinc-800/60 border-zinc-700 text-zinc-300"
-                    : "bg-slate-100 border-slate-200 text-slate-700"
-                }`}
-              >
-                <div>
-                  Target Database:{" "}
-                  <strong className="text-emerald-500">
-                    Localhost (127.0.0.1) Only
-                  </strong>
-                </div>
-                <div>
-                  User Safety:{" "}
-                  <strong>Your Superadmin login account will be preserved.</strong>
-                </div>
-                <div className="pt-1 text-red-500 font-medium">
-                  ⚠️ This will delete all local products, orders, ledgers, vouchers, and product images (resetting data to 0). You can then restore them using your backup .zip!
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  disabled={cleaningLocal}
-                  onClick={() => setShowCleanModal(false)}
-                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-                    isDark
-                      ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-                      : "bg-slate-200 hover:bg-slate-300 text-slate-700"
-                  }`}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  disabled={cleaningLocal}
-                  onClick={handleCleanLocalData}
-                  className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {cleaningLocal ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Cleaning Data...
-                    </>
-                  ) : (
-                    "Yes, Clean Local Data"
                   )}
                 </button>
               </div>
