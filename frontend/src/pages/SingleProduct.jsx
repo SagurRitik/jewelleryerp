@@ -592,21 +592,31 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
           <div className="lg:col-span-7 flex flex-col pt-2 lg:pl-4">
             
             {/* Header Area */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <h1 className={`text-2xl sm:text-3xl md:text-[38px] font-serif font-semibold leading-tight rounded-md transition-colors ${isDark ? "text-amber-300" : "text-[#6B3151]"}`}>
-                    {displayValue(product.title)}
-                  </h1>
-                  {product.targetAudience && (
-                    <span className="px-2.5 py-0.5 bg-[#6B3151]/10 text-[#6B3151] text-[10px] font-bold uppercase tracking-widest rounded-full shrink-0">
-                      {product.targetAudience}
-                    </span>
-                  )}
-                </div>
+            <div className="mb-4">
+              {/* Category, Audience & SKU Meta Badges */}
+              <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                {product.jewelleryCategory && (
+                  <span className="bg-[#EADDCB] text-[#8C6B4A] px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase">
+                    {product.jewelleryCategory}
+                  </span>
+                )}
+                {product.targetAudience && (
+                  <span className="px-2.5 py-0.5 bg-[#6B3151]/10 text-[#6B3151] text-[10px] font-bold uppercase tracking-widest rounded-full">
+                    {product.targetAudience}
+                  </span>
+                )}
+                <span className="text-xs text-[#8A8178] uppercase tracking-wider font-mono">
+                  SKU. {displayValue(product.sku)}
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Product Title - Full width, luxury serif, capitalized */}
+              <h1 className={`text-2xl sm:text-3xl md:text-[38px] font-serif font-semibold leading-tight capitalize break-words mb-3 rounded-md transition-colors ${isDark ? "text-amber-300" : "text-[#6B3151]"}`}>
+                {displayValue(product.title)}
+              </h1>
+
+              {/* Quick Actions Bar */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 pb-3 border-b border-[#EAE3D9]/60">
 
 <button
   type="button"
@@ -906,18 +916,11 @@ const totalBeltCount = belts.reduce((sum, b) => sum + (Number(b.count) || 0), 0)
                 Edit
               </Link> */}
             
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xs text-[#8A8178] uppercase tracking-wider">SKU. {displayValue(product.sku)}</span>
-              {product.jewelleryCategory && (
-                <span className="bg-[#EADDCB] text-[#8C6B4A] px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
-                  {product.jewelleryCategory.substring(0, 3).toUpperCase()}
-                </span>
-              )}
-            </div>
-
-            <div className="text-xl font-serif text-[#3A332C] mb-4">
-              {displayValue(product.description)}
-            </div>
+            {product.description && product.description.trim().toLowerCase() !== product.title?.trim().toLowerCase() && (
+              <div className="text-sm sm:text-base text-[#6B6158] font-sans leading-relaxed mb-4">
+                {displayValue(product.description)}
+              </div>
+            )}
 
             {product.productType && (
               <div className="mb-6">

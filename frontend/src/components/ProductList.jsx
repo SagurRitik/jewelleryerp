@@ -696,6 +696,7 @@ export default function ProductList() {
                 <option value="Earring">Earrings</option>
                 <option value="Pendant">Pendants</option>
                 <option value="Chain">Chains</option>
+                <option value="Mangalsutra">Mangalsutra</option>
                 <option value="Rakhi">Rakhi</option>
                 <option value="Loose Diamond">Loose Diamond</option>
                 <option value="Other">Other</option>

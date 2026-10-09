@@ -88,7 +88,7 @@ const METAL_PURITY_OPTIONS = {
 
 const JEWELLERY_CATEGORIES = [
   "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant",
-  "Chain", "Rakhi", "Loose Diamond", "Other",
+  "Chain", "Mangalsutra", "Rakhi", "Loose Diamond", "Other",
 ];
 
 export default function ProductForm({ existingProduct, onSuccess, onSubmit: outsideSubmit, onCancel, standalone = true }) {
