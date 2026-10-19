@@ -1,9 +1,10 @@
 
 
 import { useState, useEffect } from "react";
+import axios from "axios";
 import API from "../api/productApi";
 import { getImageUrl } from "../utils/getImageUrl";
-import { Camera, Upload } from "lucide-react";
+import { Camera, Upload, ExternalLink, Trash2, Truck, X, Eye, ChevronLeft, ChevronRight, RotateCw, Plus, Lock } from "lucide-react";
 import Webcam from "react-webcam";
 import { useRef } from "react";
 import { useModal } from "../context/ModalContext";
@@ -122,10 +123,35 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
     grossWeight: "",
     fineGold: "",
     targetAudience: "UNISEX",
+    supplierId: "",
+    purchaseCost: "",
+    purchaseBill: "",
     diamonds: [],
     gemstones: [],
     belts: [],
   });
+
+  const [suppliers, setSuppliers] = useState([]);
+  const [purchaseBillFiles, setPurchaseBillFiles] = useState([]);
+  const [purchaseBillPreviews, setPurchaseBillPreviews] = useState([]);
+  const [existingPurchaseBills, setExistingPurchaseBills] = useState([]);
+  const [showBillCamera, setShowBillCamera] = useState(false);
+  const [billCameraFacing, setBillCameraFacing] = useState("environment");
+  const [previewBillModalIndex, setPreviewBillModalIndex] = useState(null);
+  const billFileInputRef = useRef(null);
+  const billWebcamRef = useRef(null);
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const res = await axios.get("/api/suppliers?activeOnly=true");
+        setSuppliers(res.data || []);
+      } catch (err) {
+        console.warn("Could not fetch suppliers in ProductForm:", err);
+      }
+    };
+    fetchSuppliers();
+  }, []);
 
   const addCertificate = () => {
     setForm(p => ({
@@ -284,11 +310,23 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
         grossWeight: existingProduct.grossWeight ?? "",
         fineGold: existingProduct.fineGold ?? "",
         targetAudience: existingProduct.targetAudience || "UNISEX",
+        supplierId: existingProduct.supplierId?._id || existingProduct.supplierId || "",
+        purchaseCost: existingProduct.purchaseCost ?? "",
+        purchaseBill: existingProduct.purchaseBill || "",
         diamonds: diamonds,
         gemstones: gemstones,
         belts: belts,
       });
 
+      let existingBills = [];
+      if (Array.isArray(existingProduct.purchaseBills) && existingProduct.purchaseBills.length > 0) {
+        existingBills = existingProduct.purchaseBills;
+      } else if (existingProduct.purchaseBill) {
+        existingBills = [existingProduct.purchaseBill];
+      }
+      setExistingPurchaseBills(existingBills);
+      setPurchaseBillPreviews(existingBills.map(b => getImageUrl(b)));
+      setPurchaseBillFiles([]);
 
       if (existingProduct.images && existingProduct.images.length > 0) {
         const firstImg = existingProduct.images[0];
@@ -364,6 +402,84 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
 
     // Reset input so same file can be selected again
     e.target.value = null;
+  };
+
+  const handlePurchaseBillChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const validFiles = [];
+    const validPreviews = [];
+
+    files.forEach((file) => {
+      if (file.size > 10 * 1024 * 1024) {
+        if (showAlert) showAlert(`"${file.name}" exceeds 10MB limit`);
+        else alert(`"${file.name}" exceeds 10MB limit`);
+        return;
+      }
+      validFiles.push(file);
+      validPreviews.push(URL.createObjectURL(file));
+    });
+
+    if (validFiles.length > 0) {
+      setPurchaseBillFiles((prev) => [...prev, ...validFiles]);
+      setPurchaseBillPreviews((prev) => [...prev, ...validPreviews]);
+    }
+
+    if (billFileInputRef.current) billFileInputRef.current.value = "";
+  };
+
+  const handleCaptureBillCamera = async () => {
+    if (!billWebcamRef.current) return;
+    const imageSrc = billWebcamRef.current.getScreenshot();
+    if (!imageSrc) return;
+
+    try {
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], `bill_camera_${Date.now()}.jpg`, { type: "image/jpeg" });
+
+      setPurchaseBillFiles((prev) => [...prev, file]);
+      setPurchaseBillPreviews((prev) => [...prev, imageSrc]);
+      setShowBillCamera(false);
+    } catch (err) {
+      console.error("Bill camera capture error:", err);
+    }
+  };
+
+  const handleRemovePurchaseBillAt = (index) => {
+    if (index < existingPurchaseBills.length) {
+      setExistingPurchaseBills((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      const fileIdx = index - existingPurchaseBills.length;
+      setPurchaseBillFiles((prev) => prev.filter((_, i) => i !== fileIdx));
+    }
+    setPurchaseBillPreviews((prev) => {
+      try {
+        if (prev[index].startsWith("blob:")) URL.revokeObjectURL(prev[index]);
+      } catch (e) {}
+      return prev.filter((_, i) => i !== index);
+    });
+
+    if (previewBillModalIndex === index) {
+      setPreviewBillModalIndex(null);
+    } else if (previewBillModalIndex !== null && previewBillModalIndex > index) {
+      setPreviewBillModalIndex(previewBillModalIndex - 1);
+    }
+  };
+
+  const handleRemoveAllPurchaseBills = () => {
+    purchaseBillPreviews.forEach((url) => {
+      try {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      } catch (e) {}
+    });
+    setExistingPurchaseBills([]);
+    setPurchaseBillFiles([]);
+    setPurchaseBillPreviews([]);
+    setPreviewBillModalIndex(null);
+    setForm(prev => ({ ...prev, purchaseBill: "" }));
+    if (billFileInputRef.current) billFileInputRef.current.value = "";
   };
 
 
@@ -541,6 +657,7 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
         "title", "description", "jewelleryCategory", "productType", "sku", "stock",
         "hsnCode", "huid", "metalType", "metalPurity", "metalColor",
         "netWeight", "grossWeight", "fineGold", "targetAudience",
+        "supplierId", "purchaseCost",
       ];
 
 
@@ -550,6 +667,13 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
           formData.append(field, form[field]);
         }
       });
+
+      if (purchaseBillFiles && purchaseBillFiles.length > 0) {
+        purchaseBillFiles.forEach((file) => {
+          formData.append("purchaseBills", file);
+        });
+      }
+      formData.append("existingPurchaseBills", JSON.stringify(existingPurchaseBills));
 
       if (form.jewelleryCategory === "Loose Diamond") {
         formData.set("metalType", form.metalType || "LooseDiamond");
@@ -649,10 +773,13 @@ export default function ProductForm({ existingProduct, onSuccess, onSubmit: outs
         const { diamonds, gemstones, ...restOfForm } = form;
         const productData = {
           ...restOfForm,
+          ...(existingProduct?._id ? { _id: existingProduct._id, isExisting: true } : {}),
           components,
-          certificates: cleanCertificates
+          certificates: cleanCertificates,
+          purchaseBills: existingPurchaseBills,
+          purchaseBill: existingPurchaseBills[0] || "",
         };
-        outsideSubmit(productData, images);
+        outsideSubmit(productData, images, purchaseBillFiles);
         if (onSuccess) onSuccess();
         return;
       }
@@ -1794,6 +1921,177 @@ active:scale-90"
                 </div>
               </div>
 
+              {/* Supplier & Purchase Details Card */}
+              <div className={cardClass}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-[15px] font-semibold text-[#1B3B59] flex items-center">
+                    <span className={lineMarkerClass}></span>
+                    Supplier & Purchase Info
+                  </div>
+                  {existingProduct && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Lock size={10} /> Locked
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelClass}>Supplier (Source of Product)</label>
+                    <select
+                      name="supplierId"
+                      value={form.supplierId}
+                      onChange={handleChange}
+                      disabled={Boolean(existingProduct)}
+                      className={`${selectClass} ${existingProduct ? "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" : ""}`}
+                    >
+                      <option value="">-- No Supplier Linked --</option>
+                      {suppliers.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Purchase Cost / Buying Price (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        name="purchaseCost"
+                        value={form.purchaseCost}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        disabled={Boolean(existingProduct)}
+                        readOnly={Boolean(existingProduct)}
+                        className={`${inputClass} pl-7 ${existingProduct ? "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" : ""}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={labelClass}>Supplier Purchase Bills / Slips</label>
+                      {purchaseBillPreviews.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded border border-emerald-300/60">
+                            {purchaseBillPreviews.length} attached
+                          </span>
+                          {!existingProduct && (
+                            <button
+                              type="button"
+                              onClick={handleRemoveAllPurchaseBills}
+                              className="text-[10px] text-red-500 hover:text-red-700 font-semibold"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dual Action Buttons: Camera + Gallery (Only allowed when creating new product) */}
+                    {!existingProduct && (
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowBillCamera(true)}
+                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 hover:text-[#632947] transition-all"
+                        >
+                          <Camera size={14} className="text-[#632947]" />
+                          <span>Take Photo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => billFileInputRef.current?.click()}
+                          className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 hover:text-[#632947] transition-all"
+                        >
+                          <Upload size={14} className="text-[#632947]" />
+                          <span>Upload Bills</span>
+                        </button>
+
+                        <input
+                          type="file"
+                          ref={billFileInputRef}
+                          accept="image/*"
+                          multiple
+                          onChange={handlePurchaseBillChange}
+                          className="hidden"
+                        />
+                      </div>
+                    )}
+
+                    {/* Bills Thumbnail Grid */}
+                    {purchaseBillPreviews.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                        {purchaseBillPreviews.map((url, idx) => (
+                          <div
+                            key={idx}
+                            className="group relative aspect-square rounded-md overflow-hidden border border-slate-200 bg-white shadow-xs"
+                          >
+                            <img
+                              src={url}
+                              alt={`Bill ${idx + 1}`}
+                              className="w-full h-full object-cover cursor-pointer"
+                              onClick={() => setPreviewBillModalIndex(idx)}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                            <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.2 rounded pointer-events-none">
+                              #{idx + 1}
+                            </div>
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewBillModalIndex(idx)}
+                                className="p-1 bg-white/90 hover:bg-white text-slate-800 rounded-full hover:scale-110 transition-transform"
+                                title="View Bill"
+                              >
+                                <Eye size={12} />
+                              </button>
+                              {!existingProduct && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePurchaseBillAt(idx)}
+                                  className="p-1 bg-red-500 hover:bg-red-600 text-white rounded-full hover:scale-110 transition-transform"
+                                  title="Remove Bill"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {!existingProduct && (
+                          <div
+                            onClick={() => billFileInputRef.current?.click()}
+                            className="aspect-square border border-dashed border-slate-300 rounded-md flex flex-col items-center justify-center text-slate-400 hover:text-[#632947] hover:border-[#632947] hover:bg-white cursor-pointer transition-all"
+                          >
+                            <Plus size={16} />
+                            <span className="text-[9px] font-medium mt-0.5">Add</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : existingProduct ? (
+                      <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-400 text-center">
+                        No purchase bills attached
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => billFileInputRef.current?.click()}
+                        className="border border-dashed border-slate-300 rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-[#632947] transition-all"
+                      >
+                        <Upload className="w-4 h-4 text-slate-400 mb-1" />
+                        <span className="text-[11px] text-slate-600 font-medium">Upload or Capture Bill</span>
+                        <span className="text-[9px] text-slate-400">Multiple images supported</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Action/Summary Box (Mimicking the Order Summary card) */}
               <div className="bg-[#632947] rounded-md p-5 text-white shadow-md">
                 <h3 className="text-sm font-semibold mb-4 border-b border-[#7A3F5C] pb-2">Product Summary</h3>
@@ -1848,6 +2146,129 @@ active:scale-90"
             </div>
           </div>
         </form>
+        {/* 📷 Live Bill Camera Modal */}
+        {showBillCamera && (
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-150">
+            <div className="flex items-center justify-between px-6 py-4 text-white border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-[#C5A859]" />
+                <span className="text-sm font-bold">Capture Purchase Bill</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBillCameraFacing(prev => prev === "environment" ? "user" : "environment")}
+                  className="flex items-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition text-white"
+                >
+                  <RotateCw size={13} /> Switch Camera
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBillCamera(false)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="relative w-full max-w-lg aspect-[3/4] max-h-[70vh] rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/20">
+                <Webcam
+                  ref={billWebcamRef}
+                  audio={false}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: billCameraFacing }}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-6 border-2 border-dashed border-white/40 rounded-2xl pointer-events-none flex items-center justify-center">
+                  <span className="text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full font-medium">
+                    Align bill inside frame
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pb-8 pt-3 flex items-center justify-center gap-6">
+              <button
+                type="button"
+                onClick={() => setShowBillCamera(false)}
+                className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCaptureBillCamera}
+                className="w-16 h-16 rounded-full bg-[#632947] hover:bg-[#7A3F5C] text-white flex items-center justify-center shadow-lg shadow-[#632947]/40 hover:scale-105 active:scale-95 transition-all border-4 border-white"
+                title="Capture Bill Photo"
+              >
+                <Camera size={26} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 🖼️ Bill Preview Lightbox Modal */}
+        {previewBillModalIndex !== null && purchaseBillPreviews[previewBillModalIndex] && (
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-150">
+            <div className="flex items-center justify-between px-6 py-4 text-white border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-[#C5A859]" />
+                <span className="text-sm font-bold">
+                  Purchase Bill {previewBillModalIndex + 1} of {purchaseBillPreviews.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                {!existingProduct && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePurchaseBillAt(previewBillModalIndex)}
+                    className="flex items-center gap-1 text-xs bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-full transition"
+                  >
+                    <Trash2 size={13} /> Remove
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewBillModalIndex(null)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 relative flex items-center justify-center p-4 overflow-hidden">
+              <img
+                src={purchaseBillPreviews[previewBillModalIndex]}
+                alt={`Purchase Bill ${previewBillModalIndex + 1}`}
+                className="max-h-[80vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+
+              {purchaseBillPreviews.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewBillModalIndex(prev => (prev > 0 ? prev - 1 : purchaseBillPreviews.length - 1))}
+                    className="absolute left-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition hover:scale-110"
+                    title="Previous bill"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewBillModalIndex(prev => (prev < purchaseBillPreviews.length - 1 ? prev + 1 : 0))}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition hover:scale-110"
+                    title="Next bill"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

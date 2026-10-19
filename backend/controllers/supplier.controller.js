@@ -17,7 +17,12 @@ export const createSupplier = async (req, res) => {
       return res.status(400).json({ message: "Supplier with this mobile number already exists" });
     }
 
-    const supplier = await Supplier.create(req.body);
+    const openingBal = Number(req.body.openingBalance) || 0;
+    const initialBalance = req.body.balanceType === "RECEIVABLE" ? -openingBal : openingBal;
+    const supplier = await Supplier.create({
+      ...req.body,
+      currentBalance: req.body.currentBalance !== undefined ? Number(req.body.currentBalance) : initialBalance
+    });
     return res.status(201).json(supplier);
   } catch (error) {
     console.error("Error creating supplier:", error);
@@ -195,10 +200,21 @@ export const getSupplierLedger = async (req, res) => {
 
     // Add payments to ledger (negative amount represents paying off depth)
     payments.forEach(p => {
+      let payDate = p.paymentDate || p.createdAt;
+      if (p.paymentDate && p.createdAt) {
+        const pDate = new Date(p.paymentDate);
+        if (pDate.getHours() === 0 && pDate.getMinutes() === 0 && pDate.getSeconds() === 0) {
+          const cDate = new Date(p.createdAt);
+          if (pDate.toDateString() === cDate.toDateString()) {
+            payDate = p.createdAt;
+          }
+        }
+      }
+
       ledger.push({
         _id: p._id,
         type: "PAYMENT",
-        date: p.paymentDate,
+        date: payDate,
         amount: -p.amount, // Payment reduces the liability (PAYABLE balance)
         paymentMode: p.paymentMode,
         reference: p.reference,
@@ -215,14 +231,30 @@ export const getSupplierLedger = async (req, res) => {
 
     // Add purchases to ledger (positive amount represents increasing liability/payable)
     purchases.forEach(pur => {
+      let purDate = pur.purchaseDate || pur.createdAt;
+      if (pur.purchaseDate && pur.createdAt) {
+        const pDate = new Date(pur.purchaseDate);
+        if (pDate.getHours() === 0 && pDate.getMinutes() === 0 && pDate.getSeconds() === 0) {
+          const cDate = new Date(pur.createdAt);
+          if (pDate.toDateString() === cDate.toDateString()) {
+            purDate = pur.createdAt;
+          }
+        }
+      }
+
+      const slips = Array.isArray(pur.purchaseSlips) && pur.purchaseSlips.length > 0
+        ? pur.purchaseSlips
+        : (pur.purchaseSlip ? [pur.purchaseSlip] : []);
+
       ledger.push({
         _id: pur._id,
         type: "PURCHASE",
-        date: pur.purchaseDate,
+        date: purDate,
         amount: pur.totalAmount || pur.amount, // Purchase increases the liability
         purchaseNo: pur.purchaseNo,
         description: pur.description,
-        purchaseSlip: pur.purchaseSlip,
+        purchaseSlip: pur.purchaseSlip || slips[0] || "",
+        purchaseSlips: slips,
         note: pur.description || pur.notes || `Purchase Invoice: ${pur.purchaseNo}`
       });
     });
@@ -246,12 +278,18 @@ export const getSupplierLedger = async (req, res) => {
       };
     });
 
+    // Sync the accurate running balance to supplier.currentBalance if out of sync
+    if (supplier.currentBalance !== runningBalance) {
+      supplier.currentBalance = runningBalance;
+      await supplier.save();
+    }
+
     return res.status(200).json({
       supplier: {
         name: supplier.name,
         mobile: supplier.mobile,
         gstNumber: supplier.gstNumber,
-        currentBalance: supplier.currentBalance,
+        currentBalance: runningBalance,
         openingBalance: supplier.openingBalance,
         totalPaid,
         totalPurchased

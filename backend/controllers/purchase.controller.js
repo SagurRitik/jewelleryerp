@@ -57,6 +57,46 @@ export const createPurchase = async (req, res) => {
     const purchaseNo = `${datePrefix}-${sequence}`;
     console.log("🆔 Generated Purchase No:", purchaseNo);
 
+    /* ---------------- 📎 PROCESS PURCHASE SLIP ---------------- */
+    let slipPaths = [];
+    if (Array.isArray(req.body.purchaseSlips)) {
+      slipPaths.push(...req.body.purchaseSlips);
+    } else if (req.body.purchaseSlips) {
+      try {
+        const parsed = JSON.parse(req.body.purchaseSlips);
+        if (Array.isArray(parsed)) slipPaths.push(...parsed);
+        else slipPaths.push(req.body.purchaseSlips);
+      } catch (e) {
+        slipPaths.push(req.body.purchaseSlips);
+      }
+    }
+
+    if (Array.isArray(req.body.purchaseBills)) {
+      slipPaths.push(...req.body.purchaseBills);
+    } else if (req.body.purchaseBills) {
+      try {
+        const parsed = JSON.parse(req.body.purchaseBills);
+        if (Array.isArray(parsed)) slipPaths.push(...parsed);
+        else slipPaths.push(req.body.purchaseBills);
+      } catch (e) {
+        slipPaths.push(req.body.purchaseBills);
+      }
+    }
+
+    if (req.body.purchaseSlip) slipPaths.push(req.body.purchaseSlip);
+    if (req.body.purchaseBill) slipPaths.push(req.body.purchaseBill);
+
+    if (req.files && Array.isArray(req.files)) {
+      req.files.forEach(f => {
+        if (f.fieldname && (f.fieldname.startsWith("purchaseSlip") || f.fieldname.startsWith("purchaseBill"))) {
+          slipPaths.push(`/uploads/${f.filename}`);
+        }
+      });
+    }
+
+    slipPaths = [...new Set(slipPaths)].filter(Boolean);
+    const slipPath = slipPaths[0] || "";
+
     /* ---------------- 🛒 PROCESS PRODUCTS ---------------- */
     const createdProductIds = [];
     const productCount = productsData.length;
@@ -65,10 +105,51 @@ export const createPurchase = async (req, res) => {
       return res.status(400).json({ message: "At least one product is required for this purchase" });
     }
 
+    const defaultCostPerItem = productCount > 0 ? (Number(amount) || 0) / productCount : 0;
+
     for (let i = 0; i < productCount; i++) {
       const p = productsData[i];
-      console.log(`🔹 Processing product ${i + 1}/${productCount}:`, p.title);
+      console.log(`🔹 Processing product ${i + 1}/${productCount}:`, p.title || p.sku);
 
+      const itemCost = Number(p.purchaseCost || p.purchasePrice || p.amount || defaultCostPerItem);
+
+      // Check if this is an EXISTING product from inventory:
+      if (p._id || p.productId || p.isExisting) {
+        const prodId = p._id || p.productId;
+        let existingProduct = await Product.findById(prodId);
+        if (!existingProduct && p.sku) {
+          existingProduct = await Product.findOne({ sku: p.sku });
+        }
+
+        if (existingProduct) {
+          console.log("🔗 Linking existing inventory product:", existingProduct._id, existingProduct.sku);
+          existingProduct.supplierId = supplier._id;
+          existingProduct.purchaseCost = itemCost;
+          if (slipPath) {
+            existingProduct.purchaseBill = slipPath;
+            existingProduct.purchaseBills = slipPaths;
+          }
+          await existingProduct.save();
+
+          createdProductIds.push(existingProduct._id);
+
+          await MetalLedger.create({
+            type: "CREDIT",
+            source: "VENDOR",
+            referenceId: existingProduct._id,
+            referenceModel: "Purchase",
+            partyName: supplier.name,
+            metalType: existingProduct.metalType || "Other",
+            purity: existingProduct.metalPurity,
+            weight: Number(existingProduct.netWeight) || 0,
+            value: itemCost,
+            notes: `Linked to Purchase ${purchaseNo} (SKU: ${existingProduct.sku})`
+          });
+          continue;
+        }
+      }
+
+      // If not existing, create as new product
       if (!p.title || !p.sku || !p.metalType) {
         console.error("❌ Missing required fields for product:", p);
         throw new Error(`Product "${p.title || i}" is missing title, sku, or metalType`);
@@ -86,7 +167,11 @@ export const createPurchase = async (req, res) => {
       const newProduct = await Product.create({
         ...p,
         images: productImages,
-        stock: p.stock || 1
+        stock: p.stock || 1,
+        supplierId: supplier._id,
+        purchaseCost: itemCost,
+        purchaseBill: slipPath,
+        purchaseBills: slipPaths
       });
       console.log("✅ Created Product:", newProduct._id);
 
@@ -101,7 +186,7 @@ export const createPurchase = async (req, res) => {
         metalType: newProduct.metalType || "Other",
         purity: newProduct.metalPurity,
         weight: Number(newProduct.netWeight) || 0,
-        value: (Number(amount) || 0) / productCount,
+        value: itemCost,
         notes: `Auto-created from Purchase ${purchaseNo}`
       });
       console.log("✅ Created MetalLedger for product");
@@ -117,15 +202,10 @@ export const createPurchase = async (req, res) => {
       amount: Number(amount) || 0,
       totalAmount: Number(amount) || 0,
       products: createdProductIds,
-      notes
+      notes,
+      purchaseSlip: slipPath,
+      purchaseSlips: slipPaths
     };
-
-    if (req.files && Array.isArray(req.files)) {
-      const slipFile = req.files.find(f => f.fieldname === "purchaseSlip");
-      if (slipFile) {
-        purchaseData.purchaseSlip = `/uploads/${slipFile.filename}`;
-      }
-    }
 
     const purchase = await Purchase.create(purchaseData);
     console.log("✅ Purchase created successfully:", purchase._id);
@@ -134,6 +214,12 @@ export const createPurchase = async (req, res) => {
       await MetalLedger.updateMany(
         { referenceId: { $in: createdProductIds }, referenceModel: "Purchase" },
         { referenceId: purchase._id }
+      );
+
+      // Link purchaseId back to products
+      await Product.updateMany(
+        { _id: { $in: createdProductIds } },
+        { $set: { purchaseId: purchase._id } }
       );
     }
 
@@ -188,6 +274,7 @@ export const getPurchases = async (req, res) => {
 
     const purchases = await Purchase.find(query)
       .populate("supplierId", "name mobile gstNumber")
+      .populate("products", "title sku jewelleryCategory netWeight grossWeight images purchaseCost")
       .sort({ purchaseDate: -1 });
 
     return res.status(200).json(purchases);

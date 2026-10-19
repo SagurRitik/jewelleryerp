@@ -13,6 +13,7 @@ import { generateInvoiceNo } from "../../utils/generateInvoiceNo.js";
 import MetalLedger from "../../models/MetalLedger.js";
 import { clearProductCache } from "../../utils/productCache.js";
 import { determineTaxType, validateGSTIN } from "../../utils/gstStateHelper.js";
+import { syncCustomerFromOrder } from "../../utils/syncCustomer.js";
 
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
@@ -37,7 +38,14 @@ export const confirmInvoice = async (req, res) => {
       date = null
     } = req.body;
 
-    const invoiceDate = date ? new Date(date) : new Date();
+    const now = new Date();
+    let invoiceDate = now;
+    if (date) {
+      invoiceDate = new Date(date);
+      if (typeof date === "string" && date.length === 10) {
+        invoiceDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      }
+    }
 
     /* ================= BASIC VALIDATION ================= */
     if (!sessionId) {
@@ -110,14 +118,28 @@ export const confirmInvoice = async (req, res) => {
       });
     }
 
+    const isCelebrationActive = Boolean(celebrationDiscount && Number(celebrationDiscount.amount) > 0);
+
     /* ================= 3️⃣ PREPARE ITEMS ================= */
     const items = await Promise.all(
       cart.items.map(async (item) => {
         let calc;
+        const itemRates = isCelebrationActive ? { ...activeRates, discountEnabled: false } : activeRates;
+
         if (item.itemType === "CUSTOM") {
           calc = item.customSnapshot?.pricingSnapshot || {};
+          if (isCelebrationActive && calc) {
+            calc = {
+              ...calc,
+              discountDiamond: 0,
+              discountStone: 0,
+              discountMaking: 0,
+              discount: 0,
+              subtotal: calc.grossTotal || calc.subtotal || 0,
+            };
+          }
         } else {
-          calc = await calculateItem(item, activeRates);
+          calc = await calculateItem(item, itemRates);
         }
 
         const meta = itemsMeta.find((m) => m.cartItemId === item._id.toString());
@@ -260,6 +282,9 @@ export const confirmInvoice = async (req, res) => {
           : {}),
       }
     });
+
+    // 👤 Auto-sync customer into Customer Directory
+    await syncCustomerFromOrder(customer, invoiceTotals.grandTotal);
 
     /* ================= 5️⃣B LEDGER ENTRY ================= */
     for (const metal of metalPayments) {

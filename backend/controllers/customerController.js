@@ -1,4 +1,6 @@
 import Customer from "../models/Customer.js";
+import SalesOrder from "../models/SalesOrder.js";
+import { syncCustomerFromOrder } from "../utils/syncCustomer.js";
 import { sendInvoiceViaWhatsApp } from "../utils/whatsappService.js";
 
 /**
@@ -28,20 +30,43 @@ export const getCustomers = async (req, res) => {
     const limitNum = parseInt(limit, 10) || 100;
     const skip = (pageNum - 1) * limitNum;
 
-    const customers = await Customer.find(query)
+    let customers = await Customer.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
       .lean();
 
-    const total = await Customer.countDocuments(query);
+    let total = await Customer.countDocuments(query);
+
+    // Fallback: If searching by mobile/name and 0 customers in Customer table, check past SalesOrder invoices!
+    if (customers.length === 0 && search) {
+      const cleanDigits = search.replace(/\D/g, "");
+      const orderQuery = cleanDigits.length >= 5
+        ? { "customer.mobile": { $regex: cleanDigits + "$" } }
+        : { "customer.name": { $regex: search, $options: "i" } };
+
+      const pastOrders = await SalesOrder.find(orderQuery)
+        .sort({ createdAt: -1 })
+        .limit(limitNum)
+        .lean();
+
+      for (const po of pastOrders) {
+        if (po.customer?.mobile) {
+          const synced = await syncCustomerFromOrder(po.customer, po.totals?.grandTotal || 0);
+          if (synced) {
+            customers.push(synced.toObject ? synced.toObject() : synced);
+          }
+        }
+      }
+      total = customers.length;
+    }
 
     res.status(200).json({
       success: true,
       customers,
       total,
       page: pageNum,
-      totalPages: Math.ceil(total / limitNum),
+      totalPages: Math.ceil((total || 1) / limitNum),
     });
   } catch (error) {
     console.error("Error fetching customers:", error);
@@ -345,3 +370,67 @@ export const sendOfferMessage = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * @desc    Dedicated fast lookup by 10-digit mobile across Customer Directory and Past Sales Orders
+ * @route   GET /api/customers/lookup/:mobile
+ */
+export const lookupCustomer = async (req, res) => {
+  try {
+    const { mobile } = req.params;
+    const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
+
+    if (!cleanMobile || cleanMobile.length < 10) {
+      return res.status(400).json({ success: false, message: "Valid 10-digit mobile number required" });
+    }
+
+    // 1. Search in Customer directory
+    let customer = await Customer.findOne({ mobile: cleanMobile }).lean();
+
+    // 2. If not found in Customer directory, search in past SalesOrder invoices
+    if (!customer) {
+      const pastOrder = await SalesOrder.findOne({
+        "customer.mobile": { $regex: cleanMobile + "$" }
+      }).sort({ createdAt: -1 }).lean();
+
+      if (pastOrder?.customer) {
+        // Auto-sync into Customer Directory
+        const synced = await syncCustomerFromOrder(
+          pastOrder.customer,
+          pastOrder.totals?.grandTotal || 0
+        );
+        customer = synced ? (synced.toObject ? synced.toObject() : synced) : pastOrder.customer;
+      }
+    }
+
+    if (!customer) {
+      return res.json({ success: true, found: false, customer: null });
+    }
+
+    res.json({ success: true, found: true, customer });
+  } catch (error) {
+    console.error("Error looking up customer:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    One-time bulk sync of all historical sales orders into Customer Directory
+ * @route   POST /api/customers/sync-past-orders
+ */
+export const syncAllPastCustomers = async (req, res) => {
+  try {
+    const salesOrders = await SalesOrder.find({ "customer.mobile": { $exists: true, $ne: "" } }).lean();
+    let syncedCount = 0;
+    for (const order of salesOrders) {
+      if (order.customer?.mobile) {
+        await syncCustomerFromOrder(order.customer, order.totals?.grandTotal || 0);
+        syncedCount++;
+      }
+    }
+    res.json({ success: true, message: `Successfully synced ${syncedCount} order customers into Customer Directory` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+

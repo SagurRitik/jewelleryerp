@@ -17,6 +17,8 @@ const diamondStockSchema = new mongoose.Schema(
     costRate: { type: Number, default: 0 }, // Cost Rate per Carat
     sellingPrice: { type: Number, default: 0 },
     sellingRate: { type: Number, default: 0 }, // Selling Rate per Carat
+    isManualOverride: { type: Boolean, default: false },
+    priceSource: { type: String, enum: ["AUTO", "MANUAL", "UNPRICED"], default: "AUTO" },
     
     stock: { type: Number, default: 1 },
     

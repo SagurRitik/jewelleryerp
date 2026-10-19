@@ -5,17 +5,27 @@ import Barcode from "react-barcode";
 import { QRCodeCanvas } from "qrcode.react";
 import {
   Printer, ChevronLeft, Layout, Settings,
-  ArrowUp, ArrowLeft, ZoomIn, Info,
+  ArrowUp, ArrowLeft, ArrowDown, ArrowRight, ZoomIn, Info,
   RotateCw, Move, Type, Eye, RefreshCcw,
   Maximize, FileText, User, List, QrCode, Plus, Trash2, Zap,
-  Upload, SlidersHorizontal, Sparkles, Save, Check
+  Upload, SlidersHorizontal, Sparkles, Save, Check,
+  Ruler, Target, Crosshair, AlignCenter, AlignLeft, AlignRight, X, ChevronDown, ShieldCheck
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+
+export const TAG_SIZE_PRESETS = [
+  { id: "65x15", name: "Standard Butterfly (65×15 mm)", width: 65, height: 15, tailWidth: 35, desc: "Most popular for rings, bangles & pendants" },
+  { id: "75x12", name: "Slim Butterfly (75×12 mm)", width: 75, height: 12, tailWidth: 35, desc: "Sleek look for lightweight jewellery" },
+  { id: "85x15", name: "Wide Flap Tag (85×15 mm)", width: 85, height: 15, tailWidth: 40, desc: "Extra space for large barcodes or long descriptions" },
+  { id: "50x12", name: "Compact Ring Tag (50×12 mm)", width: 50, height: 12, tailWidth: 25, desc: "Small tags for delicate rings & earrings" },
+  { id: "100x14", name: "Extended Chain Tag (100×14 mm)", width: 100, height: 14, tailWidth: 45, desc: "Long tail for necklaces, chains and heavy ornaments" },
+  { id: "custom", name: "Custom Size...", width: 65, height: 15, tailWidth: 35, desc: "Custom width & height for any thermal label roll" }
+];
 
 export const FORMAT_PRESETS = {
   compact_center: {
     id: "compact_center",
-    name: "Standard 65×15 (Recommended)",
+    name: "Standard (Center Layout)",
     badge: "Best Fit",
     elements: {
       category: { id: "category", name: "Category Name", x: 1.0, y: 1.0, rotate: 0, scale: 1, visible: true },
@@ -53,6 +63,354 @@ export const FORMAT_PRESETS = {
 
 const INITIAL_ELEMENTS = FORMAT_PRESETS.compact_center.elements;
 
+function TagSizeModal({ isOpen, onClose, currentSize, onSave }) {
+  const [selectedPreset, setSelectedPreset] = useState(currentSize?.presetId || "65x15");
+  const [width, setWidth] = useState(currentSize?.width || 65);
+  const [height, setHeight] = useState(currentSize?.height || 15);
+  const [tailWidth, setTailWidth] = useState(currentSize?.tailWidth || 35);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPreset(currentSize?.presetId || "65x15");
+      setWidth(currentSize?.width || 65);
+      setHeight(currentSize?.height || 15);
+      setTailWidth(currentSize?.tailWidth || 35);
+    }
+  }, [isOpen, currentSize]);
+
+  if (!isOpen) return null;
+
+  const handleSelectPreset = (p) => {
+    setSelectedPreset(p.id);
+    if (p.id !== "custom") {
+      setWidth(p.width);
+      setHeight(p.height);
+      setTailWidth(p.tailWidth);
+    }
+  };
+
+  const handleApply = () => {
+    onSave({
+      presetId: selectedPreset,
+      width: Number(width) || 65,
+      height: Number(height) || 15,
+      tailWidth: Number(tailWidth) || 35
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-purple-50 text-[#5A374F] flex items-center justify-center border border-purple-100">
+              <Ruler size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Tag Dimension Setup</h2>
+              <p className="text-[11px] text-slate-400 font-medium">Select a standard jewellery tag or specify custom mm</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Presets Grid */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Standard Tag Sizes</label>
+          <div className="grid grid-cols-2 gap-2">
+            {TAG_SIZE_PRESETS.map((p) => {
+              const isSelected = selectedPreset === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleSelectPreset(p)}
+                  className={`p-3 rounded-2xl text-left border transition-all ${
+                    isSelected
+                      ? "bg-purple-50/70 border-[#5A374F] ring-2 ring-[#5A374F]/10 text-slate-800"
+                      : "bg-slate-50/60 hover:bg-slate-50 border-slate-200/70 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-black">{p.width}×{p.height} mm</span>
+                    {isSelected && <span className="w-2 h-2 rounded-full bg-[#5A374F]" />}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-700 truncate">{p.name.split('(')[0]}</div>
+                  <div className="text-[9px] text-slate-400 line-clamp-1">{p.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Custom Input Fields */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-3">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Fine-tune Dimensions (mm)</label>
+            <span className="text-[10px] font-bold text-[#5A374F]">Active: {width} × {height} mm</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <span className="text-[9px] font-bold text-slate-400 block mb-1">Total Width</span>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="20"
+                  max="150"
+                  step="0.5"
+                  value={width}
+                  onChange={(e) => {
+                    setWidth(parseFloat(e.target.value) || 0);
+                    setSelectedPreset("custom");
+                  }}
+                  className="w-full px-3 py-2 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-[#5A374F]/20 focus:border-[#5A374F] outline-none"
+                />
+                <span className="absolute right-2.5 top-2.5 text-[9px] font-bold text-slate-400 pointer-events-none">mm</span>
+              </div>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold text-slate-400 block mb-1">Height</span>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="8"
+                  max="60"
+                  step="0.5"
+                  value={height}
+                  onChange={(e) => {
+                    setHeight(parseFloat(e.target.value) || 0);
+                    setSelectedPreset("custom");
+                  }}
+                  className="w-full px-3 py-2 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-[#5A374F]/20 focus:border-[#5A374F] outline-none"
+                />
+                <span className="absolute right-2.5 top-2.5 text-[9px] font-bold text-slate-400 pointer-events-none">mm</span>
+              </div>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold text-slate-400 block mb-1">Tail Width</span>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="80"
+                  step="1"
+                  value={tailWidth}
+                  onChange={(e) => {
+                    setTailWidth(parseFloat(e.target.value) || 0);
+                    setSelectedPreset("custom");
+                  }}
+                  className="w-full px-3 py-2 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-[#5A374F]/20 focus:border-[#5A374F] outline-none"
+                />
+                <span className="absolute right-2.5 top-2.5 text-[9px] font-bold text-slate-400 pointer-events-none">mm</span>
+              </div>
+            </div>
+          </div>
+          {/* Visual scale representation */}
+          <div className="pt-2 flex items-center justify-center">
+            <div
+              className="border-2 border-[#5A374F] bg-white rounded flex items-center justify-between px-2 text-[8px] font-bold text-slate-600 shadow-sm relative"
+              style={{
+                width: `${Math.min(220, Math.max(80, width * 2.2))}px`,
+                height: `${Math.min(50, Math.max(22, height * 2.2))}px`
+              }}
+            >
+              <span>Flap 1</span>
+              <div className="h-full border-r border-dashed border-[#5A374F]/40" />
+              <span>Flap 2</span>
+              {tailWidth > 0 && (
+                <div
+                  className="absolute top-1/2 left-full -translate-y-1/2 bg-slate-200 border border-slate-300 rounded-r-full"
+                  style={{ width: `${Math.min(60, tailWidth)}px`, height: '35%' }}
+                  title="Tail"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#5A374F] to-[#45273b] hover:from-[#4a2d41] hover:to-[#381f30] text-white text-xs font-black uppercase tracking-wider shadow-md shadow-[#5A374F]/25 active:scale-95 transition-all"
+          >
+            Apply Tag Size
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalibrationModal({ isOpen, onClose, calibration, onSave, onTestPrint, tagDimensions }) {
+  const [offsetX, setOffsetX] = useState(calibration?.offsetX || 0);
+  const [offsetY, setOffsetY] = useState(calibration?.offsetY || 0);
+
+  useEffect(() => {
+    if (isOpen) {
+      setOffsetX(calibration?.offsetX || 0);
+      setOffsetY(calibration?.offsetY || 0);
+    }
+  }, [isOpen, calibration]);
+
+  if (!isOpen) return null;
+
+  const handleApply = () => {
+    onSave({
+      offsetX: Math.round(Number(offsetX) * 10) / 10,
+      offsetY: Math.round(Number(offsetY) * 10) / 10
+    });
+    onClose();
+  };
+
+  const handleReset = () => {
+    setOffsetX(0);
+    setOffsetY(0);
+    onSave({ offsetX: 0, offsetY: 0 });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200/60">
+              <Target size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Printer Hardware Calibration</h2>
+              <p className="text-[11px] text-slate-400 font-medium">Compensate for thermal printer feed & roller drift</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Calibration instructions */}
+        <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl flex items-start gap-3">
+          <Info size={16} className="text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-amber-900 leading-relaxed">
+            If prints are cutting off on the left or top of your tag roll, shift the global offset below. Click <strong>Test Pattern</strong> to print a calibration grid and measure mechanical shift.
+          </p>
+        </div>
+
+        {/* X Offset */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">Horizontal Shift (X-Offset)</span>
+              <p className="text-[9px] text-slate-400">Positive moves right (+), negative moves left (-)</p>
+            </div>
+            <span className="text-xs font-mono font-black text-[#5A374F] bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100">
+              {offsetX >= 0 ? `+${offsetX.toFixed(1)}` : offsetX.toFixed(1)} mm
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOffsetX(prev => Math.round((prev - 0.2) * 10) / 10)}
+              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 hover:bg-slate-100 active:scale-95 shadow-sm"
+            >
+              -0.2mm
+            </button>
+            <input
+              type="range"
+              min="-10"
+              max="10"
+              step="0.1"
+              value={offsetX}
+              onChange={(e) => setOffsetX(parseFloat(e.target.value) || 0)}
+              className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#5A374F]"
+            />
+            <button
+              onClick={() => setOffsetX(prev => Math.round((prev + 0.2) * 10) / 10)}
+              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 hover:bg-slate-100 active:scale-95 shadow-sm"
+            >
+              +0.2mm
+            </button>
+          </div>
+        </div>
+
+        {/* Y Offset */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">Vertical Shift (Y-Offset)</span>
+              <p className="text-[9px] text-slate-400">Positive moves down (+), negative moves up (-)</p>
+            </div>
+            <span className="text-xs font-mono font-black text-[#5A374F] bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100">
+              {offsetY >= 0 ? `+${offsetY.toFixed(1)}` : offsetY.toFixed(1)} mm
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOffsetY(prev => Math.round((prev - 0.2) * 10) / 10)}
+              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 hover:bg-slate-100 active:scale-95 shadow-sm"
+            >
+              -0.2mm
+            </button>
+            <input
+              type="range"
+              min="-10"
+              max="10"
+              step="0.1"
+              value={offsetY}
+              onChange={(e) => setOffsetY(parseFloat(e.target.value) || 0)}
+              className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#5A374F]"
+            />
+            <button
+              onClick={() => setOffsetY(prev => Math.round((prev + 0.2) * 10) / 10)}
+              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 hover:bg-slate-100 active:scale-95 shadow-sm"
+            >
+              +0.2mm
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all"
+            >
+              Reset to 0
+            </button>
+            <button
+              type="button"
+              onClick={onTestPrint}
+              className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-[10px] font-black text-[#5A374F] hover:bg-purple-100 transition-all flex items-center gap-1.5 shadow-sm"
+              title="Prints 1 tag with outer millimeter grid to measure error"
+            >
+              <Printer size={12} />
+              <span>Print Test Pattern</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleApply}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#5A374F] to-[#45273b] hover:from-[#4a2d41] hover:to-[#381f30] text-white text-xs font-black uppercase tracking-wider shadow-md shadow-[#5A374F]/25 active:scale-95 transition-all"
+          >
+            Save Calibration
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BarcodeTagPrinter() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -74,6 +432,29 @@ export default function BarcodeTagPrinter() {
   const [zoom, setZoom] = useState(1.4);
   const [printOrientation, setPrintOrientation] = useState("landscape"); // "landscape" or "portrait"
   const [printRotation, setPrintRotation] = useState(0); // 0, 90, 180, 270 degrees
+
+  // Tag Dimensions State (persist in localStorage)
+  const [tagDimensions, setTagDimensions] = useState(() => {
+    try {
+      const saved = localStorage.getItem("barcode_tag_dimensions");
+      if (saved) return JSON.parse(saved);
+    } catch (e) { }
+    return { presetId: "65x15", width: 65, height: 15, tailWidth: 35 };
+  });
+
+  // Printer Mechanical Calibration Offset in mm (persist in localStorage)
+  const [calibration, setCalibration] = useState(() => {
+    try {
+      const saved = localStorage.getItem("barcode_tag_calibration");
+      if (saved) return JSON.parse(saved);
+    } catch (e) { }
+    return { offsetX: 0, offsetY: 0 };
+  });
+
+  // Modals & Display Toggles
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [showSafeMargins, setShowSafeMargins] = useState(true);
 
   // Sidebar Mode
   const [sidebarTab, setSidebarTab] = useState("product_list"); // "product_list", "manual", or "quick"
@@ -105,6 +486,145 @@ export default function BarcodeTagPrinter() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef(null);
+
+  const handleUpdateTagDimensions = (newDims) => {
+    setTagDimensions(newDims);
+    try {
+      localStorage.setItem("barcode_tag_dimensions", JSON.stringify(newDims));
+    } catch (e) { }
+    setFormatSavedToast(`✓ Tag Size Set: ${newDims.width}×${newDims.height}mm`);
+    setTimeout(() => setFormatSavedToast(""), 2500);
+  };
+
+  const handleUpdateCalibration = (newCal) => {
+    setCalibration(newCal);
+    try {
+      localStorage.setItem("barcode_tag_calibration", JSON.stringify(newCal));
+    } catch (e) { }
+    setFormatSavedToast(`✓ Printer Calibration Saved (X:${newCal.offsetX}mm, Y:${newCal.offsetY}mm)`);
+    setTimeout(() => setFormatSavedToast(""), 2500);
+  };
+
+  const handleAlignElement = (type) => {
+    if (!selectedId || !elements[selectedId]) return;
+    const halfWidth = tagDimensions.width / 2;
+    const flapCenter1 = halfWidth / 2;
+    const flapCenter2 = halfWidth + halfWidth / 2;
+    const centerY = tagDimensions.height / 2;
+
+    if (type === "flap1_center") {
+      updateElement(selectedId, { x: Math.max(0.5, Math.round((flapCenter1 - 4) * 10) / 10) });
+    } else if (type === "flap2_center") {
+      updateElement(selectedId, { x: Math.max(0.5, Math.round((flapCenter2 - 4) * 10) / 10) });
+    } else if (type === "center_h") {
+      updateElement(selectedId, { x: Math.max(0.5, Math.round((halfWidth - 4) * 10) / 10) });
+    } else if (type === "center_v") {
+      updateElement(selectedId, { y: Math.max(0.5, Math.round((centerY - 1.5) * 10) / 10) });
+    } else if (type === "left_edge") {
+      updateElement(selectedId, { x: 1.0 });
+    } else if (type === "right_edge") {
+      updateElement(selectedId, { x: Math.round((tagDimensions.width - 15) * 10) / 10 });
+    }
+  };
+
+  const handleNudge = (dx, dy) => {
+    if (!selectedId || !elements[selectedId]) return;
+    const cur = elements[selectedId];
+    updateElement(selectedId, {
+      x: Math.max(0, Math.round((cur.x + dx) * 10) / 10),
+      y: Math.max(0, Math.round((cur.y + dy) * 10) / 10)
+    });
+  };
+
+  const handlePrintTestPattern = () => {
+    let iframe = document.getElementById("barcode-print-iframe");
+    if (iframe) iframe.remove();
+    iframe = document.createElement("iframe");
+    iframe.id = "barcode-print-iframe";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+
+    const halfW = tagDimensions.width / 2;
+
+    const iframeDoc = iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Tag Calibration Test Sheet</title>
+        <style>
+          @page {
+            size: ${tagDimensions.width}mm ${tagDimensions.height}mm ${printOrientation};
+            margin: 0;
+          }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          html, body {
+            width: ${tagDimensions.width}mm !important;
+            height: ${tagDimensions.height}mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            overflow: hidden !important;
+            font-family: monospace;
+          }
+          .cal-box {
+            width: ${tagDimensions.width}mm;
+            height: ${tagDimensions.height}mm;
+            position: relative;
+            border: 0.3mm solid #000;
+            overflow: hidden;
+            background: #fff;
+            transform: translate(${calibration.offsetX}mm, ${calibration.offsetY}mm);
+            ${printRotation !== 0 ? `transform: rotate(${printRotation}deg) translate(${calibration.offsetX}mm, ${calibration.offsetY}mm); transform-origin: center center;` : ''}
+          }
+        </style>
+      </head>
+      <body>
+        <div class="cal-box">
+          <!-- Top millimeter scale -->
+          <div style="position: absolute; top: 0; left: 0; width: 100%; height: 2mm; border-bottom: 0.2mm solid #000; display: flex; justify-content: space-between; font-size: 4px; padding: 0 1mm; line-height: 2mm;">
+            <span>0</span><span>${Math.round(halfW / 2)}mm</span><span>${Math.round(halfW)}mm</span><span>${Math.round(halfW + halfW / 2)}mm</span><span>${tagDimensions.width}mm</span>
+          </div>
+          <!-- Center divider line -->
+          <div style="position: absolute; left: ${halfW}mm; top: 0; bottom: 0; border-left: 0.3mm dashed #000;"></div>
+          <!-- Outer Corner markers -->
+          <div style="position: absolute; top: 2.2mm; left: 1mm; font-size: 4.5px; font-weight: bold;">(1,1)┌</div>
+          <div style="position: absolute; top: 2.2mm; right: 1mm; font-size: 4.5px; font-weight: bold;">┐(${tagDimensions.width - 1},1)</div>
+          <div style="position: absolute; bottom: 0.8mm; left: 1mm; font-size: 4.5px; font-weight: bold;">(1,${tagDimensions.height - 1})└</div>
+          <div style="position: absolute; bottom: 0.8mm; right: 1mm; font-size: 4.5px; font-weight: bold;">┘(${tagDimensions.width - 1},${tagDimensions.height - 1})</div>
+          <!-- Flap 1 info -->
+          <div style="position: absolute; left: ${halfW / 2}mm; top: 52%; transform: translate(-50%, -50%); text-align: center; width: ${halfW - 3}mm;">
+            <div style="font-size: 5.5px; font-weight: 900; letter-spacing: -0.2px;">FLAP 1 CENTER</div>
+            <div style="font-size: 4px; color: #444; margin-top: 0.5mm;">CAL: X=${calibration.offsetX >= 0 ? '+' : ''}${calibration.offsetX}mm, Y=${calibration.offsetY >= 0 ? '+' : ''}${calibration.offsetY}mm</div>
+          </div>
+          <!-- Flap 2 info -->
+          <div style="position: absolute; left: ${halfW + halfW / 2}mm; top: 52%; transform: translate(-50%, -50%); text-align: center; width: ${halfW - 3}mm;">
+            <div style="font-size: 5.5px; font-weight: 900; letter-spacing: -0.2px;">FLAP 2 CENTER</div>
+            <div style="font-size: 4px; color: #444; margin-top: 0.5mm;">SIZE: ${tagDimensions.width}×${tagDimensions.height}mm</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    iframeDoc.close();
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        window.print();
+      }
+    }, 200);
+  };
 
   const handlePrint = () => {
     const container = containerRef.current;
@@ -142,7 +662,7 @@ export default function BarcodeTagPrinter() {
       const clone = tag.cloneNode(true);
 
       // Remove elements that shouldn't be printed (visual center lines, tail guides, etc.)
-      const nonPrintable = clone.querySelectorAll(".print\\:hidden, [title='Physical Tag Tail']");
+      const nonPrintable = clone.querySelectorAll(".print\\:hidden, [title='Physical Tag Tail'], [title='Safe printable margin (0.8mm bleed boundary)']");
       nonPrintable.forEach(el => el.remove());
 
       // Convert any QR code canvas elements to data URL images
@@ -164,8 +684,10 @@ export default function BarcodeTagPrinter() {
       });
 
       tagsHtml += `
-        <div class="tag-page" style="width: 65mm; height: 15mm; position: relative; overflow: hidden; page-break-after: ${idx === tagElements.length - 1 ? 'auto' : 'always'}; break-after: ${idx === tagElements.length - 1 ? 'auto' : 'page'}; page-break-inside: avoid; break-inside: avoid; background: #ffffff;">
-          ${clone.innerHTML}
+        <div class="tag-page" style="width: ${tagDimensions.width}mm; height: ${tagDimensions.height}mm; position: relative; overflow: hidden; page-break-after: ${idx === tagElements.length - 1 ? 'auto' : 'always'}; break-after: ${idx === tagElements.length - 1 ? 'auto' : 'page'}; page-break-inside: avoid; break-inside: avoid; background: #ffffff;">
+          <div style="width: 100%; height: 100%; position: relative; transform: translate(${calibration.offsetX}mm, ${calibration.offsetY}mm);">
+            ${clone.innerHTML}
+          </div>
         </div>
       `;
     });
@@ -180,7 +702,7 @@ export default function BarcodeTagPrinter() {
         <title>Barcode Tag Print</title>
         <style>
           @page {
-            size: 65mm 15mm ${printOrientation};
+            size: ${tagDimensions.width}mm ${tagDimensions.height}mm ${printOrientation};
             margin: 0;
           }
           * {
@@ -191,8 +713,8 @@ export default function BarcodeTagPrinter() {
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: 65mm !important;
-            height: 15mm !important;
+            width: ${tagDimensions.width}mm !important;
+            height: ${tagDimensions.height}mm !important;
             background: #ffffff !important;
             overflow: hidden !important;
             -webkit-print-color-adjust: exact !important;
@@ -200,8 +722,8 @@ export default function BarcodeTagPrinter() {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           }
           .tag-page {
-            width: 65mm !important;
-            height: 15mm !important;
+            width: ${tagDimensions.width}mm !important;
+            height: ${tagDimensions.height}mm !important;
             position: relative !important;
             overflow: hidden !important;
             background: #ffffff !important;
@@ -272,7 +794,7 @@ export default function BarcodeTagPrinter() {
     try {
       localStorage.removeItem("barcode_tag_layout");
     } catch (e) { }
-    setFormatSavedToast("✓ Layout Reset to Standard 65×15!");
+    setFormatSavedToast("✓ Layout Reset to Standard Default!");
     setTimeout(() => setFormatSavedToast(""), 2500);
   };
 
@@ -807,7 +1329,7 @@ export default function BarcodeTagPrinter() {
 
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-50">
                   <div className="space-y-1.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">X</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">X (mm)</span>
                     <input
                       type="number" value={selected.x.toFixed(1)}
                       onChange={(e) => updateElement(selectedId, { x: parseFloat(e.target.value) || 0 })}
@@ -815,12 +1337,102 @@ export default function BarcodeTagPrinter() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Y</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Y (mm)</span>
                     <input
                       type="number" value={selected.y.toFixed(1)}
                       onChange={(e) => updateElement(selectedId, { y: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 bg-slate-50 border-transparent rounded-xl text-[11px] font-mono font-bold focus:bg-white focus:ring-1 focus:ring-[#5A374F] outline-none transition-all"
                     />
+                  </div>
+                </div>
+
+                {/* Smart Flap Alignment Shortcuts */}
+                <div className="space-y-2 pt-2 border-t border-slate-50">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                    <span>Alignment</span>
+                    <span className="text-[8px] text-slate-400">Snap to Flap</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAlignElement('flap1_center')}
+                      className="py-1.5 px-1 bg-slate-50 hover:bg-slate-100 rounded-xl text-[8px] font-black text-slate-600 flex flex-col items-center gap-0.5 border border-slate-200/50 transition-all active:scale-95"
+                      title="Center horizontally in Left Flap (Flap 1)"
+                    >
+                      <AlignLeft size={12} className="text-[#5A374F]" />
+                      <span>Flap 1</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAlignElement('center_h')}
+                      className="py-1.5 px-1 bg-slate-50 hover:bg-slate-100 rounded-xl text-[8px] font-black text-slate-600 flex flex-col items-center gap-0.5 border border-slate-200/50 transition-all active:scale-95"
+                      title="Center horizontally across the entire tag"
+                    >
+                      <AlignCenter size={12} className="text-[#5A374F]" />
+                      <span>Center</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAlignElement('flap2_center')}
+                      className="py-1.5 px-1 bg-slate-50 hover:bg-slate-100 rounded-xl text-[8px] font-black text-slate-600 flex flex-col items-center gap-0.5 border border-slate-200/50 transition-all active:scale-95"
+                      title="Center horizontally in Right Flap (Flap 2)"
+                    >
+                      <AlignRight size={12} className="text-[#5A374F]" />
+                      <span>Flap 2</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAlignElement('center_v')}
+                      className="py-1.5 px-1 bg-slate-50 hover:bg-slate-100 rounded-xl text-[8px] font-black text-slate-600 flex flex-col items-center gap-0.5 border border-slate-200/50 transition-all active:scale-95"
+                      title="Center vertically"
+                    >
+                      <SlidersHorizontal size={12} className="text-[#5A374F]" />
+                      <span>Center V</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Fine Nudge D-Pad (0.2mm precision) */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-50">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                    <span>Fine Nudge (±0.2mm)</span>
+                    <span className="text-[8px] text-slate-400">Micro-adjust</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 py-1">
+                    <button
+                      type="button"
+                      onClick={() => handleNudge(-0.2, 0)}
+                      className="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-xl text-slate-600 font-bold active:scale-90 transition-all shadow-sm"
+                      title="Nudge Left 0.2mm"
+                    >
+                      <ArrowLeft size={13} />
+                    </button>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleNudge(0, -0.2)}
+                        className="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-xl text-slate-600 font-bold active:scale-90 transition-all shadow-sm"
+                        title="Nudge Up 0.2mm"
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNudge(0, 0.2)}
+                        className="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-xl text-slate-600 font-bold active:scale-90 transition-all shadow-sm"
+                        title="Nudge Down 0.2mm"
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNudge(0.2, 0)}
+                      className="w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 border border-slate-200/70 rounded-xl text-slate-600 font-bold active:scale-90 transition-all shadow-sm"
+                      title="Nudge Right 0.2mm"
+                    >
+                      <ArrowRight size={13} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -869,9 +1481,16 @@ export default function BarcodeTagPrinter() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-extrabold text-xs tracking-tight text-slate-800 uppercase leading-none">Tag Studio</h1>
-                  <span className="bg-purple-100/60 text-[#5A374F] text-[9px] font-black px-2 py-0.5 rounded-full border border-[#5A374F]/10">
-                    65×15mm
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeModal(true)}
+                    className="flex items-center gap-1.5 bg-purple-100/70 hover:bg-purple-200/90 text-[#5A374F] text-[9px] font-black px-2.5 py-1 rounded-full border border-[#5A374F]/20 shadow-sm transition-all active:scale-95 cursor-pointer"
+                    title="Change Tag Dimensions & Presets"
+                  >
+                    <Ruler size={10} />
+                    <span>{tagDimensions.width}×{tagDimensions.height}mm</span>
+                    <ChevronDown size={10} />
+                  </button>
                 </div>
                 <p className="text-[10px] text-slate-400 font-semibold tracking-wide mt-0.5">
                   {activeProducts.length} {activeProducts.length === 1 ? 'Tag Ready' : 'Tags Ready'}
@@ -881,7 +1500,7 @@ export default function BarcodeTagPrinter() {
           </div>
 
           {/* Right Toolbar Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             {/* 1. Layout Preset Dropdown with Sparkles */}
             <div className="flex items-center bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 h-9 gap-1.5 shadow-sm transition-all focus-within:border-[#5A374F]/40 focus-within:ring-2 focus-within:ring-[#5A374F]/10" title="Choose Tag Layout Template">
               <Sparkles size={13} className="text-[#5A374F]" />
@@ -899,16 +1518,18 @@ export default function BarcodeTagPrinter() {
 
             {/* 2. Save Layout Button */}
             <button
+              type="button"
               onClick={saveCustomLayout}
-              className="h-9 px-3 flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 shadow-sm transition-all active:scale-95 hover:border-slate-300"
+              className="h-9 px-2.5 flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-[10px] font-bold text-slate-700 shadow-sm transition-all active:scale-95 hover:border-slate-300"
               title="Save current layout as your default"
             >
               <Save size={13} className="text-[#5A374F]" />
-              <span>Save</span>
+              <span className="hidden xl:inline">Save</span>
             </button>
 
             {/* 3. Reset Layout Button */}
             <button
+              type="button"
               onClick={resetLayout}
               className="h-9 w-9 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl text-slate-400 hover:text-slate-700 shadow-sm transition-all active:scale-95"
               title="Reset to default 65x15 layout"
@@ -918,9 +1539,47 @@ export default function BarcodeTagPrinter() {
 
             <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
+            {/* Hardware Calibration Button */}
+            <button
+              type="button"
+              onClick={() => setShowCalibrationModal(true)}
+              className={`h-9 px-2.5 flex items-center gap-1.5 border rounded-xl text-[10px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer ${
+                calibration.offsetX !== 0 || calibration.offsetY !== 0
+                  ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                  : "bg-white hover:bg-slate-50 border-slate-200/80 text-slate-700 hover:border-slate-300"
+              }`}
+              title="Printer Hardware Calibration (Adjust X/Y feed offsets)"
+            >
+              <Target size={13} className={calibration.offsetX !== 0 || calibration.offsetY !== 0 ? "text-amber-600" : "text-[#5A374F]"} />
+              <span>Calibrate</span>
+              {(calibration.offsetX !== 0 || calibration.offsetY !== 0) && (
+                <span className="text-[8px] font-mono font-black bg-amber-200 text-amber-900 px-1 py-0.5 rounded leading-none">
+                  {calibration.offsetX},{calibration.offsetY}
+                </span>
+              )}
+            </button>
+
+            {/* Safe Margins Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowSafeMargins(prev => !prev)}
+              className={`h-9 px-2.5 flex items-center gap-1.5 border rounded-xl text-[10px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer ${
+                showSafeMargins
+                  ? "bg-purple-50 border-[#5A374F]/30 text-[#5A374F]"
+                  : "bg-white hover:bg-slate-50 border-slate-200/80 text-slate-400"
+              }`}
+              title="Toggle 0.8mm Safe Margin printable guide"
+            >
+              <ShieldCheck size={13} />
+              <span className="hidden xl:inline">Margins</span>
+            </button>
+
+            <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
+
             {/* 4. Orientation Segmented Pill */}
             <div className="flex items-center bg-slate-100/70 p-0.5 rounded-xl h-9 border border-slate-200/60 shadow-inner">
               <button
+                type="button"
                 onClick={() => setPrintOrientation("landscape")}
                 className={`h-7 px-2.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${printOrientation === 'landscape' ? "bg-white text-[#5A374F] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 title="Horizontal (Landscape) - Tag Roll"
@@ -928,6 +1587,7 @@ export default function BarcodeTagPrinter() {
                 Horizontal
               </button>
               <button
+                type="button"
                 onClick={() => setPrintOrientation("portrait")}
                 className={`h-7 px-2.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${printOrientation === 'portrait' ? "bg-white text-[#5A374F] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 title="Vertical (Portrait)"
@@ -1005,8 +1665,8 @@ export default function BarcodeTagPrinter() {
                     key={index === 0 && quickCodeList.length === 0 ? "quick-tag" : `quick-tag-${index}`}
                     className="butterfly-tag relative bg-white border border-slate-100 shadow-sm print:shadow-none print:border-none mb-8 print:mb-0 transition-all duration-500 overflow-hidden"
                     style={{
-                      width: "65mm",
-                      height: "15mm",
+                      width: `${tagDimensions.width}mm`,
+                      height: `${tagDimensions.height}mm`,
                     }}
                   >
                     <div className="absolute inset-0 flex items-center justify-center p-2">
@@ -1031,7 +1691,10 @@ export default function BarcodeTagPrinter() {
                       </div>
                     </div>
                     {/* Visual markers for center */}
-                    <div className="absolute inset-0 border-r border-dashed border-slate-100/50 left-1/2 print:hidden" />
+                    <div
+                      className="absolute inset-y-0 border-r border-dashed border-slate-100/50 print:hidden"
+                      style={{ left: `${tagDimensions.width / 2}mm` }}
+                    />
                   </div>
                 );
               }
@@ -1096,19 +1759,30 @@ export default function BarcodeTagPrinter() {
                   key={index}
                   className="butterfly-tag relative bg-white print:border-none shadow-2xl print:shadow-none mb-12 print:mb-0 overflow-visible print:overflow-hidden"
                   style={{
-                    width: `65mm`,
-                    height: `15mm`,
+                    width: `${tagDimensions.width}mm`,
+                    height: `${tagDimensions.height}mm`,
                     display: "flex",
                     cursor: isDragging ? "grabbing" : "default"
                   }}
                 >
                   {/* Visual Center Divider (Editor only) */}
-                  <div className="absolute left-[32.5mm] top-0 bottom-0 border-l border-dashed border-slate-200 z-10 print:hidden" />
+                  <div
+                    className="absolute top-0 bottom-0 border-l border-dashed border-slate-200 z-10 print:hidden"
+                    style={{ left: `${tagDimensions.width / 2}mm` }}
+                  />
+
+                  {/* Safe Printable Margin Guide */}
+                  {showSafeMargins && (
+                    <div
+                      className="absolute inset-[0.8mm] border border-dashed border-[#5A374F]/25 pointer-events-none z-10 print:hidden rounded-[1px]"
+                      title="Safe printable margin (0.8mm bleed boundary)"
+                    />
+                  )}
 
                   {/* Canvas Labeling (Dimensions) */}
                   <div className="absolute -top-6 left-0 right-0 flex justify-between px-2 print:hidden">
                     <span className="text-[10px] font-black text-slate-300">{sidebarTab === 'manual' ? 'MANUAL PREVIEW' : `TAG #${index + 1}`}</span>
-                    <span className="text-[10px] font-black text-slate-300">65mm x 15mm</span>
+                    <span className="text-[10px] font-black text-slate-300">{tagDimensions.width}mm x {tagDimensions.height}mm</span>
                   </div>
 
                   {/* 1. CATEGORY */}
@@ -1322,7 +1996,15 @@ export default function BarcodeTagPrinter() {
                   })}
 
                   {/* Tail Preview (Hidden on print) */}
-                  <div className="absolute top-1/2 left-[65mm] w-[35mm] h-[6mm] bg-gradient-to-r from-slate-200 to-slate-50 border-r border-t border-b border-slate-100 rounded-r-full -translate-y-1/2 print:hidden opacity-30 shadow-inner" title="Physical Tag Tail" />
+                  <div
+                    className="absolute top-1/2 bg-gradient-to-r from-slate-200 to-slate-50 border-r border-t border-b border-slate-100 rounded-r-full -translate-y-1/2 print:hidden opacity-30 shadow-inner"
+                    style={{
+                      left: `${tagDimensions.width}mm`,
+                      width: `${tagDimensions.tailWidth || 35}mm`,
+                      height: `${Math.min(6, Math.max(3, tagDimensions.height * 0.4))}mm`
+                    }}
+                    title="Physical Tag Tail"
+                  />
                 </div>
               );
             })}
@@ -1330,9 +2012,27 @@ export default function BarcodeTagPrinter() {
         </div>
       </div>
 
+      {/* 🏷️ Tag Size Configuration Modal */}
+      <TagSizeModal
+        isOpen={showSizeModal}
+        onClose={() => setShowSizeModal(false)}
+        currentSize={tagDimensions}
+        onSave={handleUpdateTagDimensions}
+      />
+
+      {/* 🎯 Hardware Calibration Modal */}
+      <CalibrationModal
+        isOpen={showCalibrationModal}
+        onClose={() => setShowCalibrationModal(false)}
+        calibration={calibration}
+        onSave={handleUpdateCalibration}
+        onTestPrint={handlePrintTestPattern}
+        tagDimensions={tagDimensions}
+      />
+
       <style>{`
         @page {
-          size: 65mm 15mm ${printOrientation};
+          size: ${tagDimensions.width}mm ${tagDimensions.height}mm ${printOrientation};
           margin: 0;
         }
 
@@ -1346,9 +2046,9 @@ export default function BarcodeTagPrinter() {
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: 65mm !important;
+            width: ${tagDimensions.width}mm !important;
             height: auto !important;
-            min-height: 15mm !important;
+            min-height: ${tagDimensions.height}mm !important;
             overflow: visible !important;
             background: #ffffff !important;
           }
@@ -1358,9 +2058,9 @@ export default function BarcodeTagPrinter() {
           main {
             margin: 0 !important;
             padding: 0 !important;
-            width: 65mm !important;
+            width: ${tagDimensions.width}mm !important;
             height: auto !important;
-            min-height: 15mm !important;
+            min-height: ${tagDimensions.height}mm !important;
             overflow: visible !important;
             display: block !important;
             position: static !important;
@@ -1379,21 +2079,21 @@ export default function BarcodeTagPrinter() {
             gap: 0 !important;
             transform: none !important;
             background: transparent !important;
-            width: 65mm !important;
+            width: ${tagDimensions.width}mm !important;
             height: auto !important;
-            min-height: 15mm !important;
+            min-height: ${tagDimensions.height}mm !important;
             display: block !important;
             overflow: visible !important;
             position: static !important;
           }
 
           .butterfly-tag {
-            width: 65mm !important;
-            height: 15mm !important;
-            min-width: 65mm !important;
-            min-height: 15mm !important;
-            max-width: 65mm !important;
-            max-height: 15mm !important;
+            width: ${tagDimensions.width}mm !important;
+            height: ${tagDimensions.height}mm !important;
+            min-width: ${tagDimensions.width}mm !important;
+            min-height: ${tagDimensions.height}mm !important;
+            max-width: ${tagDimensions.width}mm !important;
+            max-height: ${tagDimensions.height}mm !important;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
@@ -1408,7 +2108,7 @@ export default function BarcodeTagPrinter() {
             overflow: hidden !important;
             display: block !important;
             background: #ffffff !important;
-            ${printRotation !== 0 ? `transform: rotate(${printRotation}deg) !important; transform-origin: center center !important;` : ''}
+            ${printRotation !== 0 ? `transform: rotate(${printRotation}deg) translate(${calibration.offsetX}mm, ${calibration.offsetY}mm) !important; transform-origin: center center !important;` : `transform: translate(${calibration.offsetX}mm, ${calibration.offsetY}mm) !important;`}
           }
 
           .butterfly-tag:last-child {

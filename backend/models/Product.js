@@ -122,6 +122,30 @@ const productSchema = new mongoose.Schema(
       enum: ["MEN", "WOMEN", "UNISEX", "KIDS"],
       default: "UNISEX"
     },
+
+    /* ================= SUPPLIER & PURCHASE INFO ================= */
+    supplierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null,
+    },
+    purchaseCost: {
+      type: Number,
+      default: 0,
+    },
+    purchaseBill: {
+      type: String,
+      default: "",
+    },
+    purchaseBills: [{
+      type: String,
+      default: "",
+    }],
+    purchaseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Purchase",
+      default: null,
+    },
   },
   { timestamps: true }
 );

@@ -4,8 +4,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Calendar, FileText, CreditCard, 
   TrendingUp, TrendingDown, Receipt, User, ExternalLink,
-  Search, ChevronLeft, ChevronRight, Inbox,
-  Filter, ArrowDownAZ, ArrowUpAZ, RotateCcw, X, Download
+  Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Inbox,
+  Filter, ArrowDownAZ, ArrowUpAZ, RotateCcw, X, Download, Clock, DollarSign, Eye
 } from "lucide-react";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
@@ -16,10 +16,25 @@ export default function SupplierLedger() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Search and Pagination State
+  // Search, Year and Pagination State
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedYear, setSelectedYear] = useState("all");
+
+  // Slip Preview Lightbox Modal State
+  const [activeSlips, setActiveSlips] = useState(null);
+  const [activeSlipIndex, setActiveSlipIndex] = useState(0);
+
+  const openSlipModal = (slips, index = 0) => {
+    setActiveSlips(slips);
+    setActiveSlipIndex(index);
+  };
+
+  const closeSlipModal = () => {
+    setActiveSlips(null);
+    setActiveSlipIndex(0);
+  };
 
   // Advanced Filters State
   const [sortOrder, setSortOrder] = useState("new-to-old");
@@ -29,6 +44,67 @@ export default function SupplierLedger() {
   const [maxAmount, setMaxAmount] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // Helper for Local Datetime Input
+  const getNowDateTimeLocal = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  };
+
+  // Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentData, setPaymentData] = useState({
+    amount: "",
+    paymentMode: "BANK",
+    paymentDate: getNowDateTimeLocal(),
+    reference: "",
+    note: "",
+    metalType: "Gold",
+    weight: "",
+    rate: "",
+    purity: ""
+  });
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Auto-calculate amount if GOLD is selected and weight/rate change
+  useEffect(() => {
+    if (paymentData.paymentMode === "GOLD" && paymentData.weight && paymentData.rate) {
+      const calculatedAmount = Number(paymentData.weight) * Number(paymentData.rate);
+      setPaymentData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
+    }
+  }, [paymentData.weight, paymentData.rate, paymentData.paymentMode]);
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!paymentData.amount || Number(paymentData.amount) <= 0) {
+      return toast.error("Please enter a valid amount");
+    }
+
+    setSubmittingPayment(true);
+    try {
+      await axios.post("/api/supplier-payments", {
+        supplierId: id,
+        amount: Number(paymentData.amount),
+        paymentMode: paymentData.paymentMode,
+        paymentDate: paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+        reference: paymentData.reference,
+        note: paymentData.note,
+        metalType: paymentData.metalType,
+        weight: paymentData.weight,
+        rate: paymentData.rate,
+        purity: paymentData.purity
+      });
+      toast.success("Payment recorded successfully");
+      setIsPaymentModalOpen(false);
+      fetchLedger(); // Refresh ledger immediately
+    } catch (err) {
+      const errMsg = err.response?.data?.error || err.response?.data?.message || "Failed to record payment";
+      toast.error(errMsg);
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const fetchLedger = async () => {
     try {
@@ -47,16 +123,33 @@ export default function SupplierLedger() {
     fetchLedger();
   }, [id]);
 
+  // Extract unique years from ledger records
+  const availableYears = useMemo(() => {
+    if (!data?.ledger) return [];
+    const years = new Set();
+    data.ledger.forEach(entry => {
+      if (entry.date) {
+        const yr = new Date(entry.date).getFullYear();
+        if (!isNaN(yr)) years.add(yr);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [data?.ledger]);
+
   // Filtering Logic
   const filteredLedger = useMemo(() => {
     if (!data?.ledger) return [];
-    
-    // Reset to page 1 when searching or filtering
-    if (searchQuery || startDate || endDate || minAmount || maxAmount || filterType !== "all") setCurrentPage(1);
 
     let filtered = data.ledger.filter(entry => {
-      // 0. Type Filter
+      // 0. Financial Year Filter
+      if (selectedYear !== "all") {
+        const entryYear = new Date(entry.date).getFullYear();
+        if (entryYear !== Number(selectedYear)) return false;
+      }
+
+      // 0.1 Type Filter
       if (filterType !== "all" && entry.type !== filterType) return false;
+
       // 1. Text Search Filter
       const searchStr = `${entry.type} ${entry.description || ''} ${entry.note || ''} ${entry.reference || ''} ${entry.purchaseNo || ''}`.toLowerCase();
       if (searchQuery && !searchStr.includes(searchQuery.toLowerCase())) return false;
@@ -93,14 +186,50 @@ export default function SupplierLedger() {
       }
       return 0;
     });
-  }, [data?.ledger, searchQuery, startDate, endDate, minAmount, maxAmount, sortOrder, filterType]);
+  }, [data?.ledger, selectedYear, searchQuery, startDate, endDate, minAmount, maxAmount, sortOrder, filterType]);
+
+  // Reset to first page when any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, startDate, endDate, minAmount, maxAmount, sortOrder, filterType, selectedYear, itemsPerPage]);
 
   // Pagination Logic
-  const totalPages = Math.ceil(filteredLedger.length / itemsPerPage);
+  const totalRecords = filteredLedger.length;
+  const pageSize = itemsPerPage === "all" ? (totalRecords || 1) : Number(itemsPerPage);
+  const totalPages = itemsPerPage === "all" ? 1 : Math.max(1, Math.ceil(totalRecords / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = itemsPerPage === "all" ? 0 : (safeCurrentPage - 1) * pageSize;
+  const endIndex = itemsPerPage === "all" ? totalRecords : Math.min(startIndex + pageSize, totalRecords);
+
   const paginatedLedger = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredLedger.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredLedger, currentPage]);
+    return filteredLedger.slice(startIndex, endIndex);
+  }, [filteredLedger, startIndex, endIndex]);
+
+  // Smart Page Numbers with Ellipsis (...)
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages = [];
+    if (safeCurrentPage <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push("...");
+      pages.push(totalPages);
+    } else if (safeCurrentPage >= totalPages - 3) {
+      pages.push(1);
+      pages.push("...");
+      for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push("...");
+      pages.push(safeCurrentPage - 1);
+      pages.push(safeCurrentPage);
+      pages.push(safeCurrentPage + 1);
+      pages.push("...");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   const exportToExcel = () => {
     try {
@@ -112,6 +241,9 @@ export default function SupplierLedger() {
       const reportData = filteredLedger.map(entry => ({
         "Date": new Date(entry.date).toLocaleDateString('en-US', { 
           month: 'short', day: 'numeric', year: 'numeric' 
+        }),
+        "Time": new Date(entry.date).toLocaleTimeString('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: true
         }),
         "Type": entry.type,
         "Description": entry.description || entry.note || "-",
@@ -172,7 +304,7 @@ export default function SupplierLedger() {
           </div>
 
           {/* SEARCH & FILTERS BAR */}
-          <div className="flex flex-col sm:flex-row gap-4 flex-1 justify-end">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1 justify-end items-stretch sm:items-center">
             <div className="relative group flex-1 max-w-md">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <input 
@@ -184,6 +316,23 @@ export default function SupplierLedger() {
               />
             </div>
             
+            {/* Quick Year Selector */}
+            {availableYears.length > 0 && (
+              <div className="relative">
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm cursor-pointer"
+                  title="Filter ledger by year"
+                >
+                  <option value="all">📅 All Years</option>
+                  {availableYears.map(yr => (
+                    <option key={yr} value={yr}>📅 Year {yr}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <button 
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-sm font-semibold shadow-sm
@@ -194,7 +343,7 @@ export default function SupplierLedger() {
             >
               <Filter size={18} />
               Filters
-              {(startDate || endDate || minAmount || maxAmount || filterType !== "all") && (
+              {(startDate || endDate || minAmount || maxAmount || filterType !== "all" || selectedYear !== "all") && (
                 <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
               )}
             </button>
@@ -206,6 +355,28 @@ export default function SupplierLedger() {
             >
               <Download size={18} />
               <span className="hidden md:inline">Report</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                setPaymentData({
+                  amount: "",
+                  paymentMode: "BANK",
+                  paymentDate: getNowDateTimeLocal(),
+                  reference: "",
+                  note: "",
+                  metalType: "Gold",
+                  weight: "",
+                  rate: "",
+                  purity: ""
+                });
+                setIsPaymentModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-900/15 active:scale-95 whitespace-nowrap"
+              title="Record a payment to this supplier"
+            >
+              <CreditCard size={18} />
+              <span>Record Payment</span>
             </button>
           </div>
         </div>
@@ -219,7 +390,7 @@ export default function SupplierLedger() {
               </h3>
               <button 
                 onClick={() => {
-                  setStartDate(""); setEndDate(""); setMinAmount(""); setMaxAmount(""); setSortOrder("new-to-old"); setFilterType("all");
+                  setStartDate(""); setEndDate(""); setMinAmount(""); setMaxAmount(""); setSortOrder("new-to-old"); setFilterType("all"); setSelectedYear("all");
                 }}
                 className="text-[10px] uppercase tracking-widest font-black text-rose-500 hover:text-rose-600 flex items-center gap-1.5 transition-colors"
               >
@@ -227,7 +398,7 @@ export default function SupplierLedger() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
               {/* Type Filter */}
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Transaction Type</label>
@@ -250,6 +421,26 @@ export default function SupplierLedger() {
                   >
                     Payment
                   </button>
+                </div>
+              </div>
+
+              {/* Financial Year */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Financial Year</label>
+                <div className="relative group">
+                  <select 
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="w-full bg-gray-50/50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="all">All Years</option>
+                    {availableYears.map(yr => (
+                      <option key={yr} value={yr}>Year {yr}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <Calendar size={14} />
+                  </div>
                 </div>
               </div>
 
@@ -375,7 +566,7 @@ export default function SupplierLedger() {
               <Receipt size={18} className="text-indigo-500" /> Accounting Statement
             </h2>
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              Showing {paginatedLedger.length} of {filteredLedger.length} Records
+              Showing {totalRecords === 0 ? 0 : `${startIndex + 1}–${endIndex}`} of {totalRecords} Records
             </div>
           </div>
           
@@ -395,11 +586,23 @@ export default function SupplierLedger() {
                   paginatedLedger.map((entry, idx) => (
                     <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
                       <td className="py-4 px-8 text-sm font-medium text-gray-600 whitespace-nowrap">
-                        {new Date(entry.date).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-800 text-[13px]">
+                            {new Date(entry.date).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                            <Clock size={11} className="text-gray-400" />
+                            {new Date(entry.date).toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 px-8">
                          <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md ${
@@ -445,16 +648,39 @@ export default function SupplierLedger() {
                           )}
                         </div>
 
-                        {entry.purchaseSlip && (
-                          <a 
-                            href={`${entry.purchaseSlip}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-lg transition-all"
-                          >
-                            <ExternalLink size={10} className="mr-1" /> View Slip
-                          </a>
-                        )}
+                        {(() => {
+                          const slips = Array.isArray(entry.purchaseSlips) && entry.purchaseSlips.length > 0
+                            ? entry.purchaseSlips
+                            : (entry.purchaseSlip ? [entry.purchaseSlip] : []);
+
+                          if (slips.length === 0) return null;
+
+                          return (
+                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                              {slips.map((slipUrl, sIdx) => (
+                                <button
+                                  key={sIdx}
+                                  type="button"
+                                  onClick={() => openSlipModal(slips, sIdx)}
+                                  className="inline-flex items-center text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-1 rounded-lg transition-all shadow-xs"
+                                  title={`View Slip #${sIdx + 1}`}
+                                >
+                                  <Eye size={10} className="mr-1 text-indigo-500" />
+                                  {slips.length > 1 ? `Slip #${sIdx + 1}` : "View Slip"}
+                                </button>
+                              ))}
+                              {slips.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => openSlipModal(slips, 0)}
+                                  className="text-[10px] font-semibold text-gray-500 hover:text-indigo-600 hover:underline px-1 py-0.5"
+                                >
+                                  ({slips.length} bills)
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 px-8 text-right font-bold text-sm">
                         <div className="flex items-center justify-end gap-1.5">
@@ -484,7 +710,7 @@ export default function SupplierLedger() {
                         <p className="text-gray-500 font-medium">No transactions found matching your criteria</p>
                         <button 
                           onClick={() => {
-                            setSearchQuery(""); setStartDate(""); setEndDate(""); setMinAmount(""); setMaxAmount(""); setSortOrder("new-to-old");
+                            setSearchQuery(""); setStartDate(""); setEndDate(""); setMinAmount(""); setMaxAmount(""); setSortOrder("new-to-old"); setFilterType("all"); setSelectedYear("all");
                           }}
                           className="text-xs font-bold text-indigo-600 uppercase tracking-widest hover:underline flex items-center gap-1"
                         >
@@ -498,40 +724,117 @@ export default function SupplierLedger() {
             </table>
           </div>
 
-          {/* PAGINATION CONTROLS */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-gray-50 bg-white flex items-center justify-between">
-              <button 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-indigo-600 disabled:opacity-50 disabled:hover:text-gray-500 transition-colors"
-              >
-                <ChevronLeft size={16} /> Previous
-              </button>
-              
-              <div className="flex items-center gap-1.5">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                      currentPage === i + 1 
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
-                        : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
+          {/* ROBUST PAGINATION & RECORD CONTROLS */}
+          {totalRecords > 0 && (
+            <div className="p-4 border-t border-gray-100 bg-white flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Record Range & Year Tag */}
+              <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                <span>
+                  Showing <strong className="text-gray-900">{startIndex + 1}</strong> to <strong className="text-gray-900">{endIndex}</strong> of <strong className="text-gray-900">{totalRecords}</strong> entries
+                </span>
+                {selectedYear !== "all" && (
+                  <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
+                    Year {selectedYear}
+                  </span>
+                )}
               </div>
 
-              <button 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-indigo-600 disabled:opacity-50 disabled:hover:text-gray-500 transition-colors"
-              >
-                Next <ChevronRight size={16} />
-              </button>
+              {/* Rows Per Page Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 font-medium">Rows per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                    setItemsPerPage(val);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 text-xs font-bold text-gray-700 hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer transition-all shadow-2xs"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+
+              {/* Smart Navigation Buttons */}
+              {itemsPerPage !== "all" && totalPages > 1 ? (
+                <div className="flex items-center gap-1">
+                  {/* First Page */}
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage === 1}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="First Page"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+
+                  {/* Previous Page */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage === 1}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {/* Page Number Pills */}
+                  <div className="flex items-center gap-1 mx-1">
+                    {getPageNumbers().map((item, idx) => {
+                      if (item === "...") {
+                        return (
+                          <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-bold text-gray-400">
+                            ...
+                          </span>
+                        );
+                      }
+                      const isCurrent = safeCurrentPage === item;
+                      return (
+                        <button
+                          key={`page-${item}`}
+                          onClick={() => setCurrentPage(item)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                            isCurrent
+                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Next Page */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="Next Page"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+
+                  {/* Last Page */}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="Last Page"
+                  >
+                    <ChevronsRight size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="text-xs font-semibold text-gray-400">
+                  Page 1 of 1
+                </div>
+              )}
             </div>
           )}
           
@@ -559,6 +862,290 @@ export default function SupplierLedger() {
         </div>
 
       </div>
+
+      {/* RECORD PAYMENT MODAL */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[28px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+            <div className="p-6 pb-2 flex justify-between items-start">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider mb-1">
+                   <DollarSign size={10} /> Settlement
+                </div>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Record Payment</h2>
+                <p className="text-xs text-gray-500 mt-0.5 font-medium">Paying: <span className="text-gray-900 font-bold">{supplier?.name}</span></p>
+              </div>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handlePaymentSubmit} className="p-6 pt-3 space-y-4">
+              {/* Payment Date & Time Input (Allows Past Dates) */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Calendar size={13} className="text-indigo-500" /> Payment Date & Time</span>
+                  <span 
+                    className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer lowercase"
+                    onClick={() => setPaymentData(p => ({ ...p, paymentDate: getNowDateTimeLocal() }))}
+                  >
+                    Set to current
+                  </span>
+                </label>
+                <input 
+                  type="datetime-local" 
+                  required
+                  value={paymentData.paymentDate}
+                  onChange={(e) => setPaymentData({...paymentData, paymentDate: e.target.value})}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-800 outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                />
+                <p className="text-[9px] text-gray-400 mt-1 ml-1">Select any past date/time to record old payments</p>
+              </div>
+
+              {/* Payment Mode Selector */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Payment Mode</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { id: "CASH", label: "Cash", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>, color: "indigo" },
+                    { id: "BANK", label: "Bank", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11"/></svg>, color: "indigo" },
+                    { id: "UPI", label: "UPI", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>, color: "indigo" },
+                    { id: "GOLD", label: "Gold", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 3h12l4 6-10 12L2 9Z"/><path d="M2 9h20"/></svg>, color: "amber" }
+                  ].map(mode => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => setPaymentData({...paymentData, paymentMode: mode.id})}
+                      className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl text-[9px] font-black uppercase tracking-tight transition-all border ${
+                        paymentData.paymentMode === mode.id 
+                          ? mode.color === 'amber'
+                            ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-600/20'
+                            : 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                          : 'bg-white border-gray-150 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {mode.icon}
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Gold / Metal Input Details */}
+              {paymentData.paymentMode === "GOLD" && (
+                <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-3.5 space-y-3 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-800/70 uppercase tracking-widest mb-1 ml-1">Metal</label>
+                      <select 
+                        value={paymentData.metalType}
+                        onChange={(e) => setPaymentData({...paymentData, metalType: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-950 outline-none"
+                      >
+                        <option value="Gold">Gold</option>
+                        <option value="Silver">Silver</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-800/70 uppercase tracking-widest mb-1 ml-1">Purity</label>
+                      <input 
+                        type="text" 
+                        placeholder="22KT"
+                        value={paymentData.purity}
+                        onChange={(e) => setPaymentData({...paymentData, purity: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-800/70 uppercase tracking-widest mb-1 ml-1">Weight (g)</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={paymentData.weight}
+                        onChange={(e) => setPaymentData({...paymentData, weight: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-amber-800/70 uppercase tracking-widest mb-1 ml-1">Rate (₹/g)</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={paymentData.rate}
+                        onChange={(e) => setPaymentData({...paymentData, rate: e.target.value})}
+                        className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Amount Input */}
+              <div>
+                <div className="flex items-center justify-between mb-1 ml-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Amount (₹)</label>
+                  {supplier.currentBalance > 0 && (
+                    <span 
+                      onClick={() => setPaymentData(p => ({ ...p, amount: String(supplier.currentBalance) }))}
+                      className="text-[10px] text-emerald-600 font-bold hover:underline cursor-pointer"
+                    >
+                      Fill Full Balance (₹{supplier.currentBalance.toLocaleString()})
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className={`absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-base ${paymentData.paymentMode === "GOLD" ? 'text-amber-600' : 'text-emerald-600'}`}>₹</div>
+                  <input 
+                    type="number" 
+                    required
+                    placeholder="0.00"
+                    value={paymentData.amount}
+                    readOnly={paymentData.paymentMode === "GOLD"}
+                    onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                    className={`w-full border rounded-xl pl-8 pr-3.5 py-3 text-lg font-black outline-none transition-all ${
+                      paymentData.paymentMode === "GOLD" 
+                        ? 'bg-amber-50/40 border-amber-200 text-amber-900' 
+                        : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-emerald-500 focus:bg-white'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Ref ID & Memo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">Ref / UTR ID</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. UTR123456"
+                    value={paymentData.reference}
+                    onChange={(e) => setPaymentData({...paymentData, reference: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">Memo / Note</label>
+                  <input 
+                    type="text" 
+                    placeholder="Optional remarks"
+                    value={paymentData.note}
+                    onChange={(e) => setPaymentData({...paymentData, note: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="flex-1 py-3 bg-gray-100 text-gray-500 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPayment}
+                  className={`flex-[1.5] py-3 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg ${
+                    paymentData.paymentMode === "GOLD" 
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' 
+                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                  }`}
+                >
+                  {submittingPayment ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    "Confirm & Save Payment"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🖼️ Full-Screen Bill/Slip Lightbox Modal in Supplier Ledger */}
+      {activeSlips && activeSlips.length > 0 && (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-150">
+          <div className="flex items-center justify-between px-6 py-4 text-white border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-indigo-400" />
+              <span className="text-sm font-bold">
+                Purchase Bill / Slip {activeSlipIndex + 1} of {activeSlips.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href={activeSlips[activeSlipIndex]}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full transition"
+                title="Open original in new tab"
+              >
+                <ExternalLink size={13} /> Open Tab
+              </a>
+              <button
+                type="button"
+                onClick={closeSlipModal}
+                className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 relative flex items-center justify-center p-4 overflow-hidden">
+            <img
+              src={activeSlips[activeSlipIndex]}
+              alt={`Slip ${activeSlipIndex + 1}`}
+              className="max-h-[82vh] max-w-full object-contain rounded-2xl shadow-2xl"
+            />
+
+            {activeSlips.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveSlipIndex(prev => (prev > 0 ? prev - 1 : activeSlips.length - 1))}
+                  className="absolute left-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition hover:scale-110 shadow-lg"
+                  title="Previous bill image"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSlipIndex(prev => (prev < activeSlips.length - 1 ? prev + 1 : 0))}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition hover:scale-110 shadow-lg"
+                  title="Next bill image"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Bottom Thumbnails Strip if multiple slips */}
+          {activeSlips.length > 1 && (
+            <div className="py-3 px-6 bg-black/60 border-t border-white/10 flex items-center justify-center gap-2 overflow-x-auto">
+              {activeSlips.map((url, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveSlipIndex(idx)}
+                  className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                    activeSlipIndex === idx ? "border-indigo-500 scale-105 shadow-md" : "border-white/20 opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  <img src={url} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

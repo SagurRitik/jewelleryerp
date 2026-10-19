@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, Edit, Eye, EyeOff, Gem, Loader2, BadgeDollarSign, ShieldCheck, ShoppingCart, FileText } from "lucide-react";
+import { ChevronLeft, Edit, Eye, EyeOff, Gem, Loader2, BadgeDollarSign, ShieldCheck, ShoppingCart, FileText, Sparkles } from "lucide-react";
 import API from "../api";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
@@ -272,18 +272,49 @@ export default function DiamondDetailsPage() {
 
             {/* Selling Details */}
             <section className="space-y-4 pt-4 border-t border-dashed border-gray-300/30">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                <BadgeDollarSign size={14} />
-                Selling Pricing & Rate
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <BadgeDollarSign size={14} />
+                  Selling Pricing & Rate
+                </h3>
+
+                {/* BADGE: AUTO OR MANUAL */}
+                {diamond.priceSource === "MANUAL" || diamond.isManualOverride ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs">
+                    ✏️ Manually Overridden
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                    <Sparkles size={13} className="text-emerald-700" />
+                    Auto-Calculated (Rate Master Slab)
+                  </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`p-5 rounded-2xl border ${isDark ? "bg-[#252525] border-white/5" : "bg-[#fcfaf8] border-[#f0e6e9]"}`}>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Selling Price</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Selling Price</p>
+                    {!(diamond.priceSource === "MANUAL" || diamond.isManualOverride) && (
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        LIVE AUTO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-2xl font-bold font-mono mt-1 text-[#714760]">₹{sellingPrice.toLocaleString("en-IN")}</p>
                 </div>
                 <div className={`p-5 rounded-2xl border ${isDark ? "bg-[#252525] border-white/5" : "bg-[#fcfaf8] border-[#f0e6e9]"}`}>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selling Rate per Carat</p>
-                  <p className="text-2xl font-bold font-mono mt-1 text-[#714760]">₹{Number(sellingRatePerCarat).toLocaleString("en-IN")} <span className="text-xs font-normal text-gray-500">/ ct</span></p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selling Rate per Carat</p>
+                    {diamond.appliedSlab && (
+                      <span className="text-[10px] text-gray-500 font-medium truncate max-w-[150px]">
+                        Slab: {diamond.appliedSlab.weightFrom}-{diamond.appliedSlab.weightTo}ct
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-2xl font-bold font-mono mt-1 text-[#714760]">
+                    ₹{Number(sellingRatePerCarat).toLocaleString("en-IN")} <span className="text-xs font-normal text-gray-500">/ ct</span>
+                  </p>
                 </div>
               </div>
             </section>

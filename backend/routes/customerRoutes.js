@@ -7,11 +7,15 @@ import {
   deleteCustomer,
   getUpcomingCelebrations,
   sendOfferMessage,
+  lookupCustomer,
+  syncAllPastCustomers,
 } from "../controllers/customerController.js";
 
 const router = express.Router();
 
 router.get("/celebrations", getUpcomingCelebrations);
+router.get("/lookup/:mobile", lookupCustomer);
+router.post("/sync-past-orders", syncAllPastCustomers);
 router.post("/:id/send-offer", sendOfferMessage);
 
 router.get("/", getCustomers);

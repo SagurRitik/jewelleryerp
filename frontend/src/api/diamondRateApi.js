@@ -7,6 +7,10 @@ import axios from "./axiosInstance";
 export const getDiamondRates = () =>
   axios.get("/admin/diamond-rates");
 
+/* LOOKUP SLAB RATE */
+export const lookupDiamondRateSlab = (params) =>
+  axios.get("/admin/diamond-rates/lookup", { params });
+
 /* CREATE */
 export const createDiamondRate = (data) =>
   axios.post("/admin/diamond-rates", data);

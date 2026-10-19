@@ -1,10 +1,12 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, Save, Loader2, Gem, AlertCircle } from "lucide-react";
+import { ChevronLeft, Save, Loader2, Gem, AlertCircle, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
 import API from "../api";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
+import { lookupDiamondRateSlab } from "../api/diamondRateApi";
+import { DIAMOND_COLORS, DIAMOND_CLARITIES, DIAMOND_SHAPES } from "../utils/diamondConstants";
 
 export default function AddDiamondStock() {
   const { id } = useParams();
@@ -13,6 +15,11 @@ export default function AddDiamondStock() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const isEdit = !!id;
+
+  const [isManualOverride, setIsManualOverride] = useState(false);
+  const [appliedSlab, setAppliedSlab] = useState(null);
+  const [fetchingRate, setFetchingRate] = useState(false);
+  const userManuallyEditedRateRef = useRef(false);
 
   const [formData, setFormData] = useState({
     sku: "",
@@ -55,11 +62,78 @@ export default function AddDiamondStock() {
         sellingRate: sellingRate || "",
         costRate: costRate || "",
       });
+      // When editing existing diamond, preserve existing custom/saved rate
+      setIsManualOverride(true);
+      userManuallyEditedRateRef.current = true;
     } catch (error) {
       toast.error("Failed to fetch diamond details");
       navigate("/diamonds");
     } finally {
       setFetching(false);
+    }
+  };
+
+  /* ───── AUTO-LOOKUP DIAMOND RATE SLAB ───── */
+  useEffect(() => {
+    const w = Number(formData.weight || 0);
+    if (w <= 0) {
+      setAppliedSlab(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setFetchingRate(true);
+        const res = await lookupDiamondRateSlab({
+          shape: formData.shape,
+          weight: w,
+          color: formData.color,
+          clarity: formData.clarity,
+          cut: formData.cut,
+        });
+
+        if (res.data?.found) {
+          const slabData = res.data;
+          setAppliedSlab(slabData);
+
+          // If manual override is not active, auto-apply the slab rate
+          if (!userManuallyEditedRateRef.current) {
+            const slabRate = Number(slabData.rate || 0);
+            setFormData((prev) => ({
+              ...prev,
+              sellingRate: slabRate,
+              sellingPrice: Math.round(slabRate * w),
+            }));
+            toast.success(`✓ Rate Master Slab Applied: ₹${slabRate.toLocaleString("en-IN")}/ct`, { id: "slab-applied" });
+          }
+        } else {
+          setAppliedSlab(null);
+        }
+      } catch (err) {
+        console.error("Diamond rate slab lookup failed:", err);
+      } finally {
+        setFetchingRate(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.shape, formData.weight, formData.color, formData.clarity]);
+
+  const handleToggleOverride = (enableOverride) => {
+    setIsManualOverride(enableOverride);
+    userManuallyEditedRateRef.current = enableOverride;
+
+    if (!enableOverride && appliedSlab) {
+      const autoRate = Number(appliedSlab.rate || 0);
+      const w = Number(formData.weight || 0);
+      setFormData((prev) => ({
+        ...prev,
+        sellingRate: autoRate,
+        sellingPrice: w > 0 ? Math.round(autoRate * w) : prev.sellingPrice,
+      }));
+      toast.info(`Reset to Slab Rate: ₹${autoRate.toLocaleString("en-IN")}/ct`);
+    } else if (enableOverride) {
+      toast.info("Manual override enabled. You can now edit rate freely.");
     }
   };
 
@@ -81,6 +155,8 @@ export default function AddDiamondStock() {
     }
 
     if (name === "sellingRate") {
+      userManuallyEditedRateRef.current = true;
+      setIsManualOverride(true);
       const rate = Number(value || 0);
       const w = Number(formData.weight || 0);
 
@@ -93,6 +169,8 @@ export default function AddDiamondStock() {
     }
 
     if (name === "sellingPrice") {
+      userManuallyEditedRateRef.current = true;
+      setIsManualOverride(true);
       const price = Number(value || 0);
       const w = Number(formData.weight || 0);
 
@@ -271,25 +349,37 @@ export default function AddDiamondStock() {
                   <label className="block text-sm font-semibold mb-2">Color</label>
                   <input
                     name="color"
+                    list="diamond-color-list"
                     value={formData.color || ""}
                     onChange={handleChange}
-                    placeholder="COLOR"
-                    className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all ${
+                    placeholder="e.g. D-F or G"
+                    className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all uppercase ${
                       isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
                     }`}
                   />
+                  <datalist id="diamond-color-list">
+                    {DIAMOND_COLORS.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Clarity</label>
                   <input
                     name="clarity"
+                    list="diamond-clarity-list"
                     value={formData.clarity || ""}
                     onChange={handleChange}
-                    placeholder="CLARITY"
-                    className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all ${
+                    placeholder="e.g. VVS1-VS2"
+                    className={`w-full px-4 py-3 rounded-2xl border outline-none transition-all uppercase ${
                       isDark ? "bg-[#252525] border-white/10 text-white" : "bg-white border-[#ebdbe2]"
                     }`}
                   />
+                  <datalist id="diamond-clarity-list">
+                    {DIAMOND_CLARITIES.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Cut</label>
@@ -346,10 +436,67 @@ export default function AddDiamondStock() {
 
             {/* Pricing Section */}
             <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Pricing & Status</h3>
-                <div className="h-px flex-1 bg-[#f0e6e9]"></div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Pricing & Status</h3>
+                  <div className="h-px w-20 bg-[#f0e6e9]"></div>
+                </div>
+
+                {/* RATE SLAB STATUS BADGE & OVERRIDE CONTROLS */}
+                <div className="flex items-center gap-2">
+                  {fetchingRate ? (
+                    <span className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                      <Loader2 size={12} className="animate-spin" /> Fetching slab rate...
+                    </span>
+                  ) : appliedSlab ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5 border shadow-2xs ${
+                          !isManualOverride
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                            : "bg-amber-50 text-amber-900 border-amber-300"
+                        }`}
+                      >
+                        {!isManualOverride ? (
+                          <>
+                            <Sparkles size={13} className="text-emerald-600 shrink-0" />
+                            <span>
+                              Slab Rate: <strong className="font-mono">₹{Number(appliedSlab.rate).toLocaleString("en-IN")}/ct</strong> (Auto-Applied)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span>✏️ Manual Override (Slab: ₹{Number(appliedSlab.rate).toLocaleString("en-IN")}/ct)</span>
+                          </>
+                        )}
+                      </span>
+
+                      {isManualOverride ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOverride(false)}
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                        >
+                          <RefreshCw size={11} /> Reset to Slab
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOverride(true)}
+                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition border border-gray-200 cursor-pointer"
+                        >
+                          Manual Override
+                        </button>
+                      )}
+                    </div>
+                  ) : Number(formData.weight) > 0 ? (
+                    <span className="text-[11px] text-gray-400 italic">
+                      No matching rate slab found in Diamond Master
+                    </span>
+                  ) : null}
+                </div>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <label className="block text-sm font-semibold mb-2">Cost Rate (/ Carat)</label>
@@ -388,24 +535,53 @@ export default function AddDiamondStock() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold mb-2 text-[#714760] dark:text-amber-300">
-                    Selling Rate (/ Carat) *
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-bold text-[#714760] dark:text-amber-300 flex items-center gap-1.5">
+                      Selling Rate (/ Carat) *
+                      {appliedSlab && !isManualOverride && (
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded">
+                          AUTO SLAB
+                        </span>
+                      )}
+                    </label>
+
+                    {appliedSlab && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleOverride(!isManualOverride)}
+                        className="text-[11px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                      >
+                        {isManualOverride ? "Use Slab Rate" : "Override"}
+                      </button>
+                    )}
+                  </div>
+
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#714760] font-bold">₹</span>
                     <input
                       name="sellingRate"
                       type="number"
                       required={!formData.sellingPrice}
-                      placeholder="e.g. 25000"
+                      placeholder={appliedSlab ? String(appliedSlab.rate) : "e.g. 25000"}
                       value={formData.sellingRate || ""}
                       onChange={handleChange}
                       className={`w-full pl-8 pr-4 py-3 rounded-2xl border-2 outline-none font-semibold transition-all ${
-                        isDark ? "bg-[#252525] border-amber-500/50 text-white" : "bg-white border-[#714760] text-[#714760]"
+                        appliedSlab && !isManualOverride
+                          ? "bg-emerald-50/40 border-emerald-500 text-emerald-950 font-bold"
+                          : isDark
+                          ? "bg-[#252525] border-amber-500/50 text-white"
+                          : "bg-white border-[#714760] text-[#714760]"
                       }`}
                     />
                   </div>
-                  <span className="text-[10px] text-gray-500 mt-1 block font-medium">Selling rate per ct</span>
+                  <div className="flex items-center justify-between text-[10px] mt-1">
+                    <span className="text-gray-500 font-medium">Selling rate per ct</span>
+                    {appliedSlab && (
+                      <span className="text-emerald-700 font-semibold truncate max-w-[170px]" title={`Slab: ${appliedSlab.slab?.weightFrom}-${appliedSlab.slab?.weightTo}ct`}>
+                        Slab: ₹{Number(appliedSlab.rate).toLocaleString("en-IN")}/ct
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div>

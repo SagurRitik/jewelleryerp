@@ -55,6 +55,9 @@ const supplierPaymentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+supplierPaymentSchema.index({ supplierId: 1, paymentDate: -1 });
+supplierPaymentSchema.index({ paymentDate: -1 });
+
 const SupplierPayment = mongoose.model("SupplierPayment", supplierPaymentSchema);
 
 export default SupplierPayment;

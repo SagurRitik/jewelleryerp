@@ -323,30 +323,93 @@ export default function OrderDetails() {
     const supplier = suppliers.find(s => s._id === supplierId);
     if (!supplier) return;
 
-    if (!window.confirm(`Send order details to ${supplier.name} via WhatsApp?`)) return;
+    if (!window.confirm(`Send production specifications to ${supplier.name} via WhatsApp?`)) return;
 
     try {
       const orderNo = order.orderNo || "N/A";
       const product = order.productSnapshot || {};
       const components = product.components || [];
 
-      // Build Components Text
-      const diamondText = components
+      // Format Diamond Specifications in English
+      const diamondItems = components
         .filter(c => c.pricingRef === "DIAMOND" || c.type?.toLowerCase().includes("diamond"))
-        .map(c => `• ${c.type}: ${c.count}pcs (${c.grossWeight || c.weight}ct) ${c.clarity || ""}/${c.color || ""}`)
-        .join("\n");
+        .map(c => {
+          const parts = [
+            c.shape ? `Shape: ${c.shape}` : null,
+            (c.clarity || c.color) ? `Quality: ${[c.color, c.clarity].filter(Boolean).join("/")}` : null,
+            c.count ? `Qty: ${c.count} pcs` : null,
+            (c.grossWeight || c.weight) ? `Weight: ${c.grossWeight || c.weight} ct` : null,
+            c.size ? `Size: ${c.size}` : null
+          ].filter(Boolean).join(" | ");
+          return `  • ${c.type || "Diamond"}${parts ? ` (${parts})` : ""}`;
+        });
 
-      const stoneText = components
+      // Format Gemstone Specifications in English
+      const stoneItems = components
         .filter(c => c.pricingRef === "STONE" && !c.type?.toLowerCase().includes("diamond"))
-        .map(c => `• ${c.type}: ${c.count}pcs (${c.grossWeight || c.weight}ct)`)
-        .join("\n");
+        .map(c => {
+          const parts = [
+            c.shape ? `Shape: ${c.shape}` : null,
+            c.count ? `Qty: ${c.count} pcs` : null,
+            (c.grossWeight || c.weight) ? `Weight: ${c.grossWeight || c.weight} ct` : null
+          ].filter(Boolean).join(" | ");
+          return `  • ${c.type || "Gemstone"}${parts ? ` (${parts})` : ""}`;
+        });
 
-      const beltText = components
+      // Format Belt / Accessory Specifications in English
+      const beltItems = components
         .filter(c => c.pricingRef === "BELT")
-        .map(c => `• Belt: ${c.category || ""} ${c.shape || ""} ${c.size || ""} (${c.count}pcs)`)
-        .join("\n");
+        .map(c => {
+          const parts = [
+            c.category || "",
+            c.shape || "",
+            c.size ? `Size: ${c.size}` : null,
+            c.count ? `Qty: ${c.count} pcs` : null
+          ].filter(Boolean).join(" | ");
+          return `  • Accessory${parts ? ` (${parts})` : ""}`;
+        });
 
-      const message = `🔨 *NEW MANUFACTURING ORDER* 🔨\n\nनमस्ते,\n\nनया ऑर्डर तैयार है:\n*Order No:* ${orderNo}\n\n*आइटम विवरण:*\n--------------------------------\n• श्रेणी: ${product.jewelleryCategory || "Jewellery"}\n• मेटल: ${product.metalType || ""} (${product.metalPurity || ""})\n• नेट वजन: ${product.netWeight || 0} g\n• साइज: ${product.size || "Standard"}\n--------------------------------\n\n${diamondText ? `*हीरे (Diamonds):*\n${diamondText}\n\n` : ""}${stoneText ? `*नग (Stones):*\n${stoneText}\n\n` : ""}${beltText ? `*बेल्ट/एक्सेसरीज (Belts):*\n${beltText}\n\n` : ""}*विशेष निर्देश (Notes):*\n${product.description || product.notes || "No special instructions"}\n\n कृपया काम शुरू करें।\nधन्यवाद,\n💎 *Nazara Diamonds* 💎`;
+      const diamondSection = diamondItems.length > 0 
+        ? `💎 *DIAMOND SPECIFICATIONS:*\n${diamondItems.join("\n")}\n\n` 
+        : "";
+
+      const stoneSection = stoneItems.length > 0 
+        ? `🔮 *GEMSTONE SPECIFICATIONS:*\n${stoneItems.join("\n")}\n\n` 
+        : "";
+
+      const beltSection = beltItems.length > 0 
+        ? `🎗️ *ACCESSORIES / BELTS:*\n${beltItems.join("\n")}\n\n` 
+        : "";
+
+      const instructions = product.description || product.notes || "";
+      const instructionSection = instructions 
+        ? `📝 *SPECIAL INSTRUCTIONS:*\n${instructions}\n\n` 
+        : "";
+
+      // Professional English message containing ONLY product specs (No Customer Info, No Pricing)
+      const message = 
+        `🛠️ *MANUFACTURING JOB ORDER* 🛠️\n\n` +
+        `Hello ${supplier.name},\n\n` +
+        `Please find the product manufacturing specifications below:\n\n` +
+        `📋 *Job / Order ID:* #${orderNo}\n` +
+        (product.sku ? `🏷️ *SKU:* ${product.sku}\n` : "") +
+        `\n📌 *PRODUCT SPECIFICATIONS:*\n` +
+        `--------------------------------\n` +
+        `• *Category:* ${product.jewelleryCategory || "Jewellery"}\n` +
+        (product.title ? `• *Item Name:* ${product.title}\n` : "") +
+        (product.productType ? `• *Style / Type:* ${product.productType}\n` : "") +
+        `• *Metal:* ${product.metalType || "Gold"} (${product.metalPurity || "18KT"})${product.metalColor ? ` - ${product.metalColor}` : ""}\n` +
+        `• *Net Weight:* ${product.netWeight || 0} g\n` +
+        (product.grossWeight ? `• *Gross Weight:* ${product.grossWeight} g\n` : "") +
+        `• *Size:* ${product.size || "Standard"}\n` +
+        `--------------------------------\n\n` +
+        diamondSection +
+        stoneSection +
+        beltSection +
+        instructionSection +
+        `Please confirm receipt and proceed with manufacturing accordingly.\n\n` +
+        `Thank you,\n` +
+        `💎 *Nazara Diamonds*`;
 
       const encodedMessage = encodeURIComponent(message);
       const mobile = supplier.mobile.replace(/\D/g, "");

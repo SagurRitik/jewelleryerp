@@ -255,7 +255,24 @@ export default function DiamondStockPage() {
                         <p className="text-[10px] text-gray-500">{diamond.certificateNo || "No Certificate"}</p>
                       </td>
                       <td className="px-6 py-5">
-                        <p className="font-bold text-[#714760]">₹{(diamond.sellingPrice || 0).toLocaleString('en-IN')}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-[#714760]">₹{(diamond.sellingPrice || 0).toLocaleString('en-IN')}</p>
+                          {diamond.priceSource === "MANUAL" || diamond.isManualOverride ? (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                              title="Manually Overridden Price"
+                            >
+                              MANUAL
+                            </span>
+                          ) : (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
+                              title="Auto-Calculated from Diamond Rate Master Slab"
+                            >
+                              AUTO
+                            </span>
+                          )}
+                        </div>
                         {diamond.weight > 0 && (
                           <p className="text-[11px] font-medium text-gray-500 mt-0.5">
                             ₹{(diamond.sellingRate || Math.round((diamond.sellingPrice || 0) / diamond.weight)).toLocaleString('en-IN')}/ct

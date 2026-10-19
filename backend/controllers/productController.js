@@ -5,6 +5,9 @@ import calculateItem from "../utils/calculateItem.js";
 import RateConfig from "../models/RateConfig.js";
 
 import Product from "../models/Product.js";
+import Purchase from "../models/Purchase.js";
+import Supplier from "../models/Supplier.js";
+import MetalLedger from "../models/MetalLedger.js";
 import { normalizeImage } from "../utils/normalizeImage.js";
 
 /* ======================================================
@@ -53,6 +56,38 @@ const sanitizeProductData = (data) => {
     sanitized.existingImages = [];
   }
 
+  // 🔥 PURCHASE BILLS PARSE & MERGE
+  let existingBills = [];
+  if (typeof sanitized.existingPurchaseBills === "string") {
+    try {
+      existingBills = JSON.parse(sanitized.existingPurchaseBills);
+    } catch {
+      existingBills = sanitized.existingPurchaseBills ? [sanitized.existingPurchaseBills] : [];
+    }
+  } else if (Array.isArray(sanitized.existingPurchaseBills)) {
+    existingBills = sanitized.existingPurchaseBills;
+  }
+
+  let newBills = [];
+  if (Array.isArray(sanitized.purchaseBills)) {
+    newBills = sanitized.purchaseBills;
+  } else if (typeof sanitized.purchaseBills === "string") {
+    try {
+      const parsed = JSON.parse(sanitized.purchaseBills);
+      newBills = Array.isArray(parsed) ? parsed : [sanitized.purchaseBills];
+    } catch {
+      if (sanitized.purchaseBills) newBills = [sanitized.purchaseBills];
+    }
+  }
+
+  const combinedBills = [...new Set([...existingBills, ...newBills])].filter(Boolean);
+  sanitized.purchaseBills = combinedBills;
+  if (!sanitized.purchaseBill && combinedBills.length > 0) {
+    sanitized.purchaseBill = combinedBills[0];
+  } else if (combinedBills.length === 0) {
+    sanitized.purchaseBill = "";
+  }
+
   // fallback safety
   if (!Array.isArray(sanitized.components)) {
     throw new Error("Components must be an array");
@@ -60,13 +95,22 @@ const sanitizeProductData = (data) => {
 
 
   /* ---------- 2. NUMERIC CONVERSIONS ---------- */
-  const numericFields = ["stock", "grossWeight", "netWeight", "fineGold"];
+  const numericFields = ["stock", "grossWeight", "netWeight", "fineGold", "purchaseCost"];
 
   numericFields.forEach((field) => {
     if (sanitized[field] !== undefined) {
       sanitized[field] = sanitized[field] === "" ? 0 : Number(sanitized[field]);
     }
   });
+
+  if (
+    sanitized.supplierId === "" ||
+    sanitized.supplierId === "null" ||
+    sanitized.supplierId === "undefined" ||
+    sanitized.supplierId === null
+  ) {
+    sanitized.supplierId = null;
+  }
 
   /* ---------- 3. COMPONENT SANITIZATION ---------- */
   if (Array.isArray(sanitized.components)) {
@@ -164,6 +208,192 @@ const sanitizeProductData = (data) => {
 };
 
 /* ======================================================
+   GENERATE PURCHASE NUMBER
+   ====================================================== */
+const generatePurchaseNo = async (date) => {
+  const d = date ? new Date(date) : new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const datePrefix = `PUR-${year}/${month}/${day}`;
+
+  const lastPurchase = await Purchase.findOne({
+    purchaseNo: { $regex: new RegExp(`^${datePrefix}`) }
+  }).sort({ purchaseNo: -1 });
+
+  let sequence = "001";
+  if (lastPurchase && lastPurchase.purchaseNo) {
+    const parts = lastPurchase.purchaseNo.split("-");
+    const lastSeq = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(lastSeq)) {
+      sequence = String(lastSeq + 1).padStart(3, "0");
+    }
+  }
+  return `${datePrefix}-${sequence}`;
+};
+
+/* ======================================================
+   SYNC PRODUCT PURCHASE (LEDGER & STATEMENT)
+   ====================================================== */
+export const syncProductPurchase = async (product, previousState = {}) => {
+  try {
+    const { prevSupplierId, prevPurchaseCost, prevPurchaseId } = previousState;
+    const currentSupplierId = product.supplierId ? product.supplierId.toString() : null;
+    const currentCost = Number(product.purchaseCost) || 0;
+    const slips = Array.isArray(product.purchaseBills) && product.purchaseBills.length > 0
+      ? product.purchaseBills
+      : (product.purchaseBill ? [product.purchaseBill] : []);
+
+    // 1. If product has a supplier linked:
+    if (currentSupplierId && (currentCost > 0 || slips.length > 0 || product.purchaseId)) {
+      const supplier = await Supplier.findById(currentSupplierId);
+      if (!supplier) {
+        console.warn(`Supplier ${currentSupplierId} not found during purchase sync for product ${product.sku}`);
+        return;
+      }
+
+      // Check if a Purchase is already linked to this product
+      let purchase = null;
+      if (product.purchaseId) {
+        purchase = await Purchase.findById(product.purchaseId);
+      }
+      if (!purchase) {
+        purchase = await Purchase.findOne({ products: product._id });
+      }
+
+      if (purchase) {
+        // --- EXISTING PURCHASE UPDATE ---
+        const oldSupplierId = purchase.supplierId ? purchase.supplierId.toString() : null;
+
+        // If supplier changed
+        if (oldSupplierId && oldSupplierId !== currentSupplierId) {
+          // Decrement old supplier balance
+          await Supplier.findByIdAndUpdate(oldSupplierId, {
+            $inc: { currentBalance: -(purchase.totalAmount || purchase.amount || 0) }
+          });
+          // Increment new supplier balance
+          await Supplier.findByIdAndUpdate(currentSupplierId, {
+            $inc: { currentBalance: currentCost }
+          });
+        } else {
+          // Same supplier - calculate cost diff
+          const oldAmount = Number(purchase.totalAmount || purchase.amount) || 0;
+          const diff = currentCost - oldAmount;
+          if (diff !== 0) {
+            await Supplier.findByIdAndUpdate(currentSupplierId, {
+              $inc: { currentBalance: diff }
+            });
+          }
+        }
+
+        // Update purchase details
+        purchase.supplierId = currentSupplierId;
+        purchase.amount = currentCost;
+        purchase.totalAmount = currentCost;
+        purchase.purchaseSlip = slips[0] || "";
+        purchase.purchaseSlips = slips;
+        purchase.description = product.title || product.sku || purchase.description || "Product Purchase";
+        if (!purchase.products.map(p => p.toString()).includes(product._id.toString())) {
+          purchase.products.push(product._id);
+        }
+        await purchase.save();
+
+        // Update MetalLedger
+        await MetalLedger.findOneAndUpdate(
+          { referenceId: purchase._id, referenceModel: "Purchase" },
+          {
+            partyName: supplier.name,
+            metalType: product.metalType || "Other",
+            purity: product.metalPurity,
+            weight: Number(product.netWeight) || 0,
+            value: currentCost,
+            notes: `Product Purchase: ${product.title || product.sku} (SKU: ${product.sku})`
+          },
+          { upsert: true }
+        );
+
+        if (!product.purchaseId || product.purchaseId.toString() !== purchase._id.toString()) {
+          await Product.findByIdAndUpdate(product._id, { purchaseId: purchase._id });
+          product.purchaseId = purchase._id;
+        }
+        console.log(`✅ Updated Purchase ${purchase.purchaseNo} for product ${product.sku}`);
+      } else {
+        // --- CREATE NEW PURCHASE ---
+        const purchaseNo = await generatePurchaseNo(new Date());
+
+        const newPurchase = await Purchase.create({
+          supplierId: currentSupplierId,
+          purchaseNo,
+          purchaseDate: new Date(),
+          description: product.title || product.sku || "Product Purchase",
+          amount: currentCost,
+          totalAmount: currentCost,
+          products: [product._id],
+          purchaseSlip: slips[0] || "",
+          purchaseSlips: slips,
+          notes: product.description ? `${product.description} (SKU: ${product.sku})` : `Purchased SKU: ${product.sku}`,
+          status: "COMPLETED"
+        });
+
+        // Link back to product
+        await Product.findByIdAndUpdate(product._id, { purchaseId: newPurchase._id });
+        product.purchaseId = newPurchase._id;
+
+        // Update supplier balance
+        supplier.currentBalance = (supplier.currentBalance || 0) + currentCost;
+        await supplier.save();
+
+        // Create MetalLedger entry
+        await MetalLedger.create({
+          type: "CREDIT",
+          source: "VENDOR",
+          referenceId: newPurchase._id,
+          referenceModel: "Purchase",
+          partyName: supplier.name,
+          metalType: product.metalType || "Other",
+          purity: product.metalPurity,
+          weight: Number(product.netWeight) || 0,
+          value: currentCost,
+          notes: `Auto-created from product ${product.sku}`
+        });
+
+        console.log(`✅ Purchase ${purchaseNo} created for product ${product.sku} and supplier ${supplier.name}`);
+      }
+    } else if (!currentSupplierId) {
+      // 2. If supplier was UNLINKED / REMOVED from product:
+      const targetPurchaseId = product.purchaseId || prevPurchaseId;
+      if (targetPurchaseId) {
+        const purchase = await Purchase.findById(targetPurchaseId);
+        if (purchase) {
+          if (purchase.products.length <= 1) {
+            // Revert supplier balance & delete purchase
+            await Supplier.findByIdAndUpdate(purchase.supplierId, {
+              $inc: { currentBalance: -(purchase.totalAmount || purchase.amount || 0) }
+            });
+            await Purchase.findByIdAndDelete(purchase._id);
+            await MetalLedger.deleteMany({ referenceId: purchase._id, referenceModel: "Purchase" });
+          } else {
+            // Remove this product from multi-item purchase
+            purchase.products = purchase.products.filter(p => p.toString() !== product._id.toString());
+            const deduct = Number(prevPurchaseCost) || 0;
+            purchase.amount = Math.max(0, (purchase.amount || 0) - deduct);
+            purchase.totalAmount = purchase.amount;
+            await purchase.save();
+            await Supplier.findByIdAndUpdate(purchase.supplierId, {
+              $inc: { currentBalance: -deduct }
+            });
+          }
+        }
+        await Product.findByIdAndUpdate(product._id, { purchaseId: null });
+        product.purchaseId = null;
+      }
+    }
+  } catch (err) {
+    console.error("🔥 Error syncing product purchase:", err);
+  }
+};
+
+/* ======================================================
    CREATE PRODUCT
    ====================================================== */
 export const createProduct = async (req, res) => {
@@ -181,10 +411,15 @@ export const createProduct = async (req, res) => {
     await product.save();
     clearProductCache();
 
+    // 🔗 Sync Purchase & Supplier Ledger
+    await syncProductPurchase(product);
+
+    const freshProduct = await Product.findById(product._id);
+
     res.status(201).json({
       success: true,
       message: "Product created successfully",
-      product,
+      product: freshProduct || product,
     });
   } catch (error) {
     console.error("CREATE PRODUCT ERROR:", error);
@@ -717,7 +952,7 @@ export const getProductBySku = async (req, res) => {
     /* ---------- FIND PRODUCT ---------- */
     const product = await Product.findOne({
       sku: new RegExp(`^${req.params.sku}$`, "i"),
-    });
+    }).populate("supplierId", "name mobile gstNumber");
 
     if (!product) {
       return res.status(404).json({
@@ -770,7 +1005,7 @@ export const getProductBySku = async (req, res) => {
 
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).populate("supplierId", "name mobile gstNumber");
     if (!product)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, product });
@@ -861,6 +1096,12 @@ export const updateProductBySku = async (req, res) => {
       });
     }
 
+    const prevState = {
+      prevSupplierId: existing.supplierId ? existing.supplierId.toString() : null,
+      prevPurchaseCost: Number(existing.purchaseCost) || 0,
+      prevPurchaseId: existing.purchaseId,
+    };
+
     /* ---------- HANDLE IMAGES ---------- */
     let finalImages = data.existingImages || [];
 
@@ -888,6 +1129,11 @@ export const updateProductBySku = async (req, res) => {
     const savedProduct = await existing.save();
     clearProductCache();
 
+    // 🔗 Sync Purchase & Supplier Ledger
+    await syncProductPurchase(savedProduct, prevState);
+
+    const freshProduct = await Product.findById(savedProduct._id);
+
     // 🔥 DEBUG AFTER SAVE
     console.log(
       "✅ SAVED COMPONENTS:",
@@ -896,7 +1142,7 @@ export const updateProductBySku = async (req, res) => {
 
     res.json({
       success: true,
-      product: savedProduct,
+      product: freshProduct || savedProduct,
     });
 
   } catch (error) {
@@ -920,6 +1166,12 @@ export const updateProduct = async (req, res) => {
         message: "Product not found",
       });
     }
+
+    const prevState = {
+      prevSupplierId: existingProduct.supplierId ? existingProduct.supplierId.toString() : null,
+      prevPurchaseCost: Number(existingProduct.purchaseCost) || 0,
+      prevPurchaseId: existingProduct.purchaseId,
+    };
 
     /* ---------- HANDLE IMAGES ---------- */
     let finalImages = data.existingImages || [];
@@ -951,9 +1203,14 @@ export const updateProduct = async (req, res) => {
     const savedProduct = await existingProduct.save();
     clearProductCache();
 
+    // 🔗 Sync Purchase & Supplier Ledger
+    await syncProductPurchase(savedProduct, prevState);
+
+    const freshProduct = await Product.findById(savedProduct._id);
+
     res.json({
       success: true,
-      product: savedProduct,
+      product: freshProduct || savedProduct,
     });
 
   } catch (error) {
@@ -971,10 +1228,34 @@ export const updateProduct = async (req, res) => {
    ====================================================== */
 export const deleteProductBySku = async (req, res) => {
   try {
-    const product = await Product.findOneAndDelete({ sku: req.params.sku });
+    const product = await Product.findOne({ sku: req.params.sku });
     if (!product)
       return res.status(404).json({ success: false, message: "Not found" });
 
+    // Revert purchase & supplier balance if linked
+    if (product.purchaseId) {
+      const purchase = await Purchase.findById(product.purchaseId);
+      if (purchase) {
+        if (purchase.products.length <= 1) {
+          await Supplier.findByIdAndUpdate(purchase.supplierId, {
+            $inc: { currentBalance: -(purchase.totalAmount || purchase.amount || 0) }
+          });
+          await Purchase.findByIdAndDelete(purchase._id);
+          await MetalLedger.deleteMany({ referenceId: purchase._id, referenceModel: "Purchase" });
+        } else {
+          purchase.products = purchase.products.filter(p => p.toString() !== product._id.toString());
+          const deduct = Number(product.purchaseCost) || 0;
+          purchase.amount = Math.max(0, (purchase.amount || 0) - deduct);
+          purchase.totalAmount = purchase.amount;
+          await purchase.save();
+          await Supplier.findByIdAndUpdate(purchase.supplierId, {
+            $inc: { currentBalance: -deduct }
+          });
+        }
+      }
+    }
+
+    await Product.findOneAndDelete({ sku: req.params.sku });
     clearProductCache();
     res.json({ success: true, message: "Deleted" });
   } catch (error) {
@@ -984,10 +1265,34 @@ export const deleteProductBySku = async (req, res) => {
 
 export const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product)
       return res.status(404).json({ success: false, message: "Not found" });
 
+    // Revert purchase & supplier balance if linked
+    if (product.purchaseId) {
+      const purchase = await Purchase.findById(product.purchaseId);
+      if (purchase) {
+        if (purchase.products.length <= 1) {
+          await Supplier.findByIdAndUpdate(purchase.supplierId, {
+            $inc: { currentBalance: -(purchase.totalAmount || purchase.amount || 0) }
+          });
+          await Purchase.findByIdAndDelete(purchase._id);
+          await MetalLedger.deleteMany({ referenceId: purchase._id, referenceModel: "Purchase" });
+        } else {
+          purchase.products = purchase.products.filter(p => p.toString() !== product._id.toString());
+          const deduct = Number(product.purchaseCost) || 0;
+          purchase.amount = Math.max(0, (purchase.amount || 0) - deduct);
+          purchase.totalAmount = purchase.amount;
+          await purchase.save();
+          await Supplier.findByIdAndUpdate(purchase.supplierId, {
+            $inc: { currentBalance: -deduct }
+          });
+        }
+      }
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
     clearProductCache();
     res.json({ success: true, message: "Deleted" });
   } catch (error) {

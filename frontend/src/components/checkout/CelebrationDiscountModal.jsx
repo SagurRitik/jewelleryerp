@@ -59,7 +59,7 @@ export default function CelebrationDiscountModal({
       }, 0);
     } else {
       // FLAT
-      return cart.totals?.subtotal || cart.totals?.grandTotal || 0;
+      return Number(cart.totals?.grossTotal || (Number(cart.totals?.subtotal || 0) + Number(cart.totals?.discount || 0)) || cart.totals?.grandTotal || 0);
     }
   };
 
@@ -240,6 +240,11 @@ export default function CelebrationDiscountModal({
                 -₹{calculatedDiscount.toLocaleString("en-IN")}
               </span>
             </div>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium flex items-center gap-2">
+            <span className="text-sm">🏷️</span>
+            <span><strong>Single Offer Policy:</strong> Applying this Celebration Discount will replace regular scheme markdowns for this bill.</span>
           </div>
 
           <p className="text-[10px] text-center text-stone-400 font-medium">

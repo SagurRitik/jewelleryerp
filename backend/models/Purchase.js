@@ -57,6 +57,10 @@ const purchaseSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    purchaseSlips: [{
+      type: String,
+      trim: true
+    }],
     products: [{ 
       type: mongoose.Schema.Types.ObjectId, 
       ref: "Product" 
@@ -73,6 +77,9 @@ const purchaseSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+purchaseSchema.index({ supplierId: 1, purchaseDate: -1 });
+purchaseSchema.index({ purchaseDate: -1 });
 
 const Purchase = mongoose.model("Purchase", purchaseSchema);
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Search, Plus, Edit, Power, PowerOff, DollarSign, FileText, X, Trash2, ArrowLeft } from "lucide-react";
+import { Search, Plus, Edit, Power, PowerOff, DollarSign, FileText, X, Trash2, ArrowLeft, Calendar } from "lucide-react";
 
 export default function SupplierList() {
   const [suppliers, setSuppliers] = useState([]);
@@ -10,12 +10,20 @@ export default function SupplierList() {
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Helper for Local Datetime Input
+  const getNowDateTimeLocal = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  };
+
   // Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [paymentData, setPaymentData] = useState({
     amount: "",
     paymentMode: "BANK",
+    paymentDate: getNowDateTimeLocal(),
     reference: "",
     note: "",
     metalType: "Gold",
@@ -98,6 +106,7 @@ export default function SupplierList() {
         supplierId: selectedSupplier._id,
         amount: Number(paymentData.amount),
         paymentMode: paymentData.paymentMode,
+        paymentDate: paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
         reference: paymentData.reference,
         note: paymentData.note,
         metalType: paymentData.metalType,
@@ -254,6 +263,7 @@ export default function SupplierList() {
                               setPaymentData({ 
                                 amount: "", 
                                 paymentMode: "BANK", 
+                                paymentDate: getNowDateTimeLocal(),
                                 reference: "", 
                                 note: "",
                                 metalType: "Gold",
@@ -348,6 +358,27 @@ export default function SupplierList() {
             </div>
 
             <form onSubmit={handlePaymentSubmit} className="p-6 pt-2 space-y-4">
+              {/* Payment Date & Time Input (Allows Past Dates) */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Calendar size={13} className="text-indigo-500" /> Payment Date & Time</span>
+                  <span 
+                    className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer lowercase"
+                    onClick={() => setPaymentData(p => ({ ...p, paymentDate: getNowDateTimeLocal() }))}
+                  >
+                    Set to current
+                  </span>
+                </label>
+                <input 
+                  type="datetime-local" 
+                  required
+                  value={paymentData.paymentDate}
+                  onChange={(e) => setPaymentData({...paymentData, paymentDate: e.target.value})}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-800 outline-none focus:bg-white focus:border-indigo-500 transition-all"
+                />
+                <p className="text-[9px] text-gray-400 mt-1 ml-1">Select any past date/time to backdate this payment entry</p>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Payment Mode</label>
                 <div className="grid grid-cols-4 gap-2">

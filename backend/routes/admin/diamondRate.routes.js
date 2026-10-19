@@ -3,6 +3,7 @@ import express from "express";
 import {
   createDiamondRate,
   getDiamondRates,
+  lookupDiamondRateSlab,
   updateDiamondRate,
   deactivateDiamondRate,
   deleteDiamondRate,
@@ -19,6 +20,7 @@ const router = express.Router();
 // router.use(protect, authorize("admin"));
 
 router.get("/", getDiamondRates);
+router.get("/lookup", lookupDiamondRateSlab);
 router.get("/export", exportDiamondRates);
 router.post("/import", uploadExcel.single("excel"), importDiamondRates);
 

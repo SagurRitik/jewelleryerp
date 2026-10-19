@@ -210,7 +210,7 @@ export default function SalesInvoices() {
               <span>Export</span>
             </button>
           )}
-          
+
           <button
             onClick={handleImportClick}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-sm active:scale-95"
@@ -218,7 +218,7 @@ export default function SalesInvoices() {
             <Upload size={13} className="text-slate-500" />
             <span>Import</span>
           </button>
-          
+
           <input
             type="file"
             accept=".xlsx, .xls"
@@ -319,7 +319,7 @@ export default function SalesInvoices() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Receipt size={15} className="text-[#531b4e] shrink-0" />
-                    <span className="font-mono font-bold text-sm text-[#531b4e] truncate">
+                    <span className="font-mono font-medium text-sm text-[#531b4e] truncate">
                       {inv.invoiceNo}
                     </span>
                   </div>
@@ -411,7 +411,7 @@ export default function SalesInvoices() {
       {/* DESKTOP TABLE SECTION (>= md) */}
       <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-[#6A3D55] text-white"> 
+          <thead className="bg-[#6A3D55] text-white">
             <tr>
               <th className="p-3 text-left">Invoice No</th>
               <th>Date</th>

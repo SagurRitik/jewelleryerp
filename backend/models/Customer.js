@@ -32,6 +32,16 @@ const customerSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    stateCode: {
+      type: String,
+      default: "",
+    },
+    panNumber: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      default: "",
+    },
 
     // 🎂 Celebration Dates
     dob: {

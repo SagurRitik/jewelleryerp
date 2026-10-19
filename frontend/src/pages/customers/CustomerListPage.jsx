@@ -16,6 +16,7 @@ import {
   Award,
   Sparkles,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "../../context/ThemeContext";
@@ -480,7 +481,14 @@ export default function CustomerListPage() {
                             {formatDate(cust.dob)}
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">-</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(cust)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-pink-600 hover:text-pink-800 bg-pink-50 hover:bg-pink-100 px-2 py-0.5 rounded border border-pink-200 transition"
+                            title="Click to add Birthday"
+                          >
+                            <Plus size={11} /> Add DOB
+                          </button>
                         )}
                       </td>
 
@@ -492,7 +500,14 @@ export default function CustomerListPage() {
                             {formatDate(cust.anniversaryDate)}
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">-</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(cust)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2 py-0.5 rounded border border-purple-200 transition"
+                            title="Click to add Anniversary"
+                          >
+                            <Plus size={11} /> Add Anni
+                          </button>
                         )}
                       </td>
 

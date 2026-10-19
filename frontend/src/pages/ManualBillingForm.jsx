@@ -16,7 +16,7 @@ import axios from "axios";
 import API from "../api";
 import { resolveImage } from "../utils/resolveImage";
 import { toast } from "sonner";
-import { ArrowLeft, RotateCcw, Sparkles, Loader2, PackageSearch, Search, X, Gem, Barcode, Check, Heart, LayoutGrid, Coins, Shield, Globe, MapPin } from "lucide-react";
+import { ArrowLeft, RotateCcw, Sparkles, Loader2, PackageSearch, Search, X, Gem, Barcode, Check, Heart, LayoutGrid, Coins, Shield, Globe, MapPin, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { useModal } from "../context/ModalContext";
 import { useRates } from "../context/RatesContext";
 import { INDIAN_STATE_CODES, INDIAN_STATE_OPTIONS, determineTaxType, validateGSTIN, normalizeStateCode } from "../utils/gstStateHelper";
@@ -53,8 +53,47 @@ export default function ManualBillingForm() {
     Platinum: ["950", "900"],
   };
 
+  const METAL_CONFIG = {
+    Gold: {
+      baseKey: "gold24k",
+      purities: {
+        "24KT": 1,
+        "22KT": 0.916,
+        "18KT": 0.76,
+        "14KT": 0.6,
+        "10KT": 0.43,
+        "9KT": 0.39,
+      },
+    },
+    Silver: {
+      baseKey: "silver999",
+      purities: {
+        "999": 1,
+        "950": 0.95,
+        "925": 0.925,
+        "900": 0.9,
+        "800": 0.8,
+      },
+    },
+    Platinum: {
+      baseKey: "platinum999",
+      purities: {
+        "999": 1,
+        "950": 0.95,
+        "900": 0.9,
+      },
+    },
+  };
+
   const emptyItem = {
-    // PRODUCT
+    // PRODUCT IDENTIFICATION & INVENTORY
+    productId: null,
+    isPickedProduct: false,
+    stock: null,
+    sku: "",
+    quantity: 1,
+
+    // PRODUCT INFO
     title: "",
     hsnCode: "",
     certificates: [], // Multiple certificates support
@@ -78,6 +117,7 @@ export default function ManualBillingForm() {
 
     // OTHER
     makingRate: "", // ₹ per gram
+    makingCharge: "", // ₹ flat
 
     discounts: {
       making: { type: "flat", value: "" },
@@ -153,7 +193,7 @@ export default function ManualBillingForm() {
     const gross = Number(stone.grossWeight || 0);
 
     if (qty > 0 && gross > 0) {
-      stone.netWeight = (gross * qty).toFixed(3);
+      stone.netWeight = (gross / qty).toFixed(3);
     } else {
       stone.netWeight = "";
     }
@@ -234,6 +274,8 @@ export default function ManualBillingForm() {
         gstin: "",
         stateCode: "",
         panNumber: "",
+        dob: "",
+        anniversaryDate: "",
       },
 
       items: [{ ...emptyItem }],
@@ -407,8 +449,8 @@ export default function ManualBillingForm() {
     try {
       setPickupLoading(true);
       const [prodRes, diaRes] = await Promise.all([
-        API.get("/products", { params: { search: query, limit: 20 } }).catch(() => ({ data: { products: [] } })),
-        API.get("/diamonds", { params: { search: query, limit: 20 } }).catch(() => ({ data: { diamonds: [] } }))
+        axios.get("/api/products", { params: { search: query, limit: 20 } }).catch(() => ({ data: { products: [] } })),
+        axios.get("/api/diamonds", { params: { search: query, limit: 20 } }).catch(() => ({ data: { diamonds: [] } }))
       ]);
 
       const prods = (prodRes.data?.products || []).map((p) => {
@@ -482,6 +524,11 @@ export default function ManualBillingForm() {
       const diaRate = p.weight > 0 ? (Number(p.sellingPrice || 0) / Number(p.weight)) : Number(p.sellingRate || 0);
       return {
         ...emptyItem,
+        productId: null,
+        diamondId: p._id,
+        isPickedProduct: true,
+        stock: p.stock !== undefined ? Number(p.stock) : 1,
+        quantity: 1,
         isLooseDiamond: true,
         sku: p.sku || "",
         title: p.sku
@@ -514,43 +561,45 @@ export default function ManualBillingForm() {
     const isLooseCategory = p.jewelleryCategory === "Loose Diamond";
     const netWt = Number(p.netWeight || p.grossWeight || 0);
 
-    // 1. Resolve metalRate (from pricing, baseRates, or rates helper)
-    let metalRate = pr.metalRate || "";
-    if (!metalRate && pr.metalValue > 0 && netWt > 0) {
+    // 1. Resolve metalRate (prioritize top baseRates panel, then live pricing/defaults)
+    let metalRate = "";
+    const config = METAL_CONFIG[p.metalType || "Gold"];
+    const baseRate = config && currentForm ? Number(currentForm.baseRates?.[config.baseKey] || 0) : 0;
+    const factor = config ? (config.purities[p.metalPurity || "18KT"] || 1) : 1;
+
+    if (baseRate > 0) {
+      metalRate = (baseRate * factor).toFixed(2);
+    } else if (pr.metalRate) {
+      metalRate = String(pr.metalRate);
+    } else if (pr.metalValue > 0 && netWt > 0) {
       metalRate = (pr.metalValue / netWt).toFixed(2);
-    }
-    if (!metalRate && currentForm) {
-      const config = METAL_CONFIG[p.metalType || "Gold"];
-      if (config) {
-        const baseRate = Number(currentForm.baseRates?.[config.baseKey] || 0);
-        const factor = config.purities[p.metalPurity || "18KT"] || 1;
-        if (baseRate > 0) metalRate = (baseRate * factor).toFixed(2);
-      }
-    }
-    if (!metalRate && rates?.helpers?.getMetalRate) {
+    } else if (rates?.helpers?.getMetalRate) {
       const fetchedRate = rates.helpers.getMetalRate(p.metalType || "Gold", p.metalPurity || "18KT");
       if (fetchedRate > 0) metalRate = fetchedRate.toFixed(2);
     }
 
-    // 2. Resolve makingRate & makingCharge
-    let makingRate = pr.makingRate || p.makingRate || "";
-    let makingCharge = pr.makingCharge !== undefined && pr.makingCharge !== null && pr.makingCharge !== "" ? String(pr.makingCharge) : "";
+    // 2. Resolve makingRate & makingCharge (prioritize top makingRates panel, then live pricing/defaults)
+    let makingRate = "";
+    let makingCharge = "";
+    const formMakingRate = currentForm ? Number(currentForm.makingRates?.[p.metalType || "Gold"] || 0) : 0;
 
-    if (!makingCharge && currentForm) {
-      const mRate = Number(makingRate || currentForm.makingRates?.[p.metalType || "Gold"] || 0);
+    if (formMakingRate > 0) {
+      makingRate = formMakingRate.toString();
       const minWeight = currentForm.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
       const minFlat = currentForm.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
       if (netWt > 0) {
         if (minWeight > 0 && netWt < minWeight) {
           makingCharge = minFlat.toFixed(2);
-        } else if (mRate > 0) {
-          makingCharge = (netWt * mRate).toFixed(2);
+        } else {
+          makingCharge = (netWt * formMakingRate).toFixed(2);
         }
       }
-      if (!makingRate && mRate > 0) makingRate = mRate.toString();
-    }
-    if (!makingRate && Number(makingCharge) > 0 && netWt > 0) {
-      makingRate = (Number(makingCharge) / netWt).toFixed(2);
+    } else if (pr.makingCharge !== undefined && pr.makingCharge !== null && pr.makingCharge !== "") {
+      makingCharge = String(pr.makingCharge);
+      makingRate = pr.makingRate || p.makingRate || (netWt > 0 ? (Number(makingCharge) / netWt).toFixed(2) : "");
+    } else if (pr.makingRate || p.makingRate) {
+      makingRate = String(pr.makingRate || p.makingRate);
+      if (netWt > 0) makingCharge = (netWt * Number(makingRate)).toFixed(2);
     }
 
     // 3. Map Diamonds & Stones with calculated rates from pricing.componentBreakup
@@ -565,9 +614,24 @@ export default function ManualBillingForm() {
     const mappedDiamonds = (diamondBreakups.length > 0 ? diamondBreakups : rawDiamonds).map((d, idx) => {
       const rawMatch = rawDiamonds[idx] || {};
       const count = Number(rawMatch.count || d.count || 1);
-      // Total carats: prioritize rawMatch.weight (which represents total diamond carats e.g. 2.46) or d.weight
-      const totalCarats = Number(rawMatch.weight || d.weight || (d.grossWeight && d.grossWeight < 100 ? d.grossWeight : 0) || 0);
-      const pieceCarats = count > 0 && totalCarats > 0 ? Number((totalCarats / count).toFixed(3)) : totalCarats;
+
+      // In product components, grossWeight is the TOTAL carats of this diamond cluster (e.g. 0.180 ct for 21 pcs).
+      // weight is the per-piece weight in carats (e.g. 0.009 ct/pc).
+      // If grossWeight <= 0, total = weight * count.
+      const rawGross = Number(d.grossWeight || rawMatch.grossWeight || 0);
+      const rawWeight = Number(d.weight || rawMatch.weight || 0);
+
+      let totalCarats = 0;
+      let pieceCarats = 0;
+
+      if (rawGross > 0) {
+        totalCarats = rawGross;
+        pieceCarats = rawWeight > 0 ? rawWeight : (count > 0 ? Number((rawGross / count).toFixed(3)) : rawGross);
+      } else if (rawWeight > 0) {
+        totalCarats = count > 1 ? Number((rawWeight * count).toFixed(3)) : rawWeight;
+        pieceCarats = rawWeight;
+      }
+
       let rate = Number(d.rate || rawMatch.rateOverride || rawMatch.rate || 0);
 
       // Fallback if rate is 0 but diamond values exist
@@ -580,7 +644,7 @@ export default function ManualBillingForm() {
       return {
         qty: count,
         grossWeight: totalCarats,
-        netWeight: pieceCarats,
+        netWeight: pieceCarats < 1 ? Number(pieceCarats.toFixed(3)) : Number(pieceCarats.toFixed(2)),
         rate: rate,
         shape: d.shape || rawMatch.shape || "",
         color: d.color || rawMatch.color || "",
@@ -591,8 +655,21 @@ export default function ManualBillingForm() {
     const mappedStones = (stoneBreakups.length > 0 ? stoneBreakups : rawStones).map((s, idx) => {
       const rawMatch = rawStones[idx] || {};
       const count = Number(rawMatch.count || s.count || 1);
-      const totalWeight = Number(rawMatch.weight || s.weight || s.grossWeight || 0);
-      const pieceWeight = count > 0 && totalWeight > 0 ? Number((totalWeight / count).toFixed(3)) : totalWeight;
+
+      const rawGross = Number(s.grossWeight || rawMatch.grossWeight || 0);
+      const rawWeight = Number(s.weight || rawMatch.weight || 0);
+
+      let totalWeight = 0;
+      let pieceWeight = 0;
+
+      if (rawGross > 0) {
+        totalWeight = rawGross;
+        pieceWeight = rawWeight > 0 ? rawWeight : (count > 0 ? Number((rawGross / count).toFixed(3)) : rawGross);
+      } else if (rawWeight > 0) {
+        totalWeight = count > 1 ? Number((rawWeight * count).toFixed(3)) : rawWeight;
+        pieceWeight = rawWeight;
+      }
+
       let rate = Number(s.rate || rawMatch.rateOverride || rawMatch.rate || 0);
 
       if (rate <= 0 && pr.stoneValue > 0 && totalWeight > 0) {
@@ -604,7 +681,7 @@ export default function ManualBillingForm() {
       return {
         qty: count,
         grossWeight: totalWeight,
-        netWeight: pieceWeight,
+        netWeight: pieceWeight < 1 ? Number(pieceWeight.toFixed(3)) : Number(pieceWeight.toFixed(2)),
         rate: rate,
         shape: s.shape || rawMatch.shape || ""
       };
@@ -622,6 +699,10 @@ export default function ManualBillingForm() {
 
     return {
       ...emptyItem,
+      productId: p._id ? String(p._id) : null,
+      isPickedProduct: true,
+      stock: p.stock !== undefined ? Number(p.stock) : 0,
+      quantity: 1,
       isLooseDiamond: isLooseCategory,
       sku: p.sku || "",
       title: p.title || "",
@@ -645,13 +726,19 @@ export default function ManualBillingForm() {
   };
 
   const handleSelectPickupProduct = async (res) => {
-    let rawProduct = res.raw;
-    let pricing = rawProduct.pricing;
+    // 🛡️ Stock Validation before pickup
+    if (res.stock !== undefined && res.stock <= 0) {
+      toast.error(`"${res.title}" (${res.sku}) is Out of Stock (0 available in inventory). Cannot be picked up.`);
+      return;
+    }
 
-    // If regular product and pricing is missing or incomplete, fetch detailed product by SKU:
-    if (res.type === "PRODUCT" && res.sku && (!pricing || !pricing.componentBreakup || !pricing.metalRate)) {
+    let rawProduct = res.raw;
+    let pricing = rawProduct?.pricing;
+
+    // Fetch live product details & pricing breakdown by SKU to ensure 100% exact live rates & components:
+    if (res.type === "PRODUCT" && res.sku) {
       try {
-        const skuRes = await API.get(`/products/sku/${encodeURIComponent(res.sku)}`);
+        const skuRes = await axios.get(`/api/products/sku/${encodeURIComponent(res.sku)}`);
         if (skuRes.data?.product) {
           rawProduct = skuRes.data.product;
           pricing = skuRes.data.product.pricing;
@@ -708,6 +795,20 @@ export default function ManualBillingForm() {
 
     setIsPickupModalOpen(false);
     toast.success(`Picked up SKU: ${res.sku} with rates & specifications!`);
+  };
+
+  const detachProduct = (index) => {
+    setForm((prev) => {
+      const updated = [...prev.items];
+      updated[index] = {
+        ...updated[index],
+        isPickedProduct: false,
+        productId: null,
+        stock: null,
+      };
+      return { ...prev, items: updated };
+    });
+    toast.info("Item converted to Custom Entry. Specifications are now editable.");
   };
 
   const [useMetalExchange, setUseMetalExchange] = useState(false);
@@ -969,38 +1070,6 @@ export default function ManualBillingForm() {
     setForm((p) => ({ ...p, items: updated }));
   };
 
-  const METAL_CONFIG = {
-    Gold: {
-      baseKey: "gold24k",
-      purities: {
-        "24KT": 1,
-        "22KT": 0.916,
-        "18KT": 0.76,
-        "14KT": 0.6,
-        "10KT": 0.43,
-        "9KT": 0.39,
-      },
-    },
-    Silver: {
-      baseKey: "silver999",
-      purities: {
-        999: 1,
-        950: 0.95,
-        925: 0.925,
-        900: 0.9,
-        800: 0.8,
-      },
-    },
-    Platinum: {
-      baseKey: "platinum999",
-      purities: {
-        999: 1,
-        950: 0.95,
-        900: 0.9,
-      },
-    },
-  };
-
   const toggleRateLock = () => {
     setForm((p) => ({
       ...p,
@@ -1062,6 +1131,16 @@ export default function ManualBillingForm() {
 
     if (field === "discounts") {
       updated[index].discounts = value;
+    } else if (field === "quantity") {
+      const parsed = parseInt(value, 10);
+      const qty = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+      const item = updated[index];
+      if (item.isPickedProduct && item.stock !== null && item.stock !== undefined && qty > item.stock) {
+        toast.warning(`Available inventory stock for "${item.title || item.sku}" is ${item.stock}. Quantity adjusted to ${item.stock}.`);
+        updated[index].quantity = item.stock;
+      } else {
+        updated[index].quantity = qty;
+      }
     } else {
       updated[index][field] = value;
     }
@@ -1103,10 +1182,13 @@ export default function ManualBillingForm() {
       item.purity = firstPurity;
     }
 
-    if (config) {
+    // Only auto-recalculate metalRate from baseRate if metalType or purity was explicitly changed
+    if ((field === "metalType" || field === "purity") && config) {
       const baseRate = Number(form.baseRates[config.baseKey] || 0);
       const factor = config.purities[item.purity] || 1;
-      item.metalRate = (baseRate * factor).toFixed(2);
+      if (baseRate > 0) {
+        item.metalRate = (baseRate * factor).toFixed(2);
+      }
     }
 
     setForm((p) => ({ ...p, items: updated }));
@@ -1122,7 +1204,7 @@ export default function ManualBillingForm() {
         const factor = config.purities[item.purity] || 1;
         return {
           ...item,
-          metalRate: (baseRate * factor).toFixed(2),
+          metalRate: baseRate > 0 ? (baseRate * factor).toFixed(2) : "",
         };
       }
       return item;
@@ -1138,8 +1220,60 @@ export default function ManualBillingForm() {
     }));
   };
 
+  const handleMakingRateChange = (metalType, value) => {
+    const rate = Number(value || 0);
+    const minWeight = form.disableMinMakingRule ? 0 : Number(rates?.making?.minWeight || 0);
+    const minFlat = form.disableMinMakingRule ? 0 : Number(rates?.making?.flatFee || 0);
+
+    const updatedItems = form.items.map((item) => {
+      if (item.metalType === metalType) {
+        const weight = Number(item.netWeight || 0);
+        let makingCharge = item.makingCharge || "0.00";
+        if (weight > 0) {
+          if (minWeight > 0 && weight < minWeight) {
+            makingCharge = minFlat.toFixed(2);
+          } else if (rate > 0) {
+            makingCharge = (weight * rate).toFixed(2);
+          } else if (value === "" || value === "0") {
+            makingCharge = "0.00";
+          }
+        }
+        return {
+          ...item,
+          makingRate: rate > 0 ? rate : value,
+          makingCharge,
+        };
+      }
+      return item;
+    });
+
+    setForm((p) => ({
+      ...p,
+      makingRates: {
+        ...p.makingRates,
+        [metalType]: value,
+      },
+      items: updatedItems,
+    }));
+  };
+
   const addItem = () => {
-    setForm((p) => ({ ...p, items: [...p.items, { ...emptyItem }] }));
+    const config = METAL_CONFIG["Gold"];
+    const baseRate = Number(form.baseRates?.[config.baseKey] || 0);
+    const factor = config?.purities?.["14KT"] || 1;
+    const initialRate = baseRate > 0 ? (baseRate * factor).toFixed(2) : "";
+
+    setForm((p) => ({
+      ...p,
+      items: [
+        ...p.items,
+        {
+          ...emptyItem,
+          metalRate: initialRate,
+          makingRate: form.makingRates?.["Gold"] || "",
+        },
+      ],
+    }));
   };
 
   const removeItem = (index) => {
@@ -1173,6 +1307,26 @@ export default function ManualBillingForm() {
       return;
     }
 
+    // 🛡️ Stock Validation for Picked Inventory Products (Aggregated across all bill items)
+    const productReqMap = new Map();
+    for (const item of form.items) {
+      if (item.isPickedProduct && (item.productId || item.sku)) {
+        const key = String(item.productId || item.sku);
+        const qty = Number(item.quantity || 1);
+        const avail = Number(item.stock ?? 0);
+        const current = productReqMap.get(key) || { qty: 0, avail, title: item.title, sku: item.sku };
+        current.qty += qty;
+        productReqMap.set(key, current);
+      }
+    }
+
+    for (const [key, req] of productReqMap.entries()) {
+      if (req.avail < req.qty) {
+        showAlert(`Cannot generate invoice: Insufficient stock for "${req.title}" (${req.sku || "N/A"}). Available in inventory: ${req.avail}, but ${req.qty} requested across items. Please adjust quantity.`);
+        return;
+      }
+    }
+
     const currentMetalCredit = useMetalExchange ? (metalExchange.totalValue || 0) : 0;
     const currentNetDue = grandTotal - appliedCredit - currentMetalCredit;
 
@@ -1189,10 +1343,10 @@ export default function ManualBillingForm() {
     }
 
     const itemsPayload = form.items.map((item) => {
+      const itemQty = Number(item.quantity || 1);
       const netWeight = Number(item.netWeight || 0);
       const grossWeight = Number(item.grossWeight || 0);
       const metalRate = Number(item.metalRate || 0);
-
 
       const makingCharge = Number(item.makingCharge || 0);
 
@@ -1204,7 +1358,7 @@ export default function ManualBillingForm() {
 
       // const stoneValue = stoneQty * stoneWeight * stoneRate;
       const stoneValue = item.stones.reduce((sum, s) => {
-        return sum + (Number(s.netWeight || 0) * Number(s.rate || 0));
+        return sum + (Number(s.grossWeight || s.netWeight || 0) * Number(s.rate || 0));
       }, 0);
 
       const makingDiscount = calcDiscount(item.discounts.making, makingCharge);
@@ -1216,10 +1370,11 @@ export default function ManualBillingForm() {
       }, 0);
       const beltDiscount = calcDiscount(item.discounts.belt, beltValue);
 
-      const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
-      const subtotalBeforeDiscount =
+      const unitDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
+      const totalDiscount = unitDiscount * itemQty;
+      const unitSubtotalBeforeDiscount =
         metalValue + diamondValue + stoneValue + beltValue + makingCharge;
-      const subtotal = Math.max(0, subtotalBeforeDiscount - totalDiscount);
+      const subtotal = Math.max(0, (unitSubtotalBeforeDiscount - unitDiscount) * itemQty);
 
       const gstPercent = Number(form.gstPercent || 0);
       const gst = subtotal * (gstPercent / 100);
@@ -1283,18 +1438,28 @@ export default function ManualBillingForm() {
       });
 
       return {
-        quantity: 1,
+        itemType: item.isPickedProduct ? "PRODUCT" : "CUSTOM",
+        productId: item.productId || null,
+        product: item.productId ? { _id: item.productId, title: item.title, sku: item.sku } : null,
+        sku: item.sku || "",
+        quantity: itemQty,
         certificateNo: item.certificates?.length > 0 ? item.certificates[0].certificateNo : item.certificateNo,
         certificates: item.certificates || [],
         itemSnapshot: {
+          itemType: item.isPickedProduct ? "PRODUCT" : "CUSTOM",
+          productId: item.productId || null,
+          sku: item.sku || "",
           productDetails: {
+            _id: item.productId || null,
             title: item.title,
+            sku: item.sku || "",
             metalType: item.metalType,
             metalPurity: item.purity,
             grossWeight,
             netWeight,
             hsnCode: item.hsnCode || "",
             certificates: item.certificates || [],
+            components: componentBreakup,
           },
           certificateNo: item.certificates?.length > 0 ? item.certificates[0].certificateNo : item.certificateNo,
           certificates: item.certificates || [],
@@ -1306,10 +1471,10 @@ export default function ManualBillingForm() {
           grandTotal,
           metalRate,
           makingCharge,
-          discountMaking: makingDiscount,
-          discountDiamond: diamondDiscount,
-          discountStone: stoneDiscount,
-          discountBelt: beltDiscount,
+          discountMaking: makingDiscount * itemQty,
+          discountDiamond: diamondDiscount * itemQty,
+          discountStone: stoneDiscount * itemQty,
+          discountBelt: beltDiscount * itemQty,
           discount: totalDiscount,
           componentBreakup,
         },
@@ -1428,7 +1593,7 @@ export default function ManualBillingForm() {
       }, 0);
 
       const stoneValue = item.stones.reduce((sum, s) => {
-        return sum + (Number(s.netWeight || 0) * Number(s.rate || 0));
+        return sum + (Number(s.grossWeight || s.netWeight || 0) * Number(s.rate || 0));
       }, 0);
 
       const beltValue = item.belts.reduce((sum, b) => {
@@ -1444,13 +1609,14 @@ export default function ManualBillingForm() {
       const beltDiscount = calcDiscount(item.discounts.belt, beltValue);
 
       const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
+      const itemQty = Number(item.quantity || 1);
 
-      acc.metal += metalValue;
-      acc.diamond += diamondValue;
-      acc.stone += stoneValue;
-      acc.belt += beltValue;
-      acc.making += makingCharge;
-      acc.discount += totalDiscount;
+      acc.metal += metalValue * itemQty;
+      acc.diamond += diamondValue * itemQty;
+      acc.stone += stoneValue * itemQty;
+      acc.belt += beltValue * itemQty;
+      acc.making += makingCharge * itemQty;
+      acc.discount += totalDiscount * itemQty;
 
       return acc;
     },
@@ -1470,20 +1636,65 @@ export default function ManualBillingForm() {
   const maxPayable = Math.max(0, grandTotal - appliedCredit - metalCredit);
 
   /* ================= 🌐 TAX DETERMINATION (INTER-STATE vs INTRA-STATE) ================= */
-  const taxCalculation = determineTaxType(form.customer, form.taxTypeOverride || "AUTO");
+  const taxCalculation = determineTaxType(form.customer, "AUTO");
   const isInterState = taxCalculation.isInterState;
   const gstRate = Number(form.gstPercent || 0);
   const halfGstRate = Math.round((gstRate / 2) * 100) / 100;
   const halfGstAmount = Math.round((gst / 2) * 100) / 100;
 
+  const lastLoadedManualMobileRef = useRef(null);
+
   useEffect(() => {
     // Normalise: remove non-digits and take last 10 characters
-    const cleanMobile = form.customer.mobile.replace(/\D/g, "");
+    const cleanMobile = form.customer.mobile.replace(/\D/g, "").slice(-10);
 
     if (cleanMobile.length >= 10) {
       axios.get(`/api/creditnotes/customer/${cleanMobile}`)
         .then(res => setCredits(res.data || []))
         .catch(err => console.error("Could not fetch customer credits", err));
+
+      axios.get(`/api/customers/lookup/${cleanMobile}`)
+        .then(res => {
+          if (res.data?.found && res.data?.customer) {
+            const c = res.data.customer;
+            setForm(prev => ({
+              ...prev,
+              customer: {
+                ...prev.customer,
+                name: c.name || "",
+                email: c.email || "",
+                address: c.address || "",
+                gstin: c.gstin || "",
+                stateCode: c.stateCode || (c.gstin ? c.gstin.slice(0, 2) : "23"),
+                panNumber: c.panNumber || "",
+                dob: c.dob ? new Date(c.dob).toISOString().split("T")[0] : "",
+                anniversaryDate: c.anniversaryDate ? new Date(c.anniversaryDate).toISOString().split("T")[0] : "",
+              }
+            }));
+            lastLoadedManualMobileRef.current = cleanMobile;
+            toast.success(`✓ Customer profile auto-loaded: ${c.name}`);
+          } else {
+            if (lastLoadedManualMobileRef.current && lastLoadedManualMobileRef.current !== cleanMobile) {
+              setForm(prev => ({
+                ...prev,
+                customer: {
+                  ...prev.customer,
+                  name: "",
+                  email: "",
+                  address: "",
+                  gstin: "",
+                  stateCode: "23",
+                  panNumber: "",
+                  dob: "",
+                  anniversaryDate: "",
+                }
+              }));
+              lastLoadedManualMobileRef.current = null;
+              toast.info("New customer number. Please enter customer details.");
+            }
+          }
+        })
+        .catch(err => console.error("Could not lookup customer profile", err));
     } else {
       setCredits([]);
       setAppliedCredit(0);
@@ -1609,7 +1820,7 @@ export default function ManualBillingForm() {
     }, 0);
 
     const stoneValue = item.stones.reduce((sum, s) => {
-      return sum + (Number(s.netWeight || 0) * Number(s.rate || 0));
+      return sum + (Number(s.grossWeight || s.netWeight || 0) * Number(s.rate || 0));
     }, 0);
 
     const beltValue = item.belts.reduce((sum, b) => {
@@ -1623,7 +1834,8 @@ export default function ManualBillingForm() {
     const totalDiscount = makingDiscount + diamondDiscount + stoneDiscount + beltDiscount;
 
     const subtotalBeforeDiscount = metalValue + diamondValue + stoneValue + beltValue + makingCharge;
-    return Math.max(0, subtotalBeforeDiscount - totalDiscount);
+    const singleSubtotal = Math.max(0, subtotalBeforeDiscount - totalDiscount);
+    return singleSubtotal * Number(item.quantity || 1);
   };
 
   const gstinValidation = validateGSTIN(form.customer?.gstin, form.customer?.stateCode);
@@ -1865,7 +2077,6 @@ export default function ManualBillingForm() {
                   }
                   maxLength={10}
                 />
-
               </div>
 
 
@@ -1918,30 +2129,56 @@ export default function ManualBillingForm() {
                 >
                   {/* Left part of the item card */}
                   <div className="flex-1 p-5 space-y-5">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                         <h3 className="font-bold text-[#4a2b3d] text-base">
                           Item {i + 1}
                         </h3>
-                        {item.sku && (
-                          <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-mono font-bold">
-                            SKU: {item.sku}
-                          </span>
+
+                        {item.isPickedProduct ? (
+                          <>
+                            <span className="px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                              <Lock size={12} className="text-amber-600" />
+                              Inventory SKU: {item.sku || "N/A"}
+                            </span>
+                            {item.stock !== null && item.stock !== undefined && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1">
+                                <Check size={12} className="text-emerald-600" />
+                                In Stock: {item.stock}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => detachProduct(i)}
+                              className="text-[11px] font-bold text-gray-500 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 px-2 py-1 rounded border border-gray-200 flex items-center gap-1 transition-colors"
+                              title="Unlink from inventory and edit specifications freely as custom item"
+                            >
+                              <Unlock size={12} /> Convert to Custom
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                              Custom Manual Item
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openPickupModal(i)}
+                              className="text-[11px] font-bold text-[#632f4a] bg-[#f7eff3] hover:bg-[#ebdbe2] px-2.5 py-1 rounded-md border border-[#ebdbe2] flex items-center gap-1 transition-colors"
+                              title="Search & Pickup specs by SKU from inventory"
+                            >
+                              <PackageSearch size={13} /> Pickup Product
+                            </button>
+                          </>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => openPickupModal(i)}
-                          className="text-[11px] font-bold text-[#632f4a] bg-[#f7eff3] hover:bg-[#ebdbe2] px-2.5 py-1 rounded-md border border-[#ebdbe2] flex items-center gap-1 transition-colors"
-                          title="Search & Pickup specs by SKU for this item"
-                        >
-                          <PackageSearch size={13} /> Pickup Product
-                        </button>
                       </div>
+
                       {form.items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeItem(i)}
-                          className="text-[#e57373] hover:text-[#d32f2f] transition-colors"
+                          className="text-[#e57373] hover:text-[#d32f2f] transition-colors p-1"
+                          title="Remove item"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -1952,21 +2189,26 @@ export default function ManualBillingForm() {
 
                     {/* PRODUCT INFO */}
                     <div>
-                      <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider mb-2">
-                        Product Info
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider">
+                          Product Info {item.isPickedProduct && <span className="text-amber-700 normal-case font-semibold">(🔒 Specifications locked to inventory)</span>}
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="md:col-span-2">
                           <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Product Name
+                            Product Name {item.isPickedProduct && <span className="text-amber-600">🔒</span>}
                           </label>
                           <input
                             value={item.title}
+                            readOnly={item.isPickedProduct}
                             onChange={(e) =>
                               handleItemChange(i, "title", e.target.value)
                             }
                             placeholder="Earring"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] ${
+                              item.isPickedProduct ? "bg-gray-100/90 text-gray-700 cursor-not-allowed select-none font-medium" : "bg-white"
+                            }`}
                           />
                         </div>
                         <div>
@@ -1978,10 +2220,26 @@ export default function ManualBillingForm() {
                             onChange={(e) =>
                               handleItemChange(i, "hsnCode", e.target.value)
                             }
-                            placeholder="J118"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            placeholder="7113"
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a]"
                           />
                         </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                            Qty / Units {item.isPickedProduct && item.stock !== null && <span className="text-emerald-600">(Max: {item.stock})</span>}
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={item.isPickedProduct && item.stock !== null ? item.stock : undefined}
+                            value={item.quantity || 1}
+                            onChange={(e) =>
+                              handleItemChange(i, "quantity", e.target.value)
+                            }
+                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] font-bold text-center bg-white focus:outline-none focus:border-[#632f4a]"
+                          />
+                        </div>
+
                         {/* Multiple Certificates */}
                         <div className="col-span-full">
                           <div className="flex justify-between items-center mb-2">
@@ -2001,13 +2259,13 @@ export default function ManualBillingForm() {
                               <div key={cIndex} className="flex gap-2 items-center">
                                 <input
                                   placeholder="Lab (e.g. GIA, IGI)"
-                                  className="w-1/3 border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                                  className="w-1/3 border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a]"
                                   value={cert.lab}
                                   onChange={(e) => handleCertificateChange(i, cIndex, "lab", e.target.value)}
                                 />
                                 <input
                                   placeholder="Certificate Number"
-                                  className="flex-1 border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                                  className="flex-1 border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a]"
                                   value={cert.certificateNo}
                                   onChange={(e) => handleCertificateChange(i, cIndex, "certificateNo", e.target.value)}
                                 />
@@ -2032,16 +2290,26 @@ export default function ManualBillingForm() {
 
                     {/* METAL INFO */}
                     <div>
-                      <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider mb-2">
-                        Metal Info
-                      </h4>
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider">
+                          Metal & Rate Information
+                        </h4>
+                        <div className="text-[11px] text-[#73425d] font-semibold flex items-center gap-3 bg-[#ebdbe2]/40 px-2.5 py-1 rounded border border-[#ebdbe2]">
+                          <span>Rate: <span className="font-bold text-[#4a2b3d]">₹{Number(item.metalRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/g</span></span>
+                          <span className="text-[#bfa9b4]">•</span>
+                          <span>Making: <span className="font-bold text-[#4a2b3d]">₹{Number(item.makingCharge || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div>
                           <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Metal
+                            Metal {item.isPickedProduct && <span className="text-amber-600">🔒</span>}
                           </label>
                           <select
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            disabled={item.isPickedProduct}
+                            className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] ${
+                              item.isPickedProduct ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                            }`}
                             value={item.metalType}
                             onChange={(e) =>
                               handleItemChange(i, "metalType", e.target.value)
@@ -2054,10 +2322,13 @@ export default function ManualBillingForm() {
                         </div>
                         <div>
                           <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Purity
+                            Purity {item.isPickedProduct && <span className="text-amber-600">🔒</span>}
                           </label>
                           <select
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            disabled={item.isPickedProduct}
+                            className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] ${
+                              item.isPickedProduct ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                            }`}
                             value={item.purity}
                             onChange={(e) =>
                               handleItemChange(i, "purity", e.target.value)
@@ -2074,12 +2345,15 @@ export default function ManualBillingForm() {
                         </div>
                         <div>
                           <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Gross WT (g)
+                            Gross WT (g) {item.isPickedProduct && <span className="text-amber-600">🔒</span>}
                           </label>
                           <input
                             placeholder="0.000"
                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            readOnly={item.isPickedProduct}
+                            className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] ${
+                              item.isPickedProduct ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                            }`}
                             value={item.grossWeight}
                             onChange={(e) =>
                               handleItemChange(i, "grossWeight", e.target.value)
@@ -2088,12 +2362,15 @@ export default function ManualBillingForm() {
                         </div>
                         <div>
                           <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Net WT (g)
+                            Net WT (g) {item.isPickedProduct && <span className="text-amber-600">🔒</span>}
                           </label>
                           <input
                             placeholder="0.000"
                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                            readOnly={item.isPickedProduct}
+                            className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] ${
+                              item.isPickedProduct ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                            }`}
                             value={item.netWeight}
                             onChange={(e) =>
                               handleItemChange(i, "netWeight", e.target.value)
@@ -2103,273 +2380,275 @@ export default function ManualBillingForm() {
                       </div>
                     </div>
 
-                    {/* <button   className="px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors"  type="button" onClick={() => addDiamond(i)}>+ Add Diamond</button> */}
-                    {/* ADD DIAMOND BUTTON */}
-
-
-                    <button
-                      className={`px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors 
-  ${item.diamonds.length === 0 ? "mb-0" : ""}`}
-                      type="button"
-                      onClick={() => addDiamond(i)}
-                    >
-                      + Add Diamond
-                    </button>
                     {/* DIAMOND INFO */}
-
-                    {item.diamonds.map((d, dIndex) => (
-                      <div key={dIndex} className="grid grid-cols-5 gap-2">
-
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Qty
-                          </label>
-
-                          <input
-                            placeholder="Qty"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={d.qty}
-                            onChange={(e) =>
-                              handleDiamondChange(i, dIndex, "qty", e.target.value)
-                            }
-                          />
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider">
+                            Diamond Details
+                          </h4>
+                          {item.isPickedProduct && (
+                            <span className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 font-semibold">
+                              <Lock size={10} /> Specs locked • Rate editable
+                            </span>
+                          )}
                         </div>
-
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Total (ct)
-                          </label>
-                          <input
-                            placeholder="total (Ct)"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={d.grossWeight}
-                            onChange={(e) =>
-                              handleDiamondChange(i, dIndex, "grossWeight", e.target.value)
-                            }
-                          />
-                        </div>
-
-
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            weight (CT)
-                          </label>
-                          <input
-                            placeholder="weight (CT)"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={d.netWeight}
-                            readOnly
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Rate
-                          </label>
-
-                          <input
-                            placeholder="Rate"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={d.rate}
-                            onChange={(e) =>
-                              handleDiamondChange(i, dIndex, "rate", e.target.value)
-                            }
-                          />
-                        </div>
-                        <button className="text-xs text-red-600 hover:text-red-800" type="button" onClick={() => removeDiamond(i, dIndex)}>remove</button>
                       </div>
-                    ))}
+
+                      {item.diamonds.map((d, dIndex) => (
+                        <div key={dIndex} className={`grid ${item.isPickedProduct && dIndex === 0 ? "grid-cols-4" : "grid-cols-5"} gap-2 items-end`}>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                              Qty {item.isPickedProduct && dIndex === 0 && <span className="text-amber-600">🔒</span>}
+                            </label>
+                            <input
+                              placeholder="Qty"
+                              readOnly={item.isPickedProduct && dIndex === 0}
+                              className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none ${
+                                item.isPickedProduct && dIndex === 0 ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                              }`}
+                              value={d.qty}
+                              onChange={(e) =>
+                                handleDiamondChange(i, dIndex, "qty", e.target.value)
+                              }
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                              Total (ct) {item.isPickedProduct && dIndex === 0 && <span className="text-amber-600">🔒</span>}
+                            </label>
+                            <input
+                              placeholder="total (Ct)"
+                              readOnly={item.isPickedProduct && dIndex === 0}
+                              className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none ${
+                                item.isPickedProduct && dIndex === 0 ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                              }`}
+                              value={d.grossWeight}
+                              onChange={(e) =>
+                                handleDiamondChange(i, dIndex, "grossWeight", e.target.value)
+                              }
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                              Weight (ct/pc)
+                            </label>
+                            <input
+                              placeholder="weight (CT)"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-gray-600 bg-gray-100 cursor-not-allowed focus:outline-none"
+                              value={d.netWeight}
+                              readOnly
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-emerald-800 flex items-center justify-between mb-1">
+                              <span>Rate (₹/ct)</span>
+                              <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">Override</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Rate"
+                              className="w-full border border-emerald-300 rounded text-sm px-3 py-2 text-[#4a2b3d] font-bold bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                              value={d.rate}
+                              onChange={(e) =>
+                                handleDiamondChange(i, dIndex, "rate", e.target.value)
+                              }
+                            />
+                          </div>
+
+                          {(!item.isPickedProduct || dIndex > 0) && (
+                            <button
+                              className="text-xs text-red-600 hover:text-red-800 pb-2"
+                              type="button"
+                              onClick={() => removeDiamond(i, dIndex)}
+                            >
+                              remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      <div>
+                        <button
+                          className="px-3 py-1.5 text-xs font-semibold bg-[#632f4a] text-white rounded-md hover:bg-[#4e2439] transition-colors inline-flex items-center gap-1 shadow-xs"
+                          type="button"
+                          onClick={() => addDiamond(i)}
+                        >
+                          + Add Diamond
+                        </button>
+                      </div>
+                    </div>
 
                     {/* STONE INFO */}
-                    {/* <div>
-                      <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider mb-2">
-                        Stone Info
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Weight (CT)
-                          </label>
-                          <input
-                            placeholder="0.00"
-                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={item.stoneWeight}
-                            onChange={(e) =>
-                              handleItemChange(i, "stoneWeight", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Qty
-                          </label>
-                          <input
-                            placeholder="0"
-                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={item.stoneQty}
-                            onChange={(e) =>
-                              handleItemChange(i, "stoneQty", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Rate
-                          </label>
-                          <input
-                            placeholder="0.00"
-                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={item.stoneRate}
-                            onChange={(e) =>
-                              handleItemChange(i, "stoneRate", e.target.value)
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
-                            Making Value
-                          </label>
-                          <input
-                            placeholder="0.00"
-                             min="0"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none"
-                            value={item.makingCharge}
-                            readOnly
-                          />
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider">
+                            Stone Details
+                          </h4>
+                          {item.isPickedProduct && (
+                            <span className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 font-semibold">
+                              <Lock size={10} /> Specs locked • Rate editable
+                            </span>
+                          )}
                         </div>
                       </div>
-                    </div> */}
 
-                    {/* <button    type="button" onClick={() => addStone(i)}>+ Add Stone</button> */}
+                      {item.stones.map((s, sIndex) => (
+                        <div key={sIndex} className={`grid ${item.isPickedProduct && sIndex === 0 ? "grid-cols-4" : "grid-cols-5"} gap-2 items-end`}>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                              Qty {item.isPickedProduct && sIndex === 0 && <span className="text-amber-600">🔒</span>}
+                            </label>
+                            <input
+                              placeholder="Qty"
+                              readOnly={item.isPickedProduct && sIndex === 0}
+                              className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none ${
+                                item.isPickedProduct && sIndex === 0 ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                              }`}
+                              value={s.qty}
+                              onChange={(e) => handleStoneChange(i, sIndex, "qty", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">
+                              Total (CT) {item.isPickedProduct && sIndex === 0 && <span className="text-amber-600">🔒</span>}
+                            </label>
+                            <input
+                              placeholder="Total (Ct)"
+                              readOnly={item.isPickedProduct && sIndex === 0}
+                              className={`w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] focus:outline-none ${
+                                item.isPickedProduct && sIndex === 0 ? "bg-gray-100 cursor-not-allowed text-gray-700" : "bg-white"
+                              }`}
+                              value={s.grossWeight}
+                              onChange={(e) => handleStoneChange(i, sIndex, "grossWeight", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Weight (CT)</label>
+                            <input
+                              placeholder="Weight (CT)"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-gray-600 bg-gray-100 cursor-not-allowed focus:outline-none"
+                              value={s.netWeight}
+                              readOnly
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-emerald-800 flex items-center justify-between mb-1">
+                              <span>Rate</span>
+                              <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">Override</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Rate"
+                              className="w-full border border-emerald-300 rounded text-sm px-3 py-2 text-[#4a2b3d] font-bold bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                              value={s.rate}
+                              onChange={(e) => handleStoneChange(i, sIndex, "rate", e.target.value)}
+                            />
+                          </div>
+                          {(!item.isPickedProduct || sIndex > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => removeStone(i, sIndex)}
+                              className="text-xs text-red-600 hover:text-red-800 pb-2"
+                            >
+                              remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
 
-                    {/* ADD STONE BUTTON */}
-                    <button
-                      className={`px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors ml-2
-  ${item.stones.length === 0 ? "mt-0" : ""}`}
-                      type="button"
-                      onClick={() => addStone(i)}
-                    >
-                      + Add Stone
-                    </button>
-
-
-                    {item.stones.map((s, sIndex) => (
-                      <div key={sIndex} className="grid grid-cols-5 gap-2">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Qty</label>
-                          <input
-                            placeholder="Qty"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={s.qty}
-                            onChange={(e) => handleStoneChange(i, sIndex, "qty", e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Total (CT)</label>
-                          <input
-                            placeholder="Total (Ct)"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={s.grossWeight}
-                            onChange={(e) => handleStoneChange(i, sIndex, "grossWeight", e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">weight (CT)</label>
-                          <input
-                            placeholder="Weight (CT)"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={s.netWeight}
-                            readOnly
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Rate</label>
-                          <input
-                            placeholder="Rate"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={s.rate}
-                            onChange={(e) => handleStoneChange(i, sIndex, "rate", e.target.value)}
-                          />
-                        </div>
+                      <div>
                         <button
+                          className="px-3 py-1.5 text-xs font-semibold bg-[#632f4a] text-white rounded-md hover:bg-[#4e2439] transition-colors inline-flex items-center gap-1 shadow-xs"
                           type="button"
-                          onClick={() => removeStone(i, sIndex)}
-                          className="text-xs text-red-600 hover:text-red-800"
+                          onClick={() => addStone(i)}
                         >
-                          remove
+                          + Add Stone
                         </button>
                       </div>
-                    ))}
+                    </div>
 
-                    {/* BELT BUTTON & INFO */}
-                    <button
-                      className={`px-3 py-1.5 text-xs bg-[#6B2E4A] text-white rounded-md hover:bg-[#5A2640] transition-colors ml-2
-  ${item.belts.length === 0 ? "mt-0" : ""}`}
-                      type="button"
-                      onClick={() => addBelt(i)}
-                    >
-                      + Add Belt
-                    </button>
+                    {/* BELT / ACCESSORIES INFO */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-[10px] uppercase font-bold text-[#b8a6b1] tracking-wider">
+                          Accessories / Belts
+                        </h4>
+                      </div>
 
-                    {item.belts.map((b, bIndex) => (
-                      <div key={bIndex} className="grid grid-cols-6 gap-2">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Material</label>
-                          <input
-                            placeholder="Material"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={b.material}
-                            onChange={(e) => handleBeltChange(i, bIndex, "material", e.target.value)}
-                          />
+                      {item.belts.map((b, bIndex) => (
+                        <div key={bIndex} className="grid grid-cols-6 gap-2">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Material</label>
+                            <input
+                              placeholder="Material"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                              value={b.material}
+                              onChange={(e) => handleBeltChange(i, bIndex, "material", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Color</label>
+                            <input
+                              placeholder="Color"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                              value={b.color}
+                              onChange={(e) => handleBeltChange(i, bIndex, "color", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Size</label>
+                            <input
+                              placeholder="Size"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                              value={b.size}
+                              onChange={(e) => handleBeltChange(i, bIndex, "size", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Qty</label>
+                            <input
+                              placeholder="Qty"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                              value={b.qty}
+                              onChange={(e) => handleBeltChange(i, bIndex, "qty", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Rate</label>
+                            <input
+                              placeholder="Rate"
+                              className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
+                              value={b.rate}
+                              onChange={(e) => handleBeltChange(i, bIndex, "rate", e.target.value)}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeBelt(i, bIndex)}
+                            className="text-xs text-red-600 hover:text-red-800 self-end mb-2"
+                          >
+                            remove
+                          </button>
                         </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Color</label>
-                          <input
-                            placeholder="Color"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={b.color}
-                            onChange={(e) => handleBeltChange(i, bIndex, "color", e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Size</label>
-                          <input
-                            placeholder="Size"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={b.size}
-                            onChange={(e) => handleBeltChange(i, bIndex, "size", e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Qty</label>
-                          <input
-                            placeholder="Qty"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={b.qty}
-                            onChange={(e) => handleBeltChange(i, bIndex, "qty", e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-[#a68e9b] block mb-1">Rate</label>
-                          <input
-                            placeholder="Rate"
-                            className="w-full border border-[#ebdbe2] rounded text-sm px-3 py-2 text-[#4a2b3d] bg-white focus:outline-none focus:border-[#632f4a] focus:ring-1 focus:ring-[#632f4a]"
-                            value={b.rate}
-                            onChange={(e) => handleBeltChange(i, bIndex, "rate", e.target.value)}
-                          />
-                        </div>
+                      ))}
+
+                      <div>
                         <button
+                          className="px-3 py-1.5 text-xs font-semibold bg-[#632f4a] text-white rounded-md hover:bg-[#4e2439] transition-colors inline-flex items-center gap-1 shadow-xs"
                           type="button"
-                          onClick={() => removeBelt(i, bIndex)}
-                          className="text-xs text-red-600 hover:text-red-800 self-end mb-2"
+                          onClick={() => addBelt(i)}
                         >
-                          remove
+                          + Add Accessory
                         </button>
                       </div>
-                    ))}
+                    </div>
 
 
                   </div>
@@ -2840,7 +3119,7 @@ export default function ManualBillingForm() {
                   disabled={form.ratesLocked}
                   value={form.makingRates.Gold}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Gold: e.target.value } }))
+                    handleMakingRateChange("Gold", e.target.value)
                   }
                 />
                 <input
@@ -2853,7 +3132,7 @@ export default function ManualBillingForm() {
                   disabled={form.ratesLocked}
                   value={form.makingRates.Silver}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Silver: e.target.value } }))
+                    handleMakingRateChange("Silver", e.target.value)
                   }
                 />
                 <input
@@ -2866,7 +3145,7 @@ export default function ManualBillingForm() {
                   disabled={form.ratesLocked}
                   value={form.makingRates.Platinum}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, makingRates: { ...p.makingRates, Platinum: e.target.value } }))
+                    handleMakingRateChange("Platinum", e.target.value)
                   }
                 />
                 <input
@@ -2940,58 +3219,16 @@ export default function ManualBillingForm() {
                   <span className="text-base">- ₹ {totals.discount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
-                {/* Dynamic Tax Breakdown & Override Toggle */}
+                {/* Dynamic Tax Breakdown */}
                 <div className="pb-4 border-b border-[#73425d] space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        isInterState
-                          ? "bg-blue-500/30 text-blue-200 border border-blue-400/40"
-                          : "bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
-                      }`}>
-                        {isInterState ? `🌐 IGST (${taxCalculation.stateName})` : "🏠 CGST + SGST (MP)"}
-                      </span>
-                    </div>
-
-                    {/* Tax Override Selector */}
-                    <div className="flex bg-[#52253e] rounded p-0.5 border border-[#7a4163]">
-                      <button
-                        type="button"
-                        title="Auto-detect based on State Code / GSTIN"
-                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "AUTO" }))}
-                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
-                          (!form.taxTypeOverride || form.taxTypeOverride === "AUTO")
-                            ? "bg-[#cda44b] text-white shadow-xs"
-                            : "text-[#d8c5cf] hover:text-white"
-                        }`}
-                      >
-                        Auto
-                      </button>
-                      <button
-                        type="button"
-                        title="Force CGST + SGST (MP Intra-State)"
-                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "INTRA_STATE" }))}
-                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
-                          form.taxTypeOverride === "INTRA_STATE"
-                            ? "bg-[#cda44b] text-white shadow-xs"
-                            : "text-[#d8c5cf] hover:text-white"
-                        }`}
-                      >
-                        CGST+SGST
-                      </button>
-                      <button
-                        type="button"
-                        title="Force IGST (Out-of-State)"
-                        onClick={() => setForm(p => ({ ...p, taxTypeOverride: "INTER_STATE" }))}
-                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
-                          form.taxTypeOverride === "INTER_STATE"
-                            ? "bg-[#cda44b] text-white shadow-xs"
-                            : "text-[#d8c5cf] hover:text-white"
-                        }`}
-                      >
-                        IGST
-                      </button>
-                    </div>
+                  <div className="flex items-center text-xs">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      isInterState
+                        ? "bg-blue-500/30 text-blue-200 border border-blue-400/40"
+                        : "bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
+                    }`}>
+                      {isInterState ? `🌐 IGST (${taxCalculation.stateName})` : "🏠 CGST + SGST (MP)"}
+                    </span>
                   </div>
 
                   {isInterState ? (
@@ -3217,11 +3454,22 @@ export default function ManualBillingForm() {
 
                     return filtered.map((res, idx) => {
                       const isDiamond = res.type === "DIAMOND";
+                      const isOutOfStock = res.stock !== undefined && res.stock <= 0;
                       return (
                         <div
                           key={res.id}
-                          onClick={() => handleSelectPickupProduct(res)}
-                          className="group p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-[#efe9ed] hover:border-[#632f4a] bg-white hover:bg-[#fffcfd] shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5"
+                          onClick={() => {
+                            if (isOutOfStock) {
+                              toast.error(`"${res.title}" is Out of Stock (0 available) and cannot be billed.`);
+                              return;
+                            }
+                            handleSelectPickupProduct(res);
+                          }}
+                          className={`group p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 ${
+                            isOutOfStock
+                              ? "border-gray-200 bg-gray-50/70 opacity-60 cursor-not-allowed"
+                              : "border-[#efe9ed] hover:border-[#632f4a] bg-white hover:bg-[#fffcfd] shadow-xs hover:shadow-md cursor-pointer"
+                          }`}
                         >
                           <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                             {/* Image Thumbnail with Heart Icon */}
@@ -3259,15 +3507,17 @@ export default function ManualBillingForm() {
                                       Low Stock ({res.stock})
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                                      Out of Stock
+                                    <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                      Out of Stock (0)
                                     </span>
                                   )
                                 )}
                               </div>
 
-                              <h4 className="font-extrabold text-xs sm:text-base text-[#1f242e] truncate group-hover:text-[#632f4a] transition-colors leading-tight">
+                              <h4 className={`font-extrabold text-xs sm:text-base truncate transition-colors leading-tight ${
+                                isOutOfStock ? "text-gray-400" : "text-[#1f242e] group-hover:text-[#632f4a]"
+                              }`}>
                                 {res.title}
                               </h4>
                               <p className="text-[10px] sm:text-xs text-gray-500 truncate mt-0.5 sm:mt-1 font-medium">
@@ -3288,13 +3538,16 @@ export default function ManualBillingForm() {
 
                             <button
                               type="button"
+                              disabled={isOutOfStock}
                               className={`px-3.5 sm:px-4 py-1.5 sm:py-2 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1 shrink-0 ${
-                                idx === 0
+                                isOutOfStock
+                                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                  : idx === 0
                                   ? "bg-[#5c2644] text-white hover:bg-[#431b31]"
                                   : "bg-[#f7edf3] text-[#5c2644] group-hover:bg-[#5c2644] group-hover:text-white"
                               }`}
                             >
-                              + Add
+                              {isOutOfStock ? "Out of Stock" : "+ Add"}
                             </button>
                           </div>
                         </div>

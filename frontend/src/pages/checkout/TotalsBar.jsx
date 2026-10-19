@@ -192,17 +192,16 @@ export default function TotalsBar({ totals }) {
 
         {/* DISCOUNTS */}
         {hasDiscount && (
-          <div className="space-y-2 pt-2">
-            {regularDiscount > 0 && celebrationDiscount > 0 ? (
+          <div className="space-y-1.5 pt-2">
+            {celebrationDiscount > 0 ? (
               <>
-                <Row label="Scheme Discount" value={-regularDiscount} />
-                <Row label="Celebration Gift Discount 🎁" value={-celebrationDiscount} />
-                <Row label="Total Discount" value={-totalDiscount} bold />
+                <Row label="Celebration Discount 🎁" value={-celebrationDiscount} />
+                <div className="text-[10px] text-amber-200/80 font-medium flex items-center gap-1 italic">
+                  <span>ℹ️ Celebration offer applied (regular scheme disabled)</span>
+                </div>
               </>
-            ) : celebrationDiscount > 0 ? (
-              <Row label="Celebration Discount 🎁" value={-celebrationDiscount} />
             ) : (
-              <Row label="Total Discount" value={-totalDiscount} />
+              <Row label="Scheme Discount" value={-totalDiscount} />
             )}
           </div>
         )}

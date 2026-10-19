@@ -822,7 +822,7 @@
 
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import API from "../../api";
 import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
@@ -920,7 +920,10 @@ export default function InvoiceConfirmPanel({
   const [customer, setCustomer] = useState({
     name: "", countryCode: "+91", mobile: "", email: "",
     address: "", gstin: "", stateCode: "", panNumber: "",
+    dob: "", anniversaryDate: "",
   });
+
+  const lastLoadedMobileRef = useRef(null);
 
   const gstinValidation = validateGSTIN(customer.gstin, customer.stateCode);
 
@@ -983,20 +986,27 @@ export default function InvoiceConfirmPanel({
   };
 
   useEffect(() => {
-    const cleanMobile = (customer.mobile || "").replace(/\D/g, "");
+    const cleanMobile = (customer.mobile || "").replace(/\D/g, "").slice(-10);
     if (cleanMobile.length === 10) {
       setSearchingCustomer(true);
-      API.get(`/customers?search=${cleanMobile}`)
+      API.get(`/customers/lookup/${cleanMobile}`)
         .then((res) => {
-          const found = res.data?.customers?.[0];
+          const found = res.data?.customer;
           if (found) {
             setCustomer((prev) => ({
               ...prev,
-              name: prev.name || found.name || "",
-              email: prev.email || found.email || "",
-              address: prev.address || found.address || "",
-              gstin: prev.gstin || found.gstin || "",
+              name: found.name || "",
+              email: found.email || "",
+              address: found.address || "",
+              city: found.city || "",
+              gstin: found.gstin || "",
+              stateCode: found.stateCode || (found.gstin ? found.gstin.slice(0, 2) : "23"),
+              panNumber: found.panNumber || "",
+              dob: found.dob ? new Date(found.dob).toISOString().split("T")[0] : "",
+              anniversaryDate: found.anniversaryDate ? new Date(found.anniversaryDate).toISOString().split("T")[0] : "",
             }));
+            lastLoadedMobileRef.current = cleanMobile;
+            toast.success(`✓ Customer found: ${found.name}`);
 
             let alertObj = null;
 
@@ -1039,6 +1049,23 @@ export default function InvoiceConfirmPanel({
             }
           } else {
             setCelebrationAlert(null);
+            // If previously a customer was auto-loaded and now user entered a different unregistered number, reset
+            if (lastLoadedMobileRef.current && lastLoadedMobileRef.current !== cleanMobile) {
+              setCustomer((prev) => ({
+                ...prev,
+                name: "",
+                email: "",
+                address: "",
+                city: "",
+                gstin: "",
+                stateCode: "23",
+                panNumber: "",
+                dob: "",
+                anniversaryDate: "",
+              }));
+              lastLoadedMobileRef.current = null;
+              toast.info("New customer number. Please enter customer details.");
+            }
           }
         })
         .catch((err) => {
@@ -1270,6 +1297,8 @@ export default function InvoiceConfirmPanel({
           gstin: customer.gstin?.toUpperCase() || "",
           stateCode: customer.stateCode || "",
           panNumber: customer.panNumber?.toUpperCase() || "",
+          dob: customer.dob || undefined,
+          anniversaryDate: customer.anniversaryDate || undefined,
         },
         itemsMeta: cart.items.map((item) => {
           const snap = item.customSnapshot || item.itemSnapshot || {};
@@ -1477,23 +1506,106 @@ export default function InvoiceConfirmPanel({
                               onClick={() => setIsDiscountModalOpen(true)}
                               className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-xs"
                             >
-                              <Gift size={12} /> {appliedCelebrationDiscount ? "Edit Discount" : "Apply Celebration Discount 🎁"}
+                              <Gift size={12} /> {appliedCelebrationDiscount ? "Edit Celebration Discount" : "Apply Celebration Discount 🎁"}
                             </button>
                           </div>
 
+                          {/* 🛡️ MUTUAL EXCLUSIVITY OFFER SELECTOR */}
+                          <div className="mt-3 pt-2 border-t border-purple-200/80">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900">
+                                Apply Offer (Single Discount Rule):
+                              </span>
+                              <span className="text-[9px] font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded">
+                                Only 1 offer applies
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              {/* Option A: Regular Scheme Markdowns */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (appliedCelebrationDiscount) {
+                                    setAppliedCelebrationDiscount(null);
+                                    toast.info("Switched to Regular Scheme Discount");
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
+                                  !appliedCelebrationDiscount
+                                    ? "bg-white border-purple-700 ring-2 ring-purple-600/20 shadow-xs"
+                                    : "bg-white/60 hover:bg-white border-purple-200 text-gray-600"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="font-bold text-[11px] text-gray-900 flex items-center gap-1">
+                                    <Tag size={12} className="text-purple-600" /> Regular Discount
+                                  </span>
+                                  {!appliedCelebrationDiscount && (
+                                    <CheckCircle2 size={13} className="text-purple-700" />
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-gray-500 mt-0.5">
+                                  Standard scheme markdowns
+                                </span>
+                              </button>
+
+                              {/* Option B: Celebration Offer */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!appliedCelebrationDiscount) {
+                                    setIsDiscountModalOpen(true);
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
+                                  appliedCelebrationDiscount
+                                    ? "bg-white border-pink-600 ring-2 ring-pink-600/20 shadow-xs"
+                                    : "bg-white/60 hover:bg-white border-purple-200 text-gray-600"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="font-bold text-[11px] text-pink-700 flex items-center gap-1">
+                                    <Gift size={12} className="text-pink-600" /> Celebration Offer
+                                  </span>
+                                  {appliedCelebrationDiscount && (
+                                    <CheckCircle2 size={13} className="text-pink-600" />
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-pink-600 font-semibold mt-0.5">
+                                  {appliedCelebrationDiscount
+                                    ? `-₹${appliedCelebrationDiscount.amount.toLocaleString("en-IN")}`
+                                    : "Click to select 🎁"}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+
                           {appliedCelebrationDiscount && (
-                            <div className="mt-2.5 p-2 rounded-lg bg-emerald-50 border border-emerald-300 flex items-center justify-between text-xs">
-                              <span className="font-extrabold text-emerald-900 flex items-center gap-1 text-[11px]">
+                            <div className="mt-2.5 p-2 rounded-lg bg-pink-50 border border-pink-300 flex items-center justify-between text-xs">
+                              <span className="font-extrabold text-pink-950 flex items-center gap-1 text-[11px]">
                                 <Sparkles size={13} className="text-amber-500 shrink-0" />
                                 {appliedCelebrationDiscount.title}: -₹{appliedCelebrationDiscount.amount.toLocaleString("en-IN")}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => setAppliedCelebrationDiscount(null)}
-                                className="text-[11px] text-red-600 hover:text-red-700 font-bold ml-2 underline"
-                              >
-                                Remove
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDiscountModalOpen(true)}
+                                  className="text-[11px] text-purple-700 hover:text-purple-900 font-bold underline"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAppliedCelebrationDiscount(null);
+                                    toast.info("Switched to Regular Scheme Discount");
+                                  }}
+                                  className="text-[11px] text-red-600 hover:text-red-700 font-bold underline"
+                                >
+                                  Switch to Regular
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1629,6 +1741,32 @@ export default function InvoiceConfirmPanel({
                     placeholder="Street, City, Pincode"
                     value={customer.address}
                     onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* BIRTHDAY & ANNIVERSARY (OPTIONAL) */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[9px] font-bold tracking-[0.1em] uppercase text-[#462434] mb-1.5 flex items-center gap-1">
+                    <Cake size={11} className="text-pink-600" /> BIRTHDAY (OPTIONAL)
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full h-10 px-3 bg-white border border-gray-200 rounded text-xs text-neutral-800 focus:outline-none focus:border-[#462434]"
+                    value={customer.dob || ""}
+                    onChange={(e) => setCustomer({ ...customer, dob: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold tracking-[0.1em] uppercase text-[#462434] mb-1.5 flex items-center gap-1">
+                    <Heart size={11} className="text-purple-600" /> ANNIVERSARY (OPTIONAL)
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full h-10 px-3 bg-white border border-gray-200 rounded text-xs text-neutral-800 focus:outline-none focus:border-[#462434]"
+                    value={customer.anniversaryDate || ""}
+                    onChange={(e) => setCustomer({ ...customer, anniversaryDate: e.target.value })}
                   />
                 </div>
               </div>

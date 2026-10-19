@@ -265,3 +265,175 @@ export const importDiamondRates = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+/* ================= SLAB RATE LOOKUP ================= */
+export const lookupDiamondRateSlab = async (req, res) => {
+  try {
+    const { shape, weight, color, clarity } = req.query;
+
+    const w = Number(weight || 0);
+    if (!w || w <= 0) {
+      return res.json({ success: true, found: false, message: "Valid weight required" });
+    }
+
+    const COLORS_INDIVIDUAL = [
+      "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+      "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+    ];
+    const CLARITIES_INDIVIDUAL = [
+      "FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1", "I2", "I3"
+    ];
+
+    const parseColorRange = (val) => {
+      if (!val) return [-1, -1];
+      const cleanVal = String(val).toUpperCase().replace(/\s+/g, "");
+      const parts = cleanVal.split("-");
+      if (parts.length === 1) {
+        const idx = COLORS_INDIVIDUAL.indexOf(parts[0]);
+        return [idx, idx];
+      }
+      const idxs = parts.map((p) => COLORS_INDIVIDUAL.indexOf(p)).filter((i) => i !== -1);
+      if (idxs.length === 0) return [-1, -1];
+      return [Math.min(...idxs), Math.max(...idxs)];
+    };
+
+    const parseClarityRange = (val) => {
+      if (!val) return [-1, -1];
+      let norm = String(val).toUpperCase().replace(/\s+/g, "");
+      if (norm === "VVS-VS") norm = "VVS1-VS2";
+      if (norm === "SI-I") norm = "SI1-I2";
+
+      const parts = norm.split("-");
+      if (parts.length === 1) {
+        const idx = CLARITIES_INDIVIDUAL.indexOf(parts[0]);
+        return [idx, idx];
+      }
+      const idxs = parts.map((p) => CLARITIES_INDIVIDUAL.indexOf(p)).filter((i) => i !== -1);
+      if (idxs.length === 0) return [-1, -1];
+      return [Math.min(...idxs), Math.max(...idxs)];
+    };
+
+    const cleanShape = String(shape || "").trim();
+    const shapeRegex = cleanShape ? new RegExp(`^${cleanShape}$`, "i") : /.*/;
+
+    const [colorFrom, colorTo] = parseColorRange(color);
+    const [clarityFrom, clarityTo] = parseClarityRange(clarity);
+
+    // 1. Precise Match: Shape + Weight Slab + Overlapping Color + Overlapping Clarity
+    if (colorFrom !== -1 && clarityFrom !== -1) {
+      const match = await DiamondRateMaster.findOne({
+        active: true,
+        shape: shapeRegex,
+        weightFrom: { $lte: w },
+        weightTo: { $gte: w },
+        colorFromIndex: { $lte: colorTo },
+        colorToIndex: { $gte: colorFrom },
+        clarityFromIndex: { $lte: clarityTo },
+        clarityToIndex: { $gte: clarityFrom },
+      })
+        .sort({ priority: -1, rate: 1 })
+        .lean();
+
+      if (match) {
+        return res.json({
+          success: true,
+          found: true,
+          rate: match.rate,
+          rateType: match.rateType,
+          matchLevel: "EXACT",
+          slab: {
+            id: match._id,
+            shape: match.shape,
+            weightFrom: match.weightFrom,
+            weightTo: match.weightTo,
+            rate: match.rate,
+            rateType: match.rateType,
+            colorStr: `${COLORS_INDIVIDUAL[match.colorFromIndex] || ""}-${COLORS_INDIVIDUAL[match.colorToIndex] || ""}`,
+            clarityStr: `${CLARITIES_INDIVIDUAL[match.clarityFromIndex] || ""}-${CLARITIES_INDIVIDUAL[match.clarityToIndex] || ""}`,
+          },
+        });
+      }
+    }
+
+    // 2. Partial Match: Color or Clarity matched
+    if (colorFrom !== -1 || clarityFrom !== -1) {
+      const partialQuery = {
+        active: true,
+        shape: shapeRegex,
+        weightFrom: { $lte: w },
+        weightTo: { $gte: w },
+      };
+      if (colorFrom !== -1) {
+        partialQuery.colorFromIndex = { $lte: colorTo };
+        partialQuery.colorToIndex = { $gte: colorFrom };
+      }
+      if (clarityFrom !== -1) {
+        partialQuery.clarityFromIndex = { $lte: clarityTo };
+        partialQuery.clarityToIndex = { $gte: clarityFrom };
+      }
+
+      const partialMatch = await DiamondRateMaster.findOne(partialQuery)
+        .sort({ priority: -1, rate: 1 })
+        .lean();
+
+      if (partialMatch) {
+        return res.json({
+          success: true,
+          found: true,
+          rate: partialMatch.rate,
+          rateType: partialMatch.rateType,
+          matchLevel: "PARTIAL",
+          slab: {
+            id: partialMatch._id,
+            shape: partialMatch.shape,
+            weightFrom: partialMatch.weightFrom,
+            weightTo: partialMatch.weightTo,
+            rate: partialMatch.rate,
+            rateType: partialMatch.rateType,
+            colorStr: `${COLORS_INDIVIDUAL[partialMatch.colorFromIndex] || ""}-${COLORS_INDIVIDUAL[partialMatch.colorToIndex] || ""}`,
+            clarityStr: `${CLARITIES_INDIVIDUAL[partialMatch.clarityFromIndex] || ""}-${CLARITIES_INDIVIDUAL[partialMatch.clarityToIndex] || ""}`,
+          },
+        });
+      }
+    }
+
+    // 3. Broad Fallback: Shape + Weight Slab only
+    const broad = await DiamondRateMaster.findOne({
+      active: true,
+      shape: shapeRegex,
+      weightFrom: { $lte: w },
+      weightTo: { $gte: w },
+    })
+      .sort({ priority: -1, rate: 1 })
+      .lean();
+
+    if (broad) {
+      return res.json({
+        success: true,
+        found: true,
+        rate: broad.rate,
+        rateType: broad.rateType,
+        matchLevel: "BROAD",
+        slab: {
+          id: broad._id,
+          shape: broad.shape,
+          weightFrom: broad.weightFrom,
+          weightTo: broad.weightTo,
+          rate: broad.rate,
+          rateType: broad.rateType,
+          colorStr: `${COLORS_INDIVIDUAL[broad.colorFromIndex] || ""}-${COLORS_INDIVIDUAL[broad.colorToIndex] || ""}`,
+          clarityStr: `${CLARITIES_INDIVIDUAL[broad.clarityFromIndex] || ""}-${CLARITIES_INDIVIDUAL[broad.clarityToIndex] || ""}`,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      found: false,
+      message: "No diamond rate slab matched specifications",
+    });
+  } catch (error) {
+    console.error("lookupDiamondRateSlab error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

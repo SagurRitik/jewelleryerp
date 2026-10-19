@@ -283,13 +283,21 @@ export function calculateCartTotals(
     regularDiscountDiamond + regularDiscountStone + regularDiscountMaking
   );
 
-  /* ================= 🛡️ CELEBRATION DISCOUNT WITH SAFETY GUARDS ================= */
+  /* ================= 🛡️ MUTUAL EXCLUSIVE DISCOUNT LOGIC ================= */
+  // Rule: Either Regular Discount OR Celebration Discount applies. NEVER BOTH COMBINED.
+  const isCelebrationActive = Boolean(celebrationDiscount && Number(celebrationDiscount.amount) > 0);
+
   let celebrationDiscountAmount = 0;
   let celebrationDiscountMaking = 0;
   let celebrationDiscountDiamond = 0;
   let celebrationDiscountStone = 0;
 
-  if (celebrationDiscount && Number(celebrationDiscount.amount) > 0) {
+  const effectiveRegularDiscount = isCelebrationActive ? 0 : regularDiscount;
+  const effectiveRegMaking = isCelebrationActive ? 0 : regularDiscountMaking;
+  const effectiveRegDiamond = isCelebrationActive ? 0 : regularDiscountDiamond;
+  const effectiveRegStone = isCelebrationActive ? 0 : regularDiscountStone;
+
+  if (isCelebrationActive) {
     let rawAmount = Number(celebrationDiscount.amount) || 0;
 
     // 🛡️ GUARD 0: Minimum Weight Threshold Validation
@@ -314,13 +322,12 @@ export function calculateCartTotals(
     // 🛡️ GUARD 1: Cannot be negative
     rawAmount = Math.max(0, rawAmount);
 
-    // 🛡️ GUARD 2: Cannot exceed current base subtotal
-    rawAmount = Math.min(rawAmount, baseSubtotal);
+    // 🛡️ GUARD 2: Cannot exceed gross total
+    rawAmount = Math.min(rawAmount, grossTotal);
 
-    // 🛡️ GUARD 3: Total combined discount cannot exceed 75% of gross total (anti-fraud cap)
+    // 🛡️ GUARD 3: Total discount cannot exceed 75% of gross total (anti-fraud cap)
     const maxAllowedDiscount = round2(grossTotal * 0.75);
-    const availableCap = Math.max(0, maxAllowedDiscount - regularDiscount);
-    celebrationDiscountAmount = round2(Math.min(rawAmount, availableCap));
+    celebrationDiscountAmount = round2(Math.min(rawAmount, maxAllowedDiscount));
 
     if (celebrationDiscount.target === "MAKING") {
       celebrationDiscountMaking = celebrationDiscountAmount;
@@ -331,10 +338,14 @@ export function calculateCartTotals(
     }
   }
 
-  const totalDiscount = round2(regularDiscount + celebrationDiscountAmount);
+  // When celebration discount is active, total discount is solely celebrationDiscountAmount.
+  // Otherwise, total discount is effectiveRegularDiscount.
+  const totalDiscount = round2(isCelebrationActive ? celebrationDiscountAmount : effectiveRegularDiscount);
 
   /* ================= TAX & GRAND TOTAL ================= */
-  const netSubtotal = round2(Math.max(0, baseSubtotal - celebrationDiscountAmount));
+  // If celebration is active, netSubtotal is grossTotal - celebrationDiscountAmount (ignoring regular discounts).
+  // If celebration is inactive, netSubtotal is baseSubtotal (grossTotal - regularDiscount).
+  const netSubtotal = round2(Math.max(0, isCelebrationActive ? (grossTotal - celebrationDiscountAmount) : baseSubtotal));
 
   let itemTotalGst = 0;
   let hasItemGst = false;
@@ -346,8 +357,9 @@ export function calculateCartTotals(
   }
 
   let gst = 0;
-  if (hasItemGst && baseSubtotal > 0) {
-    const factor = netSubtotal / baseSubtotal;
+  if (hasItemGst && grossTotal > 0) {
+    const baseForGst = isCelebrationActive ? grossTotal : (baseSubtotal || grossTotal);
+    const factor = baseForGst > 0 ? (netSubtotal / baseForGst) : 1;
     gst = round2(itemTotalGst * factor);
   } else {
     const gstRate = Number(options.gstRate || 3);
@@ -368,14 +380,14 @@ export function calculateCartTotals(
     grandTotal,
 
     /* 🔑 DIFFERENTIATED DISCOUNTS AUDIT TRAIL */
-    regularDiscount: round2(regularDiscount),
+    regularDiscount: round2(effectiveRegularDiscount),
     celebrationDiscount: round2(celebrationDiscountAmount),
     discount: round2(totalDiscount),
 
     /* CATEGORY WISE TOTAL DISCOUNTS */
-    discountMaking: round2(regularDiscountMaking + celebrationDiscountMaking),
-    discountDiamond: round2(regularDiscountDiamond + celebrationDiscountDiamond),
-    discountStone: round2(regularDiscountStone + celebrationDiscountStone),
+    discountMaking: round2(effectiveRegMaking + celebrationDiscountMaking),
+    discountDiamond: round2(effectiveRegDiamond + celebrationDiscountDiamond),
+    discountStone: round2(effectiveRegStone + celebrationDiscountStone),
 
     advancePayment: round2(totalAdvancePayment),
     metalPayment: round2(totalMetalPayment),

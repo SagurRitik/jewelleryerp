@@ -408,10 +408,10 @@ export const getAllSalesInvoices = async (req, res) => {
     const query = buildInvoiceQuery({ search, fromDate, toDate });
 
     const sortMap = {
-      "date-desc": { date: -1 },
-      "date-asc": { date: 1 },
-      "amount-desc": { "totals.grandTotal": -1 },
-      "amount-asc": { "totals.grandTotal": 1 },
+      "date-desc": { date: -1, createdAt: -1, invoiceNo: -1, _id: -1 },
+      "date-asc": { date: 1, createdAt: 1, invoiceNo: 1, _id: 1 },
+      "amount-desc": { "totals.grandTotal": -1, date: -1, createdAt: -1, _id: -1 },
+      "amount-asc": { "totals.grandTotal": 1, date: -1, createdAt: -1, _id: -1 },
     };
 
     const invoices = await SalesOrder.find(query)

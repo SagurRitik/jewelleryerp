@@ -178,8 +178,10 @@ export const getFindCalculation = async (req, res) => {
               value: celebrationDiscount,
             },
             step4_totalDiscount: {
-              label: "4. Total Combined Discount Applied",
-              formula: `₹${regularDiscount.toLocaleString("en-IN")} (Regular) + ₹${celebrationDiscount.toLocaleString("en-IN")} (Celebration)`,
+              label: "4. Total Discount Applied",
+              formula: celebrationDiscount > 0
+                ? `₹${celebrationDiscount.toLocaleString("en-IN")} (Celebration Offer Active - Regular Scheme Discount Disabled)`
+                : `₹${regularDiscount.toLocaleString("en-IN")} (Regular Scheme Discount Active)`,
               value: combinedDiscount,
             },
             step5_taxableSubtotal: {
@@ -320,8 +322,10 @@ export const getFindCalculation = async (req, res) => {
               value: celebDiscount,
             },
             step4_totalDiscount: {
-              label: "4. Total Combined Offer Discount",
-              formula: "Regular Offer + Celebration Offer",
+              label: "4. Total Offer Discount",
+              formula: celebDiscount > 0
+                ? "Celebration Offer Active (Regular Scheme Discount Disabled)"
+                : "Regular Scheme Discount Active",
               value: totalDiscount,
             },
             step5_taxableSubtotal: {

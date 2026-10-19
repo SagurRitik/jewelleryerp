@@ -57,7 +57,7 @@ router.get("/sku/:sku", getProductBySku);
 
 router.patch(
   "/sku/:sku",
-  upload.array("images", 5),
+  upload.any(),
   optimizeProductImages,      // ✨ ADDED
   updateProductBySku
 );
@@ -68,7 +68,7 @@ router.delete("/sku/:sku", deleteProductBySku);
 /* ---------------- ID ROUTES ---------------- */
 router.post(
   "/",
-  upload.array("images", 5),
+  upload.any(),
   optimizeProductImages,      // ✨ ADDED
   createProduct
 );
@@ -76,7 +76,7 @@ router.post(
 router.get("/", getProducts);
 router.get("/:id", getProductById);
 
-router.patch("/:id", upload.array("images", 5), optimizeProductImages, updateProduct); // ✅ ADD THIS
+router.patch("/:id", upload.any(), optimizeProductImages, updateProduct); // ✅ ADD THIS
 router.delete("/:id", deleteProduct); // (optional but recommended)
 
 export default router;

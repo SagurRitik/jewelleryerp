@@ -5,10 +5,13 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Save, Eye,
   Calculator, Gem, Layers, RefreshCw, User, Phone,
   Mail, MapPin, Clock, AlertCircle, Sparkles, ArrowLeft,
-  Diamond, Lock, Unlock
+  Diamond, Lock, Unlock, PackageSearch, Search, X,
+  Check, CheckSquare, Square, Barcode, Heart, LayoutGrid,
+  Coins, Shield, Loader2
 } from "lucide-react";
 import { useRates } from "../../context/RatesContext";
 import { calculateEstimate, createEstimate, updateEstimate, getEstimate } from "../../api/quotationApi";
+import API from "../../api";
 import { getImageUrl } from "../../utils/getImageUrl";
 
 
@@ -73,6 +76,7 @@ const SelectWithGroups = ({ list, groups, value, onChange, className }) => (
 
 const defaultItem = () => ({
   _key: Math.random().toString(36).slice(2),
+  sku: "",
   title: "",
   jewelleryCategory: "Ring",
   description: "",
@@ -223,6 +227,16 @@ export default function EstimateBuilder() {
   const [loadingEdit, setLoadingEdit] = useState(isEdit);
   const calcTimerRef = useRef(null);
 
+  /* ───── STORE PICKUP BY SKU STATES ───── */
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [targetItemIndex, setTargetItemIndex] = useState(null);
+  const [pickupSearch, setPickupSearch] = useState("");
+  const [pickupTab, setPickupTab] = useState("ALL");
+  const [pickupLoading, setPickupLoading] = useState(false);
+  const [pickupResults, setPickupResults] = useState([]);
+  const [selectedPickupMap, setSelectedPickupMap] = useState({});
+  const pickupSearchTimerRef = useRef(null);
+
   useEffect(() => {
     localStorage.setItem("estimate_base_rates", JSON.stringify(baseRates));
   }, [baseRates]);
@@ -242,6 +256,41 @@ export default function EstimateBuilder() {
   useEffect(() => {
     localStorage.setItem("estimate_discount_enabled", String(discountEnabled));
   }, [discountEnabled]);
+
+  const lastLoadedEstMobileRef = useRef(null);
+
+  /* ───── AUTO-FETCH CUSTOMER BY MOBILE ───── */
+  useEffect(() => {
+    const clean = String(form.mobile || "").replace(/\D/g, "").slice(-10);
+    if (clean.length === 10) {
+      API.get(`/customers/lookup/${clean}`)
+        .then((res) => {
+          if (res.data?.found && res.data?.customer) {
+            const c = res.data.customer;
+            setForm((prev) => ({
+              ...prev,
+              customerName: c.name || "",
+              email: c.email || "",
+              address: c.address || "",
+            }));
+            lastLoadedEstMobileRef.current = clean;
+            toast.success(`✓ Customer profile auto-loaded: ${c.name}`);
+          } else {
+            if (lastLoadedEstMobileRef.current && lastLoadedEstMobileRef.current !== clean) {
+              setForm((prev) => ({
+                ...prev,
+                customerName: "",
+                email: "",
+                address: "",
+              }));
+              lastLoadedEstMobileRef.current = null;
+              toast.info("New customer number. Please enter customer details.");
+            }
+          }
+        })
+        .catch((err) => console.error("Estimate customer lookup error:", err));
+    }
+  }, [form.mobile]);
 
   /* ───── ITEM HANDLERS ───── */
   const addItem = () => setItems((prev) => [...prev, defaultItem()]);
@@ -442,6 +491,357 @@ export default function EstimateBuilder() {
     } : it));
   };
 
+  /* ───── STORE PICKUP / PICKUP BY SKU HANDLERS ───── */
+  const fetchPickupResults = async (query = "") => {
+    try {
+      setPickupLoading(true);
+      const [prodRes, diaRes] = await Promise.all([
+        API.get("/products", { params: { search: query, limit: 30 } }).catch(() => ({ data: { products: [] } })),
+        API.get("/diamonds", { params: { search: query, limit: 30 } }).catch(() => ({ data: { diamonds: [] } }))
+      ]);
+
+      const prods = (prodRes.data?.products || []).map((p) => {
+        const calculatedPrice = Number(
+          p.pricing?.grandTotal ??
+          p.pricing?.payable ??
+          p.pricing?.grossTotal ??
+          p.price ??
+          p.sellingPrice ??
+          0
+        );
+
+        return {
+          id: `prod_${p._id}`,
+          sku: p.sku || "N/A",
+          title: p.title || "Jewellery Product",
+          subtitle: `${p.metalPurity || ""} ${p.metalType || ""} • Net Wt: ${p.netWeight || 0}g`,
+          category: p.jewelleryCategory || "Fine Jewellery",
+          price: Math.round(calculatedPrice),
+          image: p.images?.[0] ? getImageUrl(p.images[0]) : null,
+          stock: p.stock !== undefined ? p.stock : 0,
+          metalType: p.metalType || "Gold",
+          type: "PRODUCT",
+          raw: p,
+        };
+      });
+
+      const dias = (diaRes.data?.diamonds || []).map((d) => {
+        const diaPrice = Number(
+          d.sellingPrice ||
+          (Number(d.weight || 0) * Number(d.sellingRate || 0)) ||
+          0
+        );
+
+        return {
+          id: `dia_${d._id}`,
+          sku: d.sku || "N/A",
+          title: `Loose Diamond: ${d.labNatural || "Natural"} ${d.shape || ""} ${d.weight || 0}ct`,
+          subtitle: `${d.color || ""}/${d.clarity || ""} • ${d.lab ? `${d.lab} ` : ""}${d.certificateNo || "No Cert"}`,
+          category: "Loose Diamond",
+          price: Math.round(diaPrice),
+          image: null,
+          stock: d.stock !== undefined ? d.stock : 0,
+          metalType: null,
+          type: "DIAMOND",
+          raw: d,
+        };
+      });
+
+      setPickupResults([...prods, ...dias]);
+    } catch (err) {
+      console.error("Pickup search error:", err);
+    } finally {
+      setPickupLoading(false);
+    }
+  };
+
+  const openPickupModal = (itemIndex = null) => {
+    setTargetItemIndex(itemIndex);
+    setPickupSearch("");
+    setPickupTab("ALL");
+    setSelectedPickupMap({});
+    setIsPickupModalOpen(true);
+    fetchPickupResults("");
+  };
+
+  const handleSearchInput = (val) => {
+    setPickupSearch(val);
+    clearTimeout(pickupSearchTimerRef.current);
+    pickupSearchTimerRef.current = setTimeout(() => {
+      fetchPickupResults(val);
+    }, 250);
+  };
+
+  const convertProductToEstimateItem = async (res) => {
+    let p = res.raw;
+
+    // Fetch full product details by SKU if product
+    if (res.type === "PRODUCT" && res.sku && res.sku !== "N/A") {
+      try {
+        const skuRes = await API.get(`/products/sku/${encodeURIComponent(res.sku)}`);
+        if (skuRes.data?.product) {
+          p = skuRes.data.product;
+        }
+      } catch (err) {
+        console.warn("Could not fetch product details by SKU:", err);
+      }
+    }
+
+    // 1. Loose Diamond Stock
+    if (res.type === "DIAMOND" || (p.shape && !p.components && (p.labNatural !== undefined || p.weight > 0))) {
+      const diaRate = p.weight > 0 ? Math.round(Number(p.sellingPrice || 0) / Number(p.weight)) : (p.sellingRate || 0);
+      return {
+        ...defaultItem(),
+        sku: p.sku || "",
+        title: p.sku
+          ? `Loose Diamond: ${p.labNatural || "Natural"} ${p.shape || ""} ${p.weight || ""}ct ${p.color || ""}/${p.clarity || ""} [SKU: ${p.sku}]`
+          : `Loose Diamond: ${p.labNatural || "Natural"} ${p.shape || ""} ${p.weight || ""}ct`,
+        jewelleryCategory: "Loose Diamond",
+        description: `${p.lab ? `${p.lab} ` : ""}${p.certificateNo ? `Cert #${p.certificateNo}` : ""}`.trim(),
+        metalType: "Gold",
+        metalPurity: "24KT",
+        netWeight: "0",
+        grossWeight: "0",
+        fineGold: "0",
+        metalRate: "0",
+        makingRate: "0",
+        hsnCode: "7102",
+        quantity: "1",
+        discountEnabled: true,
+        diamonds: [{
+          _key: Math.random().toString(36).slice(2),
+          type: "Diamond",
+          shape: p.shape || "Round",
+          weight: String(p.weight || ""),
+          count: "1",
+          grossWeight: String(p.weight || ""),
+          rateOverride: String(diaRate || ""),
+          rateLocked: true,
+          color: p.color || "G",
+          clarity: p.clarity || "VS1",
+          size: ""
+        }],
+        gemstones: [],
+        belts: [],
+        images: [],
+        imagePreviews: [],
+        breakup: null,
+        collapsed: false,
+      };
+    }
+
+    // 2. Regular Jewellery Product
+    const nw = Number(p.netWeight || p.grossWeight || 0);
+    const purityFactor = PURITY_FACTORS[p.metalPurity] || 1;
+    const fineGold = p.fineGold ? String(p.fineGold) : (nw * purityFactor).toFixed(3);
+
+    const pr = p.pricing || {};
+    const componentBreakup = pr.componentBreakup || [];
+
+    const diamonds = (p.components || [])
+      .filter(c => ["Diamond", "Polki", "Moissanite"].includes(c.type))
+      .map((c) => {
+        let rate = c.rateOverride || c.rate || "";
+        if (!rate && componentBreakup.length > 0) {
+          const match = componentBreakup.find(b => b.pricingRef === "DIAMOND" || b.type === c.type);
+          if (match?.rate) rate = match.rate;
+        }
+        return {
+          _key: Math.random().toString(36).slice(2),
+          type: c.type || "Diamond",
+          shape: c.shape || "Round",
+          weight: String(c.weight || ""),
+          count: String(c.count || "1"),
+          grossWeight: String(c.grossWeight || ""),
+          rateOverride: String(rate || ""),
+          rateLocked: true,
+          color: c.color || "G",
+          clarity: c.clarity || "VS1",
+          size: c.size || ""
+        };
+      });
+
+    const gemstones = (p.components || [])
+      .filter(c => !["Diamond", "Polki", "Moissanite", "Belt", "Accessory"].includes(c.type) && c.pricingRef !== "BELT")
+      .map((c) => {
+        let rate = c.rateOverride || c.rate || "";
+        if (!rate && componentBreakup.length > 0) {
+          const match = componentBreakup.find(b => b.pricingRef === "STONE" || b.type === c.type);
+          if (match?.rate) rate = match.rate;
+        }
+        return {
+          _key: Math.random().toString(36).slice(2),
+          name: c.type || c.name || "gemstone",
+          shape: c.shape || "",
+          weight: String(c.weight || ""),
+          count: String(c.count || "1"),
+          grossWeight: String(c.grossWeight || ""),
+          rateOverride: String(rate || ""),
+          rateLocked: true,
+          rateType: c.rateType || "PER_CT"
+        };
+      });
+
+    const belts = (p.components || [])
+      .filter(c => c.type === "Belt" || c.type === "Accessory" || c.pricingRef === "BELT")
+      .map((c) => {
+        let rate = c.rateOverride || c.rate || "";
+        if (!rate && componentBreakup.length > 0) {
+          const match = componentBreakup.find(b => b.pricingRef === "BELT");
+          if (match?.rate) rate = match.rate;
+        }
+        return {
+          _key: Math.random().toString(36).slice(2),
+          category: c.category || "Belt",
+          material: c.description || c.material || "",
+          color: c.shape || c.color || "",
+          size: c.size || "",
+          count: String(c.count || "1"),
+          rateOverride: String(rate || ""),
+          rateLocked: true
+        };
+      });
+
+    return {
+      ...defaultItem(),
+      sku: p.sku || "",
+      title: p.title || "",
+      jewelleryCategory: p.jewelleryCategory || "Ring",
+      description: p.description || "",
+      metalType: p.metalType || "Gold",
+      metalPurity: p.metalPurity || "22KT",
+      netWeight: String(p.netWeight !== undefined && p.netWeight !== null ? p.netWeight : ""),
+      grossWeight: String(p.grossWeight !== undefined && p.grossWeight !== null ? p.grossWeight : ""),
+      fineGold: fineGold,
+      metalRate: String(pr.metalRate || p.metalRate || ""),
+      makingRate: String(pr.makingRate || p.makingRate || ""),
+      huid: p.huid || "",
+      hsnCode: p.hsnCode || (p.jewelleryCategory === "Loose Diamond" ? "7102" : "7113"),
+      quantity: String(p.quantity || "1"),
+      discountEnabled: true,
+      images: p.images || [],
+      imagePreviews: (p.images || []).map(img => getImageUrl(img)),
+      diamonds,
+      gemstones,
+      belts,
+      breakup: null,
+      collapsed: false,
+    };
+  };
+
+  const handleSelectSinglePickup = async (res) => {
+    try {
+      const newItem = await convertProductToEstimateItem(res);
+      setItems((prev) => {
+        const updated = [...prev];
+        if (targetItemIndex !== null && targetItemIndex >= 0 && targetItemIndex < updated.length) {
+          updated[targetItemIndex] = newItem;
+        } else {
+          if (
+            updated.length === 1 &&
+            !updated[0].title &&
+            !updated[0].sku &&
+            !updated[0].netWeight &&
+            !updated[0].grossWeight
+          ) {
+            updated[0] = newItem;
+          } else {
+            updated.push(newItem);
+          }
+        }
+        return updated;
+      });
+
+      setIsPickupModalOpen(false);
+      toast.success(`Picked up SKU: ${res.sku} into estimate!`);
+      setTimeout(() => triggerCalculate(), 50);
+    } catch (err) {
+      console.error("Single pickup error:", err);
+      toast.error("Failed to add product to estimate");
+    }
+  };
+
+  const togglePickupSelection = (res, e) => {
+    if (e) e.stopPropagation();
+    setSelectedPickupMap(prev => {
+      const next = { ...prev };
+      if (next[res.id]) {
+        delete next[res.id];
+      } else {
+        next[res.id] = res;
+      }
+      return next;
+    });
+  };
+
+  const handleAddSelectedPickupProducts = async () => {
+    const selectedList = Object.values(selectedPickupMap);
+    if (selectedList.length === 0) {
+      toast.warning("No products selected");
+      return;
+    }
+
+    try {
+      setPickupLoading(true);
+      const convertedItems = await Promise.all(selectedList.map(res => convertProductToEstimateItem(res)));
+
+      setItems((prev) => {
+        let updated = [...prev];
+        if (
+          updated.length === 1 &&
+          !updated[0].title &&
+          !updated[0].sku &&
+          !updated[0].netWeight &&
+          !updated[0].grossWeight
+        ) {
+          updated = convertedItems;
+        } else {
+          updated = [...updated, ...convertedItems];
+        }
+        return updated;
+      });
+
+      setIsPickupModalOpen(false);
+      setSelectedPickupMap({});
+      toast.success(`Added ${convertedItems.length} products to estimate!`);
+      setTimeout(() => triggerCalculate(), 50);
+    } catch (err) {
+      console.error("Multi pickup error:", err);
+      toast.error("Failed to add selected products");
+    } finally {
+      setPickupLoading(false);
+    }
+  };
+
+  const getFilteredPickupResults = () => {
+    return pickupResults.filter((res) => {
+      if (pickupTab === "ALL") return true;
+      if (pickupTab === "PRODUCT") return res.type === "PRODUCT";
+      if (pickupTab === "DIAMOND") return res.type === "DIAMOND";
+      if (pickupTab === "GOLD") return res.type === "PRODUCT" && (res.metalType || "").toLowerCase().includes("gold");
+      if (pickupTab === "SILVER") return res.type === "PRODUCT" && (res.metalType || "").toLowerCase().includes("silver");
+      return true;
+    });
+  };
+
+  const handleToggleAllVisible = () => {
+    const visible = getFilteredPickupResults();
+    const allSelected = visible.length > 0 && visible.every(r => selectedPickupMap[r.id]);
+    if (allSelected) {
+      setSelectedPickupMap(prev => {
+        const next = { ...prev };
+        visible.forEach(r => delete next[r.id]);
+        return next;
+      });
+    } else {
+      setSelectedPickupMap(prev => {
+        const next = { ...prev };
+        visible.forEach(r => { next[r.id] = r; });
+        return next;
+      });
+    }
+  };
+
   /* ───── Load for Edit ───── */
   useEffect(() => {
     if (!isEdit) return;
@@ -500,6 +900,7 @@ export default function EstimateBuilder() {
 
             return {
               _key: Math.random().toString(36).slice(2),
+              sku: it.sku || "",
               title: it.title || "",
               jewelleryCategory: it.jewelleryCategory || "Ring",
               description: it.description || "",
@@ -541,6 +942,7 @@ export default function EstimateBuilder() {
     if (initialProduct && !isEdit) {
       const mappedItems = [{
         ...defaultItem(),
+        sku: initialProduct.sku || "",
         title: initialProduct.title || "",
         jewelleryCategory: initialProduct.jewelleryCategory || "Ring",
         description: initialProduct.description || "",
@@ -727,6 +1129,7 @@ export default function EstimateBuilder() {
 
 
       return {
+        sku: it.sku || "",
         title: it.title,
         jewelleryCategory: it.jewelleryCategory,
         description: it.description,
@@ -972,6 +1375,33 @@ export default function EstimateBuilder() {
           </div>
 
 
+          {/* ===== ESTIMATE ITEMS SECTION HEADER ===== */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-6 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-5 bg-[#632947] rounded-full"></span>
+              <h2 className="text-sm uppercase font-bold text-slate-700 tracking-wider">
+                Estimate Items ({items.length})
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openPickupModal(null)}
+                className="bg-[#632947] hover:bg-[#52203a] text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
+                title="Pickup products or loose diamonds from inventory by SKU"
+              >
+                <PackageSearch size={15} /> Pickup by SKU
+              </button>
+              <button
+                type="button"
+                onClick={addItem}
+                className="text-slate-600 hover:text-[#632947] bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+              >
+                <Plus size={14} /> Add Blank Item
+              </button>
+            </div>
+          </div>
+
           {/* ===== ITEMS ===== */}
           {items.map((item, itemIndex) => (
             <div key={item._key} className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm mb-5">
@@ -979,7 +1409,24 @@ export default function EstimateBuilder() {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#632947] text-xs font-bold text-white shrink-0">{itemIndex + 1}</div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-semibold text-[#1B3B59] truncate">{item.title || "New Jewellery Item"}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-[#1B3B59] truncate">{item.title || "New Jewellery Item"}</span>
+                      {item.sku ? (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 shrink-0">
+                          <Barcode size={11} className="text-amber-600" />
+                          SKU: {item.sku}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openPickupModal(itemIndex)}
+                          className="text-[10px] font-bold text-[#632947] bg-[#632947]/10 hover:bg-[#632947]/20 px-2 py-0.5 rounded-md border border-[#632947]/20 flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                          title="Populate or replace this item with inventory SKU"
+                        >
+                          <PackageSearch size={11} /> Pickup SKU
+                        </button>
+                      )}
+                    </div>
                     {item.collapsed && (
                       <span className="text-[10px] text-slate-500 flex items-center gap-2">
                         <span>{item.jewelleryCategory}</span>
@@ -1358,14 +1805,25 @@ export default function EstimateBuilder() {
             </div>
           ))}
 
-          {/* Add Item Button */}
-          <button
-            onClick={addItem}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-lg border-2 border-dashed border-slate-300 hover:border-[#632947] text-slate-400 hover:text-[#632947] text-sm font-medium transition-all hover:bg-white/50"
-          >
-            <Plus size={16} />
-            Add Another Item
-          </button>
+          {/* Add Item Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={addItem}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#632947] text-slate-500 hover:text-[#632947] text-sm font-semibold transition-all hover:bg-white/50 cursor-pointer"
+            >
+              <Plus size={16} />
+              Add Blank Item
+            </button>
+            <button
+              type="button"
+              onClick={() => openPickupModal(null)}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-[#632947]/30 hover:border-[#632947] bg-[#632947]/5 hover:bg-[#632947]/10 text-[#632947] text-sm font-bold transition-all shadow-2xs cursor-pointer"
+            >
+              <PackageSearch size={17} />
+              Pickup from Inventory (SKU)
+            </button>
+          </div>
         </div>
 
         {/* ══════════════════ RIGHT COLUMN — SUMMARY & OVERRIDES ══════════════════ */}
@@ -1637,6 +2095,300 @@ export default function EstimateBuilder() {
           )}
         </div>
       </div>
+
+      {/* ================= STORE PICKUP BY SKU MODAL ================= */}
+      {isPickupModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full p-3.5 sm:p-6 shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in zoom-in-95 duration-200 overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-start pb-3 sm:pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#632947]/10 border border-[#632947]/20 text-[#632947] flex items-center justify-center shadow-xs shrink-0">
+                  <PackageSearch className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-extrabold text-[#1B3B59] text-base sm:text-xl tracking-tight">
+                      Pickup Product by SKU
+                    </h3>
+                    {targetItemIndex !== null && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#632947]/10 text-[#632947] border border-[#632947]/20">
+                        Replacing Item {targetItemIndex + 1}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                    Select jewellery or loose diamonds to add to this estimate quotation (stock 0 allowed).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPickupModalOpen(false)}
+                className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 ml-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search Bar & Filter Tabs */}
+            <div className="py-3 sm:py-4 space-y-2.5 sm:space-y-3">
+              <div className="relative flex items-center">
+                <Search size={16} className="absolute left-3.5 sm:left-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search by SKU (e.g. NDNK0001, RG-0001) or Product Name..."
+                  value={pickupSearch}
+                  onChange={(e) => handleSearchInput(e.target.value)}
+                  className="w-full pl-9 sm:pl-11 pr-10 sm:pr-12 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-[#632947] focus:ring-4 focus:ring-[#632947]/10 transition-all font-medium text-slate-800 placeholder-slate-400 shadow-xs"
+                />
+                <div className="absolute right-3 sm:right-3.5 flex items-center gap-1.5">
+                  {pickupLoading && (
+                    <Loader2 size={16} className="text-[#632947] animate-spin" />
+                  )}
+                  {pickupSearch && !pickupLoading && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickupSearch("");
+                        fetchPickupResults("");
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Tabs & Select All Visible Button */}
+              <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 no-scrollbar sm:scrollbar-none -mx-1 px-1">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {[
+                    { key: "ALL", label: "All Items", icon: LayoutGrid, count: pickupResults.length },
+                    { key: "PRODUCT", label: "Jewellery", icon: Gem, count: pickupResults.filter(r => r.type === "PRODUCT").length },
+                    { key: "DIAMOND", label: "Loose Diamonds", icon: Sparkles, count: pickupResults.filter(r => r.type === "DIAMOND").length },
+                    { key: "GOLD", label: "Gold", icon: Coins, count: pickupResults.filter(r => r.type === "PRODUCT" && (r.metalType || "").toLowerCase().includes("gold")).length },
+                    { key: "SILVER", label: "Silver", icon: Shield, count: pickupResults.filter(r => r.type === "PRODUCT" && (r.metalType || "").toLowerCase().includes("silver")).length },
+                  ].map((tab) => {
+                    const isActive = pickupTab === tab.key;
+                    const IconComponent = tab.icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setPickupTab(tab.key)}
+                        className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                          isActive
+                            ? "bg-[#632947] text-white shadow-xs"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        <IconComponent size={13} className={isActive ? "text-white" : "text-slate-500"} />
+                        <span>{tab.label}</span>
+                        <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                          isActive ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Select All Toggle for Multi-select */}
+                {pickupResults.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleToggleAllVisible}
+                    className="text-[11px] font-bold text-[#632947] hover:text-[#4d1f37] px-2.5 py-1.5 rounded-lg border border-[#632947]/20 hover:bg-[#632947]/5 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                  >
+                    <CheckSquare size={13} />
+                    <span>
+                      {getFilteredPickupResults().length > 0 && getFilteredPickupResults().every(r => selectedPickupMap[r.id])
+                        ? "Deselect All"
+                        : "Select All Visible"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto space-y-2 sm:space-y-2.5 pr-0.5 sm:pr-1 min-h-[260px] max-h-[55vh]">
+              {pickupLoading && pickupResults.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                    <Loader2 size={24} className="animate-spin text-[#632947]" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700">Searching inventory products & diamonds...</p>
+                  <p className="text-xs text-slate-400 mt-1">Retrieving SKU specifications, images, and live prices</p>
+                </div>
+              ) : (
+                (() => {
+                  const filtered = getFilteredPickupResults();
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-3 text-slate-400">
+                          <Barcode size={32} />
+                        </div>
+                        <p className="text-sm font-bold text-slate-700">No matching items found</p>
+                        <p className="text-xs text-slate-400 mt-1">Try entering a different SKU number or keyword</p>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((res) => {
+                    const isDiamond = res.type === "DIAMOND";
+                    const isSelected = Boolean(selectedPickupMap[res.id]);
+
+                    return (
+                      <div
+                        key={res.id}
+                        onClick={() => handleSelectSinglePickup(res)}
+                        className={`group p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 cursor-pointer ${
+                          isSelected
+                            ? "border-[#632947] bg-[#632947]/5 shadow-sm"
+                            : "border-slate-200 hover:border-[#632947]/60 bg-white hover:bg-slate-50/70 shadow-2xs hover:shadow-md"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                          {/* Multi-Select Checkbox */}
+                          <button
+                            type="button"
+                            onClick={(e) => togglePickupSelection(res, e)}
+                            className="p-1 rounded text-slate-400 hover:text-[#632947] transition-colors shrink-0 cursor-pointer"
+                            title={isSelected ? "Deselect" : "Select for multiple pickup"}
+                          >
+                            {isSelected ? (
+                              <CheckSquare size={19} className="text-[#632947]" />
+                            ) : (
+                              <Square size={19} className="text-slate-300 hover:text-slate-500" />
+                            )}
+                          </button>
+
+                          {/* Image Thumbnail */}
+                          <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative shrink-0 flex items-center justify-center">
+                            {res.image ? (
+                              <img src={res.image} alt={res.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                <Gem size={20} className={isDiamond ? "text-purple-600" : "text-amber-600"} />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            {/* Badges row */}
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1">
+                              <span className="font-mono text-[10px] sm:text-[11px] font-extrabold px-1.5 sm:px-2 py-0.5 bg-[#632947]/10 text-[#632947] rounded-md border border-[#632947]/20">
+                                {res.sku}
+                              </span>
+                              <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                {isDiamond ? "Loose Diamond" : res.category || "Jewellery"}
+                              </span>
+                              {res.stock !== undefined && (
+                                res.stock > 2 ? (
+                                  <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    In Stock ({res.stock})
+                                  </span>
+                                ) : res.stock > 0 ? (
+                                  <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Low Stock ({res.stock})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1" title="Quotation allowed with 0 stock">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                    Stock: 0 (Available for Estimate)
+                                  </span>
+                                )
+                              )}
+                            </div>
+
+                            <h4 className="font-bold text-xs sm:text-sm truncate text-[#1B3B59] group-hover:text-[#632947] transition-colors leading-tight">
+                              {res.title}
+                            </h4>
+                            <p className="text-[10px] sm:text-xs text-slate-500 truncate mt-0.5 font-medium">
+                              {res.subtitle}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          <div className="text-left sm:text-right">
+                            <span className="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block leading-none mb-0.5">
+                              EST. VALUE
+                            </span>
+                            <p className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                              ₹{(res.price || 0).toLocaleString("en-IN")}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectSinglePickup(res);
+                            }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+                              isSelected
+                                ? "bg-[#632947] text-white"
+                                : "bg-slate-100 text-slate-700 group-hover:bg-[#632947] group-hover:text-white"
+                            }`}
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
+
+            {/* Bottom Multi-Select Actions Bar */}
+            {Object.keys(selectedPickupMap).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#632947] text-white text-xs font-bold">
+                    {Object.keys(selectedPickupMap).length}
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-700">
+                    {Object.keys(selectedPickupMap).length === 1 ? "1 product selected" : `${Object.keys(selectedPickupMap).length} products selected`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPickupMap({})}
+                    className="text-xs text-slate-400 hover:text-slate-600 underline ml-2 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddSelectedPickupProducts}
+                  disabled={pickupLoading}
+                  className="bg-[#632947] hover:bg-[#52203a] text-white px-4 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  {pickupLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Check size={16} />
+                  )}
+                  Add {Object.keys(selectedPickupMap).length} Selected to Estimate
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

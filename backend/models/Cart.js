@@ -2,7 +2,7 @@
 import mongoose from "mongoose";
 
 const cartSchema = new mongoose.Schema(
-  {
+  { 
     sessionId: {
       type: String, // POS / guest user
       required: true,
@@ -50,10 +50,10 @@ const cartSchema = new mongoose.Schema(
             stateCode: String,
           },
           rateSource: {
-  type: String,
-  enum: ["ACTIVE", "ORDER_LOCKED"],
-  required: true,
-},
+            type: String,
+            enum: ["ACTIVE", "ORDER_LOCKED"],
+            required: true,
+          },
 
 
           // 💍 FULL product snapshot (AS-IS from Order)
@@ -91,7 +91,7 @@ const cartSchema = new mongoose.Schema(
       discountStone: { type: Number, default: 0 },
       discountMaking: { type: Number, default: 0 },
     },
-    
+
   },
   { timestamps: true }
 );

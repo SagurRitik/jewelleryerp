@@ -166,46 +166,64 @@ export default function CheckoutPage() {
   const [expandedItems, setExpandedItems] = useState({});
   const [appliedCelebrationDiscount, setAppliedCelebrationDiscount] = useState(null);
 
-  /* ================= RECALCULATE EFFECTIVE TOTALS ON CELEBRATION DISCOUNT ================= */
+  /* ================= 🛡️ RECALCULATE EFFECTIVE TOTALS (MUTUAL EXCLUSIVE RULE) ================= */
+  // Rule: Either Regular Discount OR Celebration Discount applies. NEVER BOTH.
   const effectiveTotals = useMemo(() => {
     if (!cart?.totals) return null;
     const discountAmount = Number(appliedCelebrationDiscount?.amount || 0);
+
+    // If no celebration discount applied, regular discount remains active
     if (discountAmount <= 0) return cart.totals;
 
-    const baseSubtotal = Number(cart.totals.subtotal || 0);
-    const newSubtotal = Math.max(0, Number((baseSubtotal - discountAmount).toFixed(2)));
+    // When Celebration discount is active, Regular Discount is disabled (0),
+    // and celebration discount is deducted directly from Gross Total.
+    const grossTotal = Number(
+      cart.totals.grossTotal ||
+      (Number(cart.totals.subtotal || 0) + Number(cart.totals.discount || cart.totals.regularDiscount || 0)) ||
+      0
+    );
+    const cappedCelebrationDiscount = Math.min(discountAmount, grossTotal);
+    const newSubtotal = Math.max(0, Number((grossTotal - cappedCelebrationDiscount).toFixed(2)));
 
-    const gstRate = rates?.gstRate ? Number(rates.gstRate) : (baseSubtotal > 0 ? (Number(cart.totals.gst || 0) / baseSubtotal) * 100 : 3);
+    const gstRate = rates?.gstRate
+      ? Number(rates.gstRate)
+      : (grossTotal > 0 && cart.totals.subtotal
+          ? (Number(cart.totals.gst || 0) / Number(cart.totals.subtotal)) * 100
+          : 3);
     const newGst = Number(((newSubtotal * gstRate) / 100).toFixed(2));
     const unroundedGrandTotal = Number((newSubtotal + newGst).toFixed(2));
     const newGrandTotal = Math.round(unroundedGrandTotal);
     const newRoundOff = Number((newGrandTotal - unroundedGrandTotal).toFixed(2));
 
-    const totalDiscount = Number(((cart.totals.discount || 0) + discountAmount).toFixed(2));
+    const totalDiscount = cappedCelebrationDiscount;
     const advancePayment = Number(cart.totals.advancePayment || 0);
     const metalPayment = Number(cart.totals.metalPayment || 0);
     const newPayable = Math.max(0, Math.round(newGrandTotal - advancePayment - metalPayment));
 
-    let discountMaking = cart.totals.discountMaking || 0;
-    let discountDiamond = cart.totals.discountDiamond || 0;
-    let discountStone = cart.totals.discountStone || 0;
+    let discountMaking = 0;
+    let discountDiamond = 0;
+    let discountStone = 0;
 
-    if (appliedCelebrationDiscount.target === "MAKING") discountMaking += discountAmount;
-    else if (appliedCelebrationDiscount.target === "DIAMOND") discountDiamond += discountAmount;
-    else if (appliedCelebrationDiscount.target === "STONE") discountStone += discountAmount;
+    if (appliedCelebrationDiscount.target === "MAKING") discountMaking = cappedCelebrationDiscount;
+    else if (appliedCelebrationDiscount.target === "DIAMOND") discountDiamond = cappedCelebrationDiscount;
+    else if (appliedCelebrationDiscount.target === "STONE") discountStone = cappedCelebrationDiscount;
 
     return {
       ...cart.totals,
+      grossTotal,
       subtotal: newSubtotal,
       gst: newGst,
       roundOff: newRoundOff,
       grandTotal: newGrandTotal,
+      regularDiscount: 0,
+      celebrationDiscount: cappedCelebrationDiscount,
       discount: totalDiscount,
       discountMaking,
       discountDiamond,
       discountStone,
       payable: newPayable,
       netPayable: newPayable,
+      isCelebrationActive: true,
     };
   }, [cart?.totals, appliedCelebrationDiscount, rates]);
 
