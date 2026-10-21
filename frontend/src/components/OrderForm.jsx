@@ -12,16 +12,74 @@ import { getDiamondRates } from "../api/diamondRateApi";
 import { getStoneRates } from "../api/stoneRateApi";
 import { findMatchingDiamondRate, findMatchingStoneRate } from "../utils/rateMatchUtils";
 
+import { DIAMOND_COLORS as COLORS_DIAMOND, DIAMOND_CLARITIES as CLARITIES, DIAMOND_SHAPES as SHAPES } from "../utils/diamondConstants";
+
+const COLOR_GROUPS = {
+  "D-F": ["D", "E", "F"],
+  "G-H": ["G", "H"],
+  "I-J": ["I", "J"],
+  "K-L": ["K", "L"],
+  "M-N": ["M", "N"],
+  "O-P": ["O", "P"],
+};
+
+const CLARITY_GROUPS = {
+  "VVS-VS": ["VVS1", "VVS2", "VS1", "VS2"],
+  "SI-I": ["SI1", "SI2", "I1", "I2"],
+};
+
+const SelectWithGroups = ({ list, groups, value, onChange, className }) => {
+  // Normalize incoming value: uppercase + find exact match in all options
+  const allOptions = [...Object.keys(groups), ...list];
+  const upper = value ? value.toString().toUpperCase().trim() : "";
+  // Try exact match first (case-insensitive)
+  const matchedOption = upper ? allOptions.find(opt => opt.toUpperCase() === upper) : null;
+  // Use matched option string (preserves case of option), else use original uppercase value
+  const normalizedValue = matchedOption || upper || "";
+  // If value is set but still doesn't match any option, show it as a custom entry
+  const isCustomValue = normalizedValue && !allOptions.some(opt => opt.toUpperCase() === normalizedValue.toUpperCase());
+
+  return (
+    <select
+      value={normalizedValue}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+    >
+      <option value="">Select</option>
+
+      {/* Custom fallback: render stored value as option if not in predefined list */}
+      {isCustomValue && (
+        <option key="__custom__" value={normalizedValue}>
+          {normalizedValue} (custom)
+        </option>
+      )}
+
+      {/* GROUPS */}
+      {Object.keys(groups).map((g) => (
+        <option key={g} value={g}>
+          {g}
+        </option>
+      ))}
+
+      {/* INDIVIDUAL */}
+      <optgroup label="Individual">
+        {list.map((v) => (
+          <option key={v} value={v}>
+            {v}
+          </option>
+        ))}
+      </optgroup>
+    </select>
+  );
+};
+
 const STONE_OPTIONS = [
   "ruby", "pearl", "red-coral", "emerald", "yellow-sapphire",
   "diamond", "blue-sapphire", "hessonite", "cats-eye", "gemstone"
 ];
 
-const SHAPE_OPTIONS = ["Round", "Princess", "Cushion", "Oval", "Emerald", "Pear",
-  "Marquise", "Asscher", "Radiant", "Heart", "Baguette", "Funcy", "Portuguese Cut"];
-const CLARITY_OPTIONS = ["FL", "IF", "VVS-VS", "VVS1", "VVS2", "VS1", "VS2", "SI", "I"];
+const SHAPE_OPTIONS = SHAPES;
 const PAYMENT_MODES = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
-const COLOR_OPTIONS = ["D-F", "G-H", "I-J", "O-Z"];
 const ACCESSORY_CATEGORIES = ["Belt", "Box", "Bag", "Certificate", "Other"];
 const JEWELLERY_CATEGORIES = [
   "Ring", "Necklace", "Bracelet", "Earring", "Bangle", "Pendant", "Chain", "Mangalsutra", "Rakhi", "Loose Diamond", "Other"
@@ -415,8 +473,8 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
             grossWeight: 0,
             size: "",
             count: 1,
-            clarity: "VVS",
-            color: "",
+            clarity: "VS2",
+            color: "D",
             rateOverride: null,
             rateLocked: false
           }
@@ -1371,7 +1429,7 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
                           onChange={(e) => updateDiamond(index, "shape", e.target.value)}
                         >
                           <option value="">Select</option>
-                          {SHAPE_OPTIONS.map(shape => (
+                          {SHAPES.map(shape => (
                             <option key={shape} value={shape}>{shape}</option>
                           ))}
                         </select>
@@ -1379,30 +1437,24 @@ export default function OrderForm({ onSuccess, initialProduct: propInitialProduc
 
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Clarity</label>
-                        <select
-                          className="h-9 px-2 border border-gray-300 rounded text-xs bg-white"
+                        <SelectWithGroups
+                          list={CLARITIES}
+                          groups={CLARITY_GROUPS}
                           value={diamond.clarity}
-                          onChange={(e) => updateDiamond(index, "clarity", e.target.value)}
-                        >
-                          <option value="">Select</option>
-                          {CLARITY_OPTIONS.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => updateDiamond(index, "clarity", v)}
+                          className="h-9 px-2 border border-gray-300 rounded text-xs bg-white"
+                        />
                       </div>
 
                       <div className="flex flex-col">
                         <label className="text-[11px] text-gray-600 mb-1">Color</label>
-                        <select
-                          className="h-9 px-2 border border-gray-300 rounded text-xs bg-white"
+                        <SelectWithGroups
+                          list={COLORS_DIAMOND}
+                          groups={COLOR_GROUPS}
                           value={diamond.color}
-                          onChange={(e) => updateDiamond(index, "color", e.target.value)}
-                        >
-                          <option value="">Select</option>
-                          {COLOR_OPTIONS.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => updateDiamond(index, "color", v)}
+                          className="h-9 px-2 border border-gray-300 rounded text-xs bg-white"
+                        />
                       </div>
 
                       <div className="flex flex-col">
